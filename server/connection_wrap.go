@@ -23,6 +23,8 @@ const (
 	scrambleLen_323       = 8
 )
 
+var connectionWrapperLog = log.GetLog("ConnectionWrapper")
+
 type connectionWrapper struct {
 	id            uint32
 	conn          net.Conn
@@ -40,7 +42,7 @@ type connectionWrapper struct {
 	ctx           context.Context
 }
 
-func NewConnectionWrapper(readTimeout, writeTimeout time.Duration, log *log.SimpleLog, ctx context.Context) *connectionWrapper {
+func NewConnectionWrapper(readTimeout, writeTimeout time.Duration, ctx context.Context) *connectionWrapper {
 	return &connectionWrapper{
 		scramble:     make([]byte, scrambleLen),
 		rand:         rand.New(rand.NewSource(time.Now().Unix())),
@@ -48,7 +50,6 @@ func NewConnectionWrapper(readTimeout, writeTimeout time.Duration, log *log.Simp
 		writeTimeout: writeTimeout,
 		serverStatus: util.ServerStatusAutoCommit,
 		acl:          &ACL{},
-		log:          log.AddHeader("ConnectionWrapper"),
 		ctx:          ctx,
 	}
 }
@@ -291,7 +292,14 @@ func (wrap *connectionWrapper) parseCommand() {
 			wrap.sendErr(err)
 			return
 		}
-		command.Command.Do()
+		exit, err := command.Do()
+		if err == -1 {
+			// Todo: need to send affectRows and messages.
+			wrap.sendOk()
+		}
+		if exit {
+			return
+		}
 	}
 }
 
@@ -303,52 +311,7 @@ func (wrap *connectionWrapper) readCommand() (Command, errCodeType) {
 	if len(packet) <= 0 {
 		return Command{}, ER_NET_READ_ERROR
 	}
-	switch CommandType(packet[0]) {
-	case TpComQuery:
-		// Text Protocol
-		return Command{Tp: TpComQuery, CommandStr: string(packet[1:])}, -1
-	// Utility commands
-	case TpComQuit:
-		return Command{Tp: TpComQuit}, -1
-	case TpComInitDB:
-		return Command{Tp: TpComInitDB, CommandStr: string(packet[1:])}, -1
-	case TpComFieldList:
-		// Todo:
-		return Command{Tp: TpComFieldList}, -1
-	case TpComRefresh:
-		return Command{Tp: TpComRefresh, CommandStr: ""}, -1
-	case TpComStatistics:
-		return Command{Tp: TpComStatistics}, -1
-	case TpComProcessInfo:
-		return Command{Tp: TpComProcessInfo}, -1
-	case TpComProcessKill:
-		return Command{Tp: TpComProcessKill}, -1
-	case TpComDebug:
-		return Command{Tp: TpComDebug}, -1
-	case TpComPing:
-		return Command{Tp: TpComPing}, -1
-	case TpComChangeUser:
-		return Command{Tp: TpComChangeUser}, -1
-	case TpComResetConnection:
-		return Command{Tp: TpComResetConnection}, -1
-	case TpComSetOption:
-		return Command{Tp: TpComSetOption}, -1
-	// Prepared Statements
-	case TpComStmtPrepare:
-		return Command{Tp: TpComStmtPrepare}, -1
-	case TpComStmtExecute:
-		return Command{Tp: TpComStmtExecute}, -1
-	case TpComStmtFetch:
-		return Command{Tp: TpComStmtFetch}, -1
-	case TpComStmtClose:
-		return Command{Tp: TpComStmtClose}, -1
-	case TpComStmtReset:
-		return Command{Tp: TpComStmtReset}, -1
-	case TpComStmtSendLongData:
-		return Command{Tp: TpComStmtSendLongData}, -1
-	default:
-		return Command{}, ER_UNKNOWN_COM_ERROR
-	}
+	return decodeCommand(packet)
 }
 
 // See find_mpvio_user method

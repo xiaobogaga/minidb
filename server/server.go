@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+var (
+	serverLog             = log.GetLog("server")
+	ProtolVersion         = 10
+	ServerVersion         = "Hello :), happy today. v1.0"
+	defaultUnixSocketAddr = "/tmp/mysql.sock"
+	defaultPoolSize       = 16
+	defaultTimeout        = 1000
+)
+
 // A Simple Tcp Server supports mysql protocol
 type SimpleServer struct {
 	Size               int
@@ -23,16 +32,9 @@ type SimpleServer struct {
 	connectionParserCh chan *ConnectionParser
 	ctx                context.Context
 	cancel             context.CancelFunc
-	logger             log.SimpleLogWrapper
 }
 
-var ProtolVersion = 10
-var ServerVersion = "Hello :), happy today. v1.0"
-var defaultUnixSocketAddr = "/tmp/mysql.sock"
-var defaultPoolSize = 16
-var defaultTimeout = 1000
-
-func NewServer(port, connectionParserPoolSize int, log *log.SimpleLog) *SimpleServer {
+func NewServer(port, connectionParserPoolSize int) *SimpleServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SimpleServer{
 		Port:               port,
@@ -43,11 +45,10 @@ func NewServer(port, connectionParserPoolSize int, log *log.SimpleLog) *SimpleSe
 		unixSocketAddr:     defaultUnixSocketAddr,
 		cancel:             cancel,
 		connectionParserCh: make(chan *ConnectionParser, connectionParserPoolSize),
-		logger:             log.AddHeader("SimpleServer"),
 	}
 }
 
-func NewServerWithTimeout(port int, readTimeout, writeTimeout time.Duration, unixSocketAddr string, log *log.SimpleLog) *SimpleServer {
+func NewServerWithTimeout(port int, readTimeout, writeTimeout time.Duration, unixSocketAddr string) *SimpleServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SimpleServer{
 		Port:               port,
@@ -58,7 +59,6 @@ func NewServerWithTimeout(port int, readTimeout, writeTimeout time.Duration, uni
 		cancel:             cancel,
 		unixSocketAddr:     unixSocketAddr,
 		connectionParserCh: make(chan *ConnectionParser, defaultPoolSize),
-		logger:             log.AddHeader("SimpleServer"),
 	}
 }
 
@@ -74,7 +74,7 @@ func (server *SimpleServer) Start() error {
 	// TODO: we might need to remove this method call. Before mysql would error
 	err = os.RemoveAll(defaultUnixSocketAddr)
 	if err != nil {
-		server.logger.WarnF("remove % path to init unix socket err: %v", err)
+		serverLog.WarnF("remove % path to init unix socket err: %v", err)
 	}
 	server.unixListener, err = net.Listen("unix", defaultUnixSocketAddr)
 	if err != nil {
@@ -82,12 +82,12 @@ func (server *SimpleServer) Start() error {
 	}
 	go server.WaitConnection()
 	go server.WaitUnixSocketConnection()
-	server.logger.InfoF("server started.")
+	serverLog.InfoF("server started.")
 	return nil
 }
 
 func (server *SimpleServer) Close() {
-	server.logger.InfoF("close server")
+	serverLog.InfoF("close server")
 	server.Listener.Close()
 	server.unixListener.Close()
 	server.cancel()
@@ -102,11 +102,11 @@ func (server *SimpleServer) WaitConnection() {
 		}
 		connection, err := server.Listener.AcceptTCP()
 		if err != nil {
-			server.logger.WarnF("accept connection error. err: %v", err)
+			serverLog.WarnF("accept connection error. err: %v", err)
 			continue
 		}
 		addr := connection.RemoteAddr()
-		server.logger.InfoF("accept connection from %s:%s.", addr.Network(), addr.String())
+		serverLog.InfoF("accept connection from %s:%s.", addr.Network(), addr.String())
 		conParser := server.getParser()
 		if conParser != nil {
 			go conParser.parseConnection(connection, false)
@@ -123,10 +123,10 @@ func (server *SimpleServer) WaitUnixSocketConnection() {
 		}
 		connection, err := server.unixListener.Accept()
 		if err != nil {
-			server.logger.WarnF("accept connection error. err: %v.", err)
+			serverLog.WarnF("accept connection error. err: %v.", err)
 			continue
 		}
-		server.logger.InfoF("accept connection from unix socket.")
+		serverLog.InfoF("accept connection from unix socket.")
 		conParser := server.getParser()
 		if conParser != nil {
 			go conParser.parseConnection(connection, true)
@@ -134,12 +134,8 @@ func (server *SimpleServer) WaitUnixSocketConnection() {
 	}
 }
 
-func (server *SimpleServer) getLog() *log.SimpleLog {
-	return log.GetLog("SimpleServer")
-}
-
 func (server *SimpleServer) createNewParser() *ConnectionParser {
-	parser := newConnectionParser(server.ReadTimeout, server.WriteTimeout, server.connectionParserCh, server.logger.GetUnderlineLog(), server.ctx)
+	parser := newConnectionParser(server.ReadTimeout, server.WriteTimeout, server.connectionParserCh, server.ctx)
 	server.connectionParsers = append(server.connectionParsers, parser)
 	server.Size += 1
 	return parser
@@ -158,22 +154,22 @@ func (server *SimpleServer) getParser() *ConnectionParser {
 	}
 }
 
+var connectionParserLog = log.GetLog("ConnectionParser")
+
 type ConnectionParser struct {
 	Count       int
 	reuseCh     chan *ConnectionParser
 	connWrapper *connectionWrapper
-	log         log.SimpleLogWrapper
 	ctx         context.Context
 	cancel      context.CancelFunc
 }
 
-func newConnectionParser(readTimeout, writeTimeout time.Duration, reuseCh chan *ConnectionParser, log *log.SimpleLog, ctx context.Context) *ConnectionParser {
+func newConnectionParser(readTimeout, writeTimeout time.Duration, reuseCh chan *ConnectionParser, ctx context.Context) *ConnectionParser {
 	ctx, cancel := context.WithCancel(ctx)
 	return &ConnectionParser{
 		reuseCh:     reuseCh,
 		Count:       0,
-		connWrapper: NewConnectionWrapper(readTimeout, writeTimeout, log, ctx),
-		log:         log.AddHeader("ConnectionParser"),
+		connWrapper: NewConnectionWrapper(readTimeout, writeTimeout, ctx),
 		cancel:      cancel,
 	}
 }
@@ -188,13 +184,13 @@ func (parser *ConnectionParser) parseConnection(connection net.Conn, fromUnixSoc
 	if err >= 0 {
 		// Close connection.
 		// Note: err returned here is ignored.
-		parser.log.InfoF("close connection.")
+		connectionParserLog.InfoF("close connection.")
 		parser.connWrapper.conn.Close()
 		parser.reuseCh <- parser
 		return
 	}
 	// Parsing command until exit.
-	parser.log.InfoF("authenticate success. start to parse command")
+	connectionParserLog.InfoF("authenticate success. start to parse command")
 	parser.connWrapper.parseCommand()
 	parser.reuseCh <- parser
 }
