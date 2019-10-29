@@ -2,6 +2,6 @@ package engine
 
 import "errors"
 
-func ExecuteCreateStm() error {
+func ExecuteAlterStm() error {
 	return errors.New("unsupported statement error")
 }

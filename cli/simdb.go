@@ -1,5 +1,0 @@
-package cli
-
-func main() {
-
-}

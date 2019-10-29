@@ -5,17 +5,15 @@ import (
 	"simpleDb/lexer"
 )
 
-const WrongWhereStmFormatErr = ParseError("wrong where statement format error")
+// A where statement is like: Where expressionStm
 
-func (parser *Parser) resolveWhereStm(ifNotRollback bool) (*ast.WhereStm, error) {
-	// WhereStm: [where ident|word==value1[ [Relation, ident|word Condition value2...]]
-	// WhereStm: [Where expression[,expression]+
-	if !parser.matchTokenType(lexer.WHERE, ifNotRollback) {
+func (parser *Parser) resolveWhereStm() (ast.WhereStm, error) {
+	if !parser.matchTokenTypes(true, lexer.WHERE) {
 		return nil, nil
 	}
-	expressionStms, err := parser.resolveExpression(false)
+	expressionStm, err := parser.resolveExpression()
 	if err != nil {
-		return nil, WrongWhereStmFormatErr.Wrapper(err)
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.WhereStm{ExpressionStms: expressionStms}, nil
+	return expressionStm, nil
 }

@@ -3,7 +3,6 @@ package parser
 import (
 	"github.com/stretchr/testify/assert"
 	"simpleDb/lexer"
-	"simpleDb/log"
 	"testing"
 )
 
@@ -22,8 +21,8 @@ func TestWhereStm(t *testing.T) {
 		assert.Nil(t, err, sql)
 		parser.l = lexer
 		parser.pos = -1
-		stm, err := parser.resolveWhereStm(false)
-		log.LogDebug("%v\n", stm)
+		_, err = parser.resolveWhereStm(false)
+		// log.LogDebug("%v\n", stm)
 		assert.Nil(t, err, sql)
 	}
 }
@@ -42,8 +41,8 @@ func TestFunctionCallStm(t *testing.T) {
 		assert.Nil(t, err, sql)
 		parser.l = lexer
 		parser.pos = -1
-		stm, err := parser.resolveFunctionCall(false)
-		log.LogDebug("%v\n", stm)
+		_, err = parser.resolveFunctionCall(false)
+		// log.LogDebug("%v\n", stm)
 		assert.Nil(t, err, sql)
 	}
 }

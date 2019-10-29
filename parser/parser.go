@@ -5,157 +5,109 @@ import (
 	"simpleDb/ast"
 	"simpleDb/lexer"
 	"simpleDb/log"
-	"strconv"
 )
 
+var parserLog = log.GetLog("Parser")
+
 type Parser struct {
-	pos int
-	l   *lexer.Lexer
+	pos    int
+	Tokens []lexer.Token
+	Data   []byte
 }
 
 func NewParser() *Parser {
 	return &Parser{}
 }
 
-type ParseError string
-
-func (e ParseError) Error() string {
-	return string(e)
+type SyntaxError struct {
+	LineNumber int
+	ErrData    string
 }
 
-func (e ParseError) Wrapper(err error) ParseError {
-	return ParseError(fmt.Sprintf("%s: %s", e, err))
+func (s SyntaxError) Error() string {
+	return fmt.Sprintf("syntax err near %s at %d line", s.ErrData, s.LineNumber)
 }
 
-const (
-	WrongSqlFormatErr = ParseError("wrong sql format err")
-	FloatFormatErr    = ParseError("wrong float format")
-	VarcharFormatErr  = ParseError("wrong varchar format")
-)
-
-func (parser *Parser) hasNext() bool {
-	parser.pos++
-	return parser.pos < len(parser.l.Tokens)
-}
-
-func (parser *Parser) getToken() lexer.Token {
-	return parser.l.Tokens[parser.pos]
-}
-
-func (parser *Parser) parseIdentOrWord(ifNotRollback bool) (s string, ret bool) {
-	if !parser.hasNext() {
-		return "", false
-	}
-	t := parser.getToken()
-	if t.Tp != lexer.IDENT && t.Tp != lexer.WORD {
-		if ifNotRollback {
-			parser.pos--
-		}
-		return "", false
-	}
-	if t.Tp == lexer.IDENT {
-		return string(parser.l.Data[t.StartPos:t.EndPos]), true
-	} else {
-		return string(parser.l.Data[t.StartPos:t.EndPos]), true
+func (parser *Parser) MakeSyntaxError(lineNumber, startPos int) error {
+	// Todo, make sure whether lineNumber can be 1.
+	return SyntaxError{
+		LineNumber: lineNumber,
+		ErrData:    string(parser.Data[parser.Tokens[startPos].StartPos:]),
 	}
 }
 
-const WrongColumnValueFormatErr = ParseError("unknown value format")
-
-func (parser *Parser) parseValue(ifNotRollback bool) (ast.ColumnValue, error) {
-	if !parser.hasNext() {
-		return ast.EmptyColumnValue, WrongColumnValueFormatErr
-	}
-	t := parser.getToken()
-	switch t.Tp {
-	case lexer.TRUE:
-		return ast.NewColumnValue(lexer.TRUE, true), nil
-	case lexer.FALSE:
-		return ast.NewColumnValue(lexer.FALSE, false), nil
-	case lexer.INTVALUE:
-		v, err := strconv.Atoi(string(parser.l.Data[t.StartPos:t.EndPos]))
-		if err != nil {
-			return ast.EmptyColumnValue, WrongColumnValueFormatErr.Wrapper(err)
-		}
-		return ast.NewColumnValue(lexer.INTVALUE, v), nil
-	case lexer.FLOATVALUE:
-		v, err := strconv.ParseFloat(string(parser.l.Data[t.StartPos:t.EndPos]), t.EndPos-t.StartPos-1)
-		if err != nil {
-			return ast.EmptyColumnValue, err
-		}
-		return ast.NewColumnValue(lexer.FLOATVALUE, v), nil
-	case lexer.CHARVALUE:
-		return ast.NewColumnValue(lexer.CHARVALUE, parser.l.Data[t.StartPos]), nil
-	case lexer.STRINGVALUE:
-		return ast.NewColumnValue(lexer.STRINGVALUE, string(parser.l.Data[t.StartPos:t.EndPos])), nil
-	}
-	return ast.EmptyColumnValue, WrongColumnValueFormatErr
-}
-
-func (parser *Parser) Parse(data []byte) (ast.SqlStms, error) {
+func (parser *Parser) Parse(data []byte) (stms []ast.Stm, err error) {
 	lex := lexer.NewLexer()
-	err := lex.Lex(data)
+	tokens, err := lex.Lex(data)
 	if err != nil {
-		return ast.EmptySqlStms, err
+		return nil, err
 	}
-	log.LogDebug("%s\n", lex)
-	sqlStm := ast.SqlStms{}
+	parser.Tokens = tokens
+	parser.Data = data
+	parser.pos = -1
 	var stm ast.Stm
-	parser.l = lex
-	parser.pos = 0
-	for ; parser.pos < len(parser.l.Tokens); parser.pos++ {
-		token := parser.l.Tokens[parser.pos]
+	for {
+		token, ok := parser.NextToken()
+		if !ok {
+			break
+		}
 		switch token.Tp {
 		case lexer.CREATE:
+			parser.UnReadToken()
 			stm, err = parser.resolveCreateStm()
 		case lexer.DROP:
-			stm, err = parser.resolveDropStm()
+			parser.UnReadToken()
+			stm, err = parser.parseDropStm()
+		case lexer.RENAME:
+			parser.UnReadToken()
+			stm, err = parser.resolveRenameStm()
+		case lexer.ALTER:
+			parser.UnReadToken()
+			stm, err = parser.resolveAlterStm()
+		case lexer.TRUNCATE:
+			parser.UnReadToken()
+			stm, err = parser.resolveTruncate()
 		case lexer.INSERT:
+			parser.UnReadToken()
 			stm, err = parser.resolveInsertStm()
 		case lexer.DELETE:
+			parser.UnReadToken()
 			stm, err = parser.resolveDeleteStm()
 		case lexer.UPDATE:
+			parser.UnReadToken()
 			stm, err = parser.resolveUpdateStm()
 		case lexer.SELECT:
-			stm, err = parser.resolveSelectStm()
-		case lexer.TRUNCATE:
-			stm, err = parser.resolveTruncate()
-		case lexer.RENAME:
-			stm, err = parser.resolveRename()
-		case lexer.ALTER:
-			stm, err = parser.resolveAlterStm()
+			parser.UnReadToken()
+			stm, err = parser.resolveSelectStm(true)
 		default:
-			err = WrongSqlFormatErr
+			err = parser.MakeSyntaxError(1, parser.pos)
 		}
 		if err != nil {
-			return ast.EmptySqlStms, err
+			return nil, err
 		}
-		sqlStm.Stms = append(sqlStm.Stms, stm)
+		stms = append(stms, stm)
 	}
-	return sqlStm, nil
+	return
 }
 
-func (parser *Parser) matchTokenType(tokenTp lexer.TokenType, ifNotRollback bool) bool {
-	if !parser.hasNext() {
-		return false
+func (parser *Parser) NextToken() (lexer.Token, bool) {
+	if parser.pos < len(parser.Tokens) {
+		token := parser.Tokens[parser.pos]
+		parser.pos++
+		return token, true
 	}
-	t := parser.getToken()
-	if t.Tp != tokenTp {
-		if ifNotRollback {
-			parser.pos--
-		}
-		return false
-	}
-	return true
+	parser.pos++
+	return lexer.Token{}, false
+}
+
+func (parser *Parser) UnReadToken() {
+	parser.pos--
 }
 
 func (parser *Parser) matchTokenTypes(ifNotRollback bool, tokenTypes ...lexer.TokenType) bool {
 	for i, tp := range tokenTypes {
-		if !parser.hasNext() {
-			return false
-		}
-		t := parser.getToken()
-		if t.Tp != tp {
+		t, ok := parser.NextToken()
+		if !ok || t.Tp != tp {
 			if ifNotRollback {
 				parser.pos -= i + 1
 			}
@@ -165,105 +117,95 @@ func (parser *Parser) matchTokenTypes(ifNotRollback bool, tokenTypes ...lexer.To
 	return true
 }
 
-func (parser *Parser) parseColumnDef() (col *ast.ColumnDefStm, err error) {
-	// ident|word columnType [DEFAULT VALUE] [PRIMARY KEY]
-	columnName, ret := parser.parseIdentOrWord(false)
-	if !ret {
-		return nil, ParseColumnErr
-	}
-	col = ast.NewColumnStm(columnName)
-	col.ColumnType, err = parser.matchColumnType(false)
-	if err != nil {
-		return nil, ParseColumnErr.Wrapper(err)
-	}
-	if parser.matchTokenType(lexer.DEFAULT, true) {
-		colValue, err := parser.parseValue(false)
-		if err != nil {
-			return nil, ParseColumnErr.Wrapper(err)
-		}
-		col.ColValue = colValue
-	}
-	col.PrimaryKey = parser.matchTokenTypes(true, lexer.PRIMARY, lexer.KEY)
-	return col, err
-}
+var emptyColumnTp = ast.ColumnType{}
 
-func (parser *Parser) matchColumnType(ifNotRollback bool) (c ast.ColumnType, err error) {
-	if !parser.hasNext() {
-		err = TokensEndErr
-		return
+func (parser *Parser) parseColumnType(ifNotRollback bool) (ast.ColumnType, bool) {
+	t, ok := parser.NextToken()
+	if !ok {
+		if ifNotRollback {
+			parser.UnReadToken()
+		}
+		return emptyColumnTp, false
 	}
-	t := parser.getToken()
+	var ranges [2]int
+	var success bool
 	switch t.Tp {
-	case lexer.BOOL:
-		return ast.NewColumnType(lexer.BOOL, 0, 0), nil
 	case lexer.INT:
-		return ast.NewColumnType(lexer.INT, 0, 0), nil
+		ranges, success = parser.parseTypeRanges(true, 1)
+	case lexer.BIGINT:
+		ranges, success = parser.parseTypeRanges(true, 1)
 	case lexer.FLOAT:
-		return parser.matchFloatType()
+		ranges, success = parser.parseTypeRanges(true, 2)
 	case lexer.CHAR:
-		return ast.NewColumnType(lexer.CHAR, 0, 0), nil
+		ranges, success = parser.parseTypeRanges(true, 1)
 	case lexer.VARCHAR:
-		return parser.matchVarcharType()
-	case lexer.STRING:
-		return ast.NewColumnType(lexer.STRING, 0, 0), nil
+		ranges, success = parser.parseTypeRanges(true, 1)
+	case lexer.BOOL, lexer.DATETIME, lexer.BLOB, lexer.MEDIUMBLOB, lexer.TEXT, lexer.MEDIUMTEXT:
+	default:
 	}
-	if ifNotRollback {
-		parser.pos--
+	if !success {
+		if ifNotRollback {
+			parser.UnReadToken()
+		}
+		return emptyColumnTp, false
 	}
-	err = UnKnownTypeErr
-	return
+	return ast.MakeColumnType(t.Tp, ranges), true
 }
 
-func (parser *Parser) matchFloatType() (c ast.ColumnType, err error) {
-	// Float | Float ( INTVALUE, INTVALUE)
-	if parser.matchTokenType(lexer.LEFTBRACKET, true) {
-		if !parser.hasNext() {
-			err = FloatFormatErr
-			return
-		}
-		intValue1 := 0
-		t := parser.l.Tokens[parser.pos]
-		if t.Tp != lexer.INTVALUE {
-			err = FloatFormatErr
-			return
-		}
-		intValue1, err = strconv.Atoi(string(parser.l.Data[t.StartPos:t.EndPos]))
-		if err != nil || !parser.matchTokenType(lexer.COMMA, false) || !parser.hasNext() {
-			err = FloatFormatErr
-			return
-		}
-		intValue2 := 0
-		t = parser.l.Tokens[parser.pos]
-		if t.Tp != lexer.INTVALUE {
-			err = FloatFormatErr
-			return
-		}
-		intValue2, err = strconv.Atoi(string(parser.l.Data[t.StartPos:t.EndPos]))
-		if err != nil || !parser.matchTokenType(lexer.RIGHTBRACKET, false) {
-			err = FloatFormatErr
-			return
-		}
-		return ast.NewColumnType(lexer.FLOAT, intValue1, intValue2), nil
+// parseTypeRanges try to parse a range from a type def, such as (5) of int(5), (10, 2) of float(10, 2).
+func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2]int, success bool) {
+	if !parser.matchTokenTypes(true, lexer.LEFTBRACKET) {
+		return
 	}
-	return ast.NewColumnType(lexer.FLOAT, -1, -1), nil
+	for i := 0; i < rangeSize; i++ {
+		value, ok := parser.parseValue(false)
+		if !ok {
+			if ifNotRollback {
+				parser.pos -= i + 2
+			}
+			return
+		}
+		r, success := DecodeValue(value, lexer.INT)
+		if !success {
+			if ifNotRollback {
+				parser.pos -= i + 2
+			}
+			return
+		}
+		ret[i] = r.(int)
+	}
+	if !parser.matchTokenTypes(true, lexer.RIGHTBRACKET) {
+		parser.pos -= rangeSize + 1
+		return
+	}
+	return ret, true
 }
 
-func (parser *Parser) matchVarcharType() (c ast.ColumnType, err error) {
-	// VARCHAR ( INTVALUE )
-	if !parser.matchTokenType(lexer.LEFTBRACKET, false) || !parser.hasNext() {
-		err = VarcharFormatErr
-		return
+func (parser *Parser) parseIdentOrWord(ifNotRollback bool) (s []byte, ret bool) {
+	t, ok := parser.NextToken()
+	if !ok || (t.Tp != lexer.IDENT && t.Tp != lexer.WORD) {
+		if ifNotRollback {
+			parser.UnReadToken()
+		}
+		return nil, false
 	}
-	intValue := 0
-	t := parser.l.Tokens[parser.pos]
-	if t.Tp != lexer.INTVALUE {
-		err = VarcharFormatErr
-		return
+	if t.Tp == lexer.IDENT {
+		return parser.Data[t.StartPos+1 : t.EndPos-1], true
+	} else {
+		return parser.Data[t.StartPos:t.EndPos], true
 	}
-	intValue, err = strconv.Atoi(string(parser.l.Data[t.StartPos:t.EndPos]))
-	if err != nil || !parser.matchTokenType(lexer.RIGHTBRACKET, false) {
-		err = VarcharFormatErr
-		return
+}
+
+func (parser *Parser) parseValue(ifNotRollback bool) ([]byte, bool) {
+	t, ok := parser.NextToken()
+	if !ok || t.Tp != lexer.VALUE {
+		if ifNotRollback {
+			parser.UnReadToken()
+		}
+		return nil, false
 	}
-	return ast.NewColumnType(lexer.VARCHAR, intValue, 0), nil
+	if parser.Data[t.StartPos] == '\'' || parser.Data[t.StartPos] == '"' {
+		return parser.Data[t.StartPos+1 : t.EndPos-1], true
+	}
+	return parser.Data[t.StartPos:t.EndPos], true
 }

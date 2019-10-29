@@ -47,14 +47,16 @@ var (
 )
 
 type SimpleLog struct {
-	SavePath   string
-	BufferSize int
-	Buf        *bytes.Buffer
-	lock       sync.Mutex
-	logFlusher *logFlusher
-	logCh      chan *bytes.Buffer
-	console    bool
-	closed     bool
+	SavePath      string
+	BufferSize    int
+	flushTime     time.Duration
+	lastFlushTime time.Time
+	Buf           *bytes.Buffer
+	lock          sync.Mutex
+	logFlusher    *logFlusher
+	logCh         chan *bytes.Buffer
+	console       bool
+	closed        bool
 }
 
 type SimpleLogWrapper struct {
@@ -75,7 +77,7 @@ func CloseLog() error {
 	return fileLog.closeLogger()
 }
 
-func InitLogger(savePath string, bufSize int) error {
+func InitLogger(savePath string, bufSize int, flushTime time.Duration) error {
 	globalLogLock.Lock()
 	defer globalLogLock.Unlock()
 	if fileLog == nil {
@@ -85,13 +87,15 @@ func InitLogger(savePath string, bufSize int) error {
 			return err
 		}
 		fileLog = &SimpleLog{
-			SavePath:   savePath,
-			BufferSize: bufSize,
-			Buf:        new(bytes.Buffer),
-			lock:       sync.Mutex{},
-			logFlusher: flusher,
-			logCh:      logCh,
-			console:    *verbose,
+			SavePath:      savePath,
+			BufferSize:    bufSize,
+			flushTime:     flushTime,
+			lastFlushTime: time.Now(),
+			Buf:           new(bytes.Buffer),
+			lock:          sync.Mutex{},
+			logFlusher:    flusher,
+			logCh:         logCh,
+			console:       *verbose,
 		}
 		go flusher.flushLog()
 	}
@@ -150,17 +154,17 @@ func (log *SimpleLog) printLog(header string, level int, format string, a ...int
 }
 
 func (log *SimpleLog) doFlushIfNeed(force bool) {
-	if force {
+	if force || log.Buf.Len() >= log.BufferSize || log.checkFlushTime() {
 		buf := log.Buf
 		log.Buf = new(bytes.Buffer)
 		log.logCh <- buf
+		log.lastFlushTime = time.Now()
 		return
 	}
-	if log.Buf.Len() >= log.BufferSize {
-		buf := log.Buf
-		log.Buf = new(bytes.Buffer)
-		log.logCh <- buf
-	}
+}
+
+func (log *SimpleLog) checkFlushTime() bool {
+	return time.Now().After(log.lastFlushTime.Add(log.flushTime))
 }
 
 type logFlusher struct {

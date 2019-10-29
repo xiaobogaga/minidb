@@ -5,61 +5,67 @@ import (
 	"simpleDb/lexer"
 )
 
-const (
-	DropStmErr = ParseError("drop statement error")
-	DropTableStmErr = ParseError("drop table statement error")
-	DropDatabaseStmErr = ParseError("drop database statement error")
-)
+// Drop statement can be drop table statement or drop database statement.
+// Drop database statement is like:
+// * drop {database | schema} [if exists] db_name;
+// Drop table statement is like:
+// * drop table [if exists] tb_name[,tb_name...] [RESTRICT|CASCADE];
 
-func (parser *Parser) resolveDropStm() (stm ast.Stm, err error) {
-	// drop table|database IF EXIST ident|word ;
-	if !parser.hasNext() {
-		return nil, TokensEndErr
+// parseDropStm parses a drop statement and return it.
+func (parser *Parser) parseDropStm() (stm ast.Stm, err error) {
+	if !parser.matchTokenTypes(false, lexer.DROP) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	t := parser.getToken()
+	t, ok := parser.NextToken()
+	if !ok {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
 	switch t.Tp {
 	case lexer.TABLE:
 		stm, err = parser.parseDropTableStm()
-	case lexer.DATABASE:
+	case lexer.DATABASE, lexer.SCHEMA:
 		stm, err = parser.parseDropDatabaseStm()
 	default:
-		err = DropStmErr
+		err = parser.MakeSyntaxError(1, parser.pos)
 	}
 	if err != nil {
-		return nil, DropStmErr.Wrapper(err)
+		return nil, err
 	}
-	if !parser.matchTokenType(lexer.SEMICOLON, false) {
-		return nil, DropStmErr
+	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return stm, nil
 }
 
-func (parser *Parser) parseDropTableStm() (*ast.DropTableStm, error) {
-	// IF EXIST ident|word, ident|word ;
+// Drop table statement is like:
+// * drop table [if exists] tb_name[,tb_name...] [RESTRICT|CASCADE];
+func (parser *Parser) parseDropTableStm() (ast.Stm, error) {
 	ifExist := parser.matchTokenTypes(true, lexer.IF, lexer.EXIST)
 	var tableNames []string
 	for {
 		name, ret := parser.parseIdentOrWord(false)
 		if !ret {
-			return nil, DropTableStmErr
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
-		tableNames = append(tableNames, name)
-		if !parser.matchTokenType(lexer.COMMA, true) {
+		tableNames = append(tableNames, string(name))
+		if !parser.matchTokenTypes(true, lexer.COMMA) {
 			break
 		}
 	}
 	dropTableStm := ast.NewDropTableStm(ifExist, tableNames...)
+	parser.matchTokenTypes(true, lexer.RESTRICT)
+	parser.matchTokenTypes(true, lexer.CASCADE)
 	return dropTableStm, nil
 }
 
-func (parser *Parser) parseDropDatabaseStm() (*ast.DropDatabaseStm, error) {
-	// IF EXIST ident|word ;
+// Drop database statement is like:
+// * drop {database | schema} [if exists] db_name;
+func (parser *Parser) parseDropDatabaseStm() (ast.Stm, error) {
 	ifExist := parser.matchTokenTypes(true, lexer.IF, lexer.EXIST)
 	name, ret := parser.parseIdentOrWord(false)
 	if !ret {
-		return nil, DropDatabaseStmErr
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	dropDatabaseStm := ast.NewDropDatabaseStm(name, ifExist)
+	dropDatabaseStm := ast.NewDropDatabaseStm(string(name), ifExist)
 	return dropDatabaseStm, nil
 }
-

@@ -1,6 +1,6 @@
 package storage
 
-type StorageEngine struct {
+type Storage struct {
 	Dbs map[string]DbInfo
 }
 
@@ -16,20 +16,4 @@ type TableInfo struct {
 
 type Row struct {
 	Cols []interface{}
-}
-
-func NewStorageEngine() *StorageEngine {
-	return &StorageEngine{Dbs: make(map[string]DbInfo)}
-}
-
-func (engine *StorageEngine) AddTable() {
-
-}
-
-func (engine *StorageEngine) GetDatabase() {
-
-}
-
-func (engine *StorageEngine) GetTable() {
-
 }

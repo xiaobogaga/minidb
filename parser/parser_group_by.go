@@ -5,10 +5,12 @@ import (
 	"simpleDb/lexer"
 )
 
-// order by expressions [asc|desc],...
+var emptyGroupByStm = ast.GroupByStm{}
 
-func (parser *Parser) parseOrderByStm() (*ast.OrderByStm, error) {
-	if !parser.matchTokenTypes(true, lexer.ORDER, lexer.BY) {
+// group by {expressions [asc|desc]}...
+
+func (parser *Parser) parseGroupByStm() (*ast.GroupByStm, error) {
+	if !parser.matchTokenTypes(true, lexer.GROUP, lexer.BY) {
 		return nil, nil
 	}
 	var expressionStms []*ast.ExpressionStm
@@ -24,8 +26,13 @@ func (parser *Parser) parseOrderByStm() (*ast.OrderByStm, error) {
 			break
 		}
 	}
-	return &ast.OrderByStm{
+	return &ast.GroupByStm{
 		Expressions: expressionStms,
 		Asc:         asc,
 	}, nil
+}
+
+// Return desc if matched, or return asc (true as default) otherwise.
+func (parser *Parser) parseAscOrDesc() bool {
+	return !parser.matchTokenTypes(true, lexer.DESC)
 }

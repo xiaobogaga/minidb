@@ -1,10 +1,10 @@
 package server
 
-type errCodeType int
+type ErrCodeType int
 
 // Port from mysql
 const (
-	ER_ERROR_FIRST                                            errCodeType = 996
+	ER_ERROR_FIRST                                            ErrCodeType = 996
 	ER_QUERY_TIMEOUT                                                      = 996
 	ER_HTON_CONTROL_INVALID_ARGUMENT                                      = 997
 	ER_HTON_CONTROL_NOT_IMPLEMENTED                                       = 998
@@ -746,7 +746,7 @@ type MysqlError struct {
 	errorMsg  string
 }
 
-var ErrorCodeMsgMap = map[errCodeType]MysqlError{}
+var ErrorCodeMsgMap = map[ErrCodeType]MysqlError{}
 
 func init() {
 	ErrorCodeMsgMap[ER_ACCESS_DENIED_NO_PASSWORD_ERROR] = MysqlError{
@@ -781,4 +781,9 @@ func init() {
 		errorCode: ER_UNKNOWN_COM_ERROR,
 		errorMsg:  "Unknown command",
 	}
+}
+
+type CommandErr struct {
+	ErrCode ErrCodeType
+	Params  []interface{}
 }

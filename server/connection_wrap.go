@@ -56,7 +56,7 @@ func NewConnectionWrapper(readTimeout, writeTimeout time.Duration, ctx context.C
 
 // Port of mysql
 // See sql_acl.cc for more detail.
-func (wrap *connectionWrapper) aclAuthenticate() errCodeType {
+func (wrap *connectionWrapper) aclAuthenticate() ErrCodeType {
 	return wrap.doAuthOnce()
 }
 
@@ -65,24 +65,16 @@ var unKnownAuthPlugin = errors.New("unknown auth plugin err")
 // Perform the first authentication attempt, with the default plugin.
 // This sends the server handshake packet, reads the client reply
 // with a user name, and performs the authentication. Now only oldPasswordPlugin are supported.
-func (wrap *connectionWrapper) doAuthOnce() errCodeType {
+func (wrap *connectionWrapper) doAuthOnce() ErrCodeType {
 	errCode := wrap.sendServerHandshakePacket()
 	if errCode >= 0 {
-		wrap.sendErr(errCode)
+		wrap.sendErr(&CommandErr{ErrCode: errCode})
 		return errCode
 	}
-	userName, usePassword, errCode := wrap.readClientHandShakeResponsePacket()
-	if errCode >= 0 {
-		if errCode == ER_ACCESS_DENIED_ERROR {
-			password := "YES"
-			if !usePassword {
-				password = "NO"
-			}
-			wrap.sendErr(ER_ACCESS_DENIED_ERROR, userName, wrap.acl.host, password)
-		} else {
-			wrap.sendErr(errCode)
-		}
-		return errCode
+	err := wrap.readClientHandShakeResponsePacket()
+	if err != nil {
+		wrap.sendErr(err)
+		return err.ErrCode
 	}
 	return wrap.sendOk(0, 0, []byte{0})
 }
@@ -104,7 +96,7 @@ var TenZeroBytes = make([]byte, 10)
 //    n           rest of the plugin provided data (at least 12 bytes)
 //    n           plugin name, \0 terminate
 //    1           \0 byte, terminating the second part of a scramble
-func (wrap *connectionWrapper) sendServerHandshakePacket() errCodeType {
+func (wrap *connectionWrapper) sendServerHandshakePacket() ErrCodeType {
 	wrap.writeBuf.WriteByte(util.ProtocolVersion)
 	wrap.acl.clientCapabilities = util.ClientBasicFlags
 	wrap.writeBuf.WriteString(ServerVersion)
@@ -126,19 +118,19 @@ func (wrap *connectionWrapper) sendServerHandshakePacket() errCodeType {
 }
 
 // Return username, usePassword, errCode
-func (wrap *connectionWrapper) readClientHandShakeResponsePacket() (string, bool, errCodeType) {
+func (wrap *connectionWrapper) readClientHandShakeResponsePacket() *CommandErr {
 	packet, errCode := wrap.readPacket()
 	if errCode >= 0 {
-		return "", false, errCode
+		return &CommandErr{ErrCode: errCode}
 	}
 	if len(packet) < 5 {
-		return "", false, ER_NET_READ_ERROR
+		return &CommandErr{ErrCode: ER_NET_READ_ERROR}
 	}
 	reader := bufio.NewReader(bytes.NewBuffer(packet[5:]))
 	flags := bytes2ToInt(packet[:2])
 	userNameBytes, err := reader.ReadBytes(byte(0))
 	if err != nil && err != io.EOF {
-		return "", false, ER_NET_READ_ERROR
+		return &CommandErr{ErrCode: ER_NET_READ_ERROR}
 	}
 	var authResponse []byte
 	var dataBaseName []byte
@@ -147,29 +139,29 @@ func (wrap *connectionWrapper) readClientHandShakeResponsePacket() (string, bool
 		authResponse, err = reader.ReadBytes(0)
 		authResponse = authResponse[:len(authResponse)-1]
 		if err != nil {
-			return "", false, ER_NET_READ_ERROR
+			return &CommandErr{ErrCode: ER_NET_READ_ERROR}
 		}
 		dataBaseName, err = reader.ReadBytes(0)
 		if err != nil {
-			return "", false, ER_NET_READ_ERROR
+			return &CommandErr{ErrCode: ER_NET_READ_ERROR}
 		}
 	} else {
 		authResponse = packet[5+len(userNameBytes):]
 	}
 	user, found := findUser(userName)
 	if !found {
-		return userName, len(authResponse) >= 1, ER_ACCESS_DENIED_ERROR
+		return &CommandErr{ErrCode: ER_ACCESS_DENIED_ERROR, Params: []interface{}{userName, len(authResponse) >= 1}}
 	}
 	if len(authResponse) == 0 && len(user.userSalt) != 0 {
 		// No password
-		return userName, false, ER_ACCESS_DENIED_ERROR
+		return &CommandErr{ErrCode: ER_ACCESS_DENIED_ERROR, Params: []interface{}{userName, false}}
 	}
 	if len(authResponse) == scrambleLen_323 && !checkScramble323(authResponse, wrap.scramble, user.userSalt) {
-		return userName, true, ER_ACCESS_DENIED_ERROR
+		return &CommandErr{ErrCode: ER_ACCESS_DENIED_ERROR, Params: []interface{}{userName, true}}
 	}
 	wrap.acl.user = user
 	wrap.acl.databaseName = string(dataBaseName)
-	return userName, true, -1
+	return nil
 }
 
 // Fill data with random printable character
@@ -185,7 +177,7 @@ func (wrap *connectionWrapper) randomCharacter() byte {
 	return byte(wrap.rand.Float32()*94) + 33
 }
 
-func (wrap *connectionWrapper) writePacket(packet bytes.Buffer) errCodeType {
+func (wrap *connectionWrapper) writePacket(packet bytes.Buffer) ErrCodeType {
 	err := wrap.conn.SetWriteDeadline(time.Now().Add(wrap.writeTimeout))
 	if err != nil {
 		return ER_NET_WRITE_INTERRUPTED
@@ -206,7 +198,7 @@ func (wrap *connectionWrapper) writePacket(packet bytes.Buffer) errCodeType {
 	return -1
 }
 
-func (wrap *connectionWrapper) readPacket() ([]byte, errCodeType) {
+func (wrap *connectionWrapper) readPacket() ([]byte, ErrCodeType) {
 	err := wrap.conn.SetReadDeadline(time.Now().Add(wrap.readTimeout))
 	if err != nil {
 		return nil, ER_NET_READ_INTERRUPTED
@@ -231,30 +223,30 @@ func (wrap *connectionWrapper) readPacket() ([]byte, errCodeType) {
 }
 
 // See OK_Packet Format for more detail.
-func (wrap *connectionWrapper) sendOk(affectRows, lastInsertId uint64, message []byte) errCodeType {
+func (wrap *connectionWrapper) sendOk(okMsg OkMsg) ErrCodeType {
 	wrap.writeBuf.Reset()
 	wrap.writeBuf.WriteByte(0)
-	wrap.writeBuf.Write(lengthEncodedInt(affectRows))
-	wrap.writeBuf.Write(lengthEncodedInt(lastInsertId))
+	wrap.writeBuf.Write(lengthEncodedInt(okMsg.affectRows))
+	wrap.writeBuf.Write(lengthEncodedInt(okMsg.lastInsertId))
 	wrap.writeBuf.Write(int2ToBytes(uint32(wrap.serverStatus)))
-	wrap.writeBuf.Write(message)
+	wrap.writeBuf.Write(okMsg.message)
 	wrap.log.InfoF("send ok packet.")
 	return wrap.writePacket(wrap.writeBuf)
 }
 
-func (wrap *connectionWrapper) sendErr(errCode errCodeType, msgArgs ...interface{}) errCodeType {
-	err := ErrorCodeMsgMap[errCode]
+func (wrap *connectionWrapper) sendErr(err *CommandErr) ErrCodeType {
+	errFormat := ErrorCodeMsgMap[err.ErrCode]
 	wrap.writeBuf.Reset()
 	wrap.writeBuf.WriteByte(byte(0xff))
-	wrap.writeBuf.Write(int2ToBytes(err.errorCode))
-	errMsg := fmt.Sprintf(err.errorMsg, msgArgs...)
+	wrap.writeBuf.Write(int2ToBytes(errFormat.errorCode))
+	errMsg := fmt.Sprintf(errFormat.errorMsg, err.Params...)
 	wrap.writeBuf.Write([]byte(errMsg))
 	wrap.writeBuf.WriteByte(util.StringEnd)
 	wrap.log.InfoF("send err packet. err: %+v, msg: %s", err, errMsg)
 	return wrap.writePacket(wrap.writeBuf)
 }
 
-func (wrap *connectionWrapper) writeCommand(command Command) errCodeType {
+func (wrap *connectionWrapper) writeCommand(command Command) ErrCodeType {
 	// The command Length is: 1 + command.Len()
 	wrap.writeBuf.Reset()
 	wrap.writeBuf.WriteByte(byte(command.Tp))
@@ -287,15 +279,17 @@ func (wrap *connectionWrapper) parseCommand() {
 		default:
 		}
 		command, err := wrap.readCommand()
-		if err >= 0 {
+		if err != nil {
 			// Todo, maybe we need send err parameters.
 			wrap.sendErr(err)
 			return
 		}
-		exit, err := command.Do()
-		if err == -1 {
+		exit, okMsg, err := command.Do()
+		if err == nil {
 			// Todo: need to send affectRows and messages.
-			wrap.sendOk()
+			wrap.sendOk(okMsg)
+		} else {
+			wrap.sendErr(err)
 		}
 		if exit {
 			return
@@ -303,13 +297,15 @@ func (wrap *connectionWrapper) parseCommand() {
 	}
 }
 
-func (wrap *connectionWrapper) readCommand() (Command, errCodeType) {
-	packet, err := wrap.readPacket()
-	if err >= 0 {
-		return Command{}, err
+var emptyCommand = Command{}
+
+func (wrap *connectionWrapper) readCommand() (Command, *CommandErr) {
+	packet, errCode := wrap.readPacket()
+	if errCode >= 0 {
+		return emptyCommand, &CommandErr{ErrCode: errCode}
 	}
 	if len(packet) <= 0 {
-		return Command{}, ER_NET_READ_ERROR
+		return emptyCommand, &CommandErr{ErrCode: ER_NET_READ_ERROR}
 	}
 	return decodeCommand(packet)
 }
@@ -318,4 +314,10 @@ func (wrap *connectionWrapper) readCommand() (Command, errCodeType) {
 func findUser(userName string) (User, bool) {
 	// todo, currently just a placeholder.
 	return User{}, false
+}
+
+type OkMsg struct {
+	affectRows   uint64
+	lastInsertId uint64
+	message      []byte
 }

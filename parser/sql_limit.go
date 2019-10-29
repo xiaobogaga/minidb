@@ -5,14 +5,41 @@ import (
 	"simpleDb/lexer"
 )
 
-func (parser *Parser) resolveLimit(ifNotRollback bool) (*ast.LimitStm, error) {
-	// LIMIT count
- 	if !parser.matchTokenType(lexer.LIMIT, ifNotRollback) {
- 		return nil, nil
+// Limit statement is like limit {[offset,] row_counter | row_counter OFFSET offset}
+
+func (parser *Parser) parseLimit() (*ast.LimitStm, error) {
+	if !parser.matchTokenTypes(true, lexer.LIMIT) {
+		return nil, nil
 	}
-	ret, err := parser.parseIntValue(false)
-	if err != nil {
-		return nil, err
+	ret, ok := parser.parseValue(false)
+	if !ok {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.LimitStm{Count: ret}, nil
+	value, ok := DecodeValue(ret, lexer.INT)
+	if !ok {
+		return nil, parser.MakeSyntaxError(1, parser.pos)
+	}
+	if parser.matchTokenTypes(true, lexer.COMMA) {
+		ret, ok = parser.parseValue(false)
+		if !ok {
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		rowCounter, ok := DecodeValue(ret, lexer.INT)
+		if !ok {
+			return nil, parser.MakeSyntaxError(1, parser.pos)
+		}
+		return &ast.LimitStm{Offset: value.(int), Count: rowCounter.(int)}, nil
+	}
+	if parser.matchTokenTypes(true, lexer.OFFSET) {
+		ret, ok := parser.parseValue(false)
+		if !ok {
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		offset, ok := DecodeValue(ret, lexer.INT)
+		if !ok {
+			return nil, parser.MakeSyntaxError(1, parser.pos)
+		}
+		return &ast.LimitStm{Count: value.(int), Offset: offset.(int)}, nil
+	}
+	return &ast.LimitStm{Count: value.(int)}, nil
 }

@@ -5,24 +5,62 @@ import (
 	"simpleDb/lexer"
 )
 
-const WrongUpdateStmErr = ParseError("wrong update statement err")
+// Update statement is like:
+// * update table_reference set assignments... [WhereStm] [OrderByStm] [LimitStm]
+// * update table_reference... set assignments... [WhereStm]
 
 func (parser *Parser) resolveUpdateStm() (*ast.UpdateStm, error) {
-	// update ident|word set expression[,expression]+ [WhereStm];
-	tableName, ret := parser.parseIdentOrWord(false)
-	if !ret { return nil, WrongUpdateStmErr }
-	if !parser.matchTokenType(lexer.SET, false) { return nil, WrongUpdateStmErr }
-	var expressions []ast.Stm
+	if !parser.matchTokenTypes(false, lexer.UPDATE) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	var tableRefs []ast.TableReferenceStm
 	for {
-		expression, err := parser.resolveExpression(false)
-		if err != nil { return nil, WrongUpdateStmErr.Wrapper(err) }
-		expressions = append(expressions, expression)
-		if !parser.matchTokenType(lexer.COMMA, true) {
+		tableRef, err := parser.parseTableReferenceStm()
+		if err != nil {
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		tableRefs = append(tableRefs, tableRef)
+		if !parser.matchTokenTypes(false, lexer.COMMA) {
 			break
 		}
 	}
-	whereStm, err := parser.resolveWhereStm(true)
-	if err != nil { return nil, WrongUpdateStmErr.Wrapper(err) }
-	if !parser.matchTokenType(lexer.SEMICOLON, false) { return nil, WrongUpdateStmErr }
-	return &ast.UpdateStm{TableName: tableName, Expressions: expressions, WhereStm: whereStm}, nil
+	if !parser.matchTokenTypes(false, lexer.SET) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+
+	var assignments []ast.AssignmentStm
+	for {
+		assignment, err := parser.parseAssignmentStm()
+		if err != nil {
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		assignments = append(assignments, assignment)
+		if !parser.matchTokenTypes(true, lexer.COMMA) {
+			break
+		}
+	}
+	var order *ast.OrderByStm
+	var limit *ast.LimitStm
+	var err error
+	where, _ := parser.resolveWhereStm(true)
+	if len(tableRefs) > 1 {
+		order, err = parser.parseOrderByStm(true)
+		if err != nil {
+			return nil, err
+		}
+		limit, err = parser.parseLimit()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	return &ast.UpdateStm{
+		TableRefs:   tableRefs,
+		Assignments: assignments,
+		Where:       where,
+		OrderBy:     order,
+		Limit:       limit,
+	}, nil
 }

@@ -1,6 +1,9 @@
 package server
 
-import "simpleDb/log"
+import (
+	"simpleDb/log"
+	"simpleDb/parser"
+)
 
 var commandLog = log.GetLog("Command")
 
@@ -10,43 +13,29 @@ type Command struct {
 	arg     []byte
 }
 
-func decodeCommand(packet []byte) (Command, errCodeType) {
+func decodeCommand(packet []byte) (Command, *CommandErr) {
 	switch CommandType(packet[0]) {
 	case TpComQuery:
-		return Command{Tp: TpComQuery, arg: packet}, -1
+		return Command{Tp: TpComQuery, arg: packet, Command: }, nil
 	case TpComQuit:
-		return Command{Tp: TpComQuit}, -1
+		return Command{Tp: TpComQuit, Command: }, nil
 	case TpComInitDB:
-		return Command{Tp: TpComInitDB, arg: packet}, -1
+		return Command{Tp: TpComInitDB, arg: packet, Command: }, nil
 	case TpComPing:
-		return Command{Tp: TpComPing}, -1
+		return Command{Tp: TpComPing, Command: }, nil
 	default:
-		return Command{}, ER_UNKNOWN_COM_ERROR
+		return Command{}, &CommandErr{ErrCode: ER_UNKNOWN_COM_ERROR}
 	}
 }
 
-func (c Command) Do() (bool, errCodeType) {
-	switch c.Tp {
-	case TpComQuery:
-		commandLog.InfoF("parse a query command.")
-	case TpComQuit:
-		commandLog.InfoF("parse a quit command")
-	case TpComInitDB:
-		commandLog.InfoF("parse a initDB command")
-	case TpComPing:
-		commandLog.InfoF("parse a ping command")
-	default:
-		return false, ER_UNKNOWN_COM_ERROR
-	}
+func (c Command) Do() (bool, OkMsg, *CommandErr) {
 	return c.Command.Do(c.arg)
 }
 
 type CommandInterface interface {
 	// Do is used to do command and return an bool flag to indicate whether close
 	// this connection and an errCode.
-	Do(packet []byte) (bool, errCodeType)
-	// The length of encoded bytes of this command.
-	Len()
+	Do(packet []byte) (bool, OkMsg, *CommandErr)
 	// Encode returns the encoded bytes of this command which would be sent to the other side..
 	Encode() []byte
 }
@@ -81,36 +70,65 @@ const (
 	// Todo: need supporting stored programs.
 )
 
+var emptyOkMsg = OkMsg{}
+
 type ComQuit struct{}
 
 // ComQuit just return true to indicate exit.
-func (c ComQuit) Do(_ []byte) (bool, errCodeType) {
+func (c ComQuit) Do(_ []byte) (bool, OkMsg, *CommandErr) {
 	commandLog.InfoF("ComQuit: exiting.")
-	return true, -1
+	return true, emptyOkMsg, nil
+}
+
+func (c ComQuit) Encode() []byte {
+	return nil
 }
 
 type ComInitDb string
 
 // ComInitDb is used to init a database by sql `use database xxx`.
 // Where arg is the database name. return ok if exist and err otherwise.
-func (c ComInitDb) Do(arg []byte) (bool, errCodeType) {
+func (c ComInitDb) Do(arg []byte) (bool, OkMsg, *CommandErr) {
 	dataBaseName := string(arg)
 	commandLog.InfoF("ComInitDb: init another database %s", dataBaseName)
-	return true, -1
+	return true, emptyOkMsg, nil
+}
+
+func (c ComInitDb) Encode() []byte {
+	return nil
 }
 
 type ComPing string
 
-func (c ComPing) Do(_ []byte) (bool, errCodeType) {
+func (c ComPing) Do(_ []byte) (bool, OkMsg, *CommandErr) {
 	commandLog.InfoF("ComPing: we are alive.")
-	return false, -1
+	return false, emptyOkMsg, nil
+}
+
+func (c ComPing) Encode() []byte {
+	return nil
 }
 
 type ComQuery string
 
-func (c ComQuery) Do(arg []byte) (bool, errCodeType) {
+func (c ComQuery) Do(arg []byte) (bool, OkMsg, *CommandErr) {
 	// Parse a query and execute it.
 	query := string(arg)
 	commandLog.InfoF("ComQuery: try to do a query: %s", query)
-	return false, -1
+	parser := parser.NewParser()
+	stms, err := parser.Parse(arg)
+	if err != nil {
+		return false, emptyOkMsg, &CommandErr{
+			ErrCode: 0,
+			Params:  nil,
+		}
+	}
+	for _, stm := range {
+		
+	}
+	return false, -1, nil
+}
+
+func (c ComQuery) Encode() []byte {
+	return nil
 }

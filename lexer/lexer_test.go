@@ -3,15 +3,13 @@ package lexer
 import (
 	"github.com/stretchr/testify/assert"
 	"math/rand"
-	"simpleDb/log"
 	"testing"
 	"time"
 )
 
 func testOneSql(t *testing.T, sql string) {
 	lexer := NewLexer()
-	err := lexer.Lex([]byte(sql))
-	log.LogDebug("%s\n", lexer)
+	_, err := lexer.Lex([]byte(sql))
 	assert.Nil(t, err, sql)
 }
 
@@ -98,7 +96,7 @@ func TestRandomly(t *testing.T) {
 
 func generateOneRandomSql() string {
 	i := rand.Int63n(time.Now().Unix())
-	ret := i % 7
+	ret := i % 8
 	switch ret {
 	case 0:
 		return generateCreateSql()
@@ -114,6 +112,8 @@ func generateOneRandomSql() string {
 		return generateRemoveSql()
 	case 6:
 		return generateDropSql()
+	case 7:
+
 	}
 	return ""
 }

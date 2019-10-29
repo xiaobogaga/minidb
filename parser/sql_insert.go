@@ -5,55 +5,55 @@ import (
 	"simpleDb/lexer"
 )
 
-const (
-	WrongInsertFormatErr = ParseError("wrong insert format")
-)
+// Insert statement is like:
+// * insert into tb_name [( col_name... )] values (expression...)
 
 func (parser *Parser) resolveInsertStm() (*ast.InsertIntoStm, error) {
-	// insert into ident|word [( ident|word[, ident|word])] values ( expression1[, expression1...] );
-	if !parser.matchTokenType(lexer.INTO, false) {
-		return nil, WrongInsertFormatErr
+	if !parser.matchTokenTypes(false, lexer.INSERT) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	if !parser.matchTokenTypes(false, lexer.INTO) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
-		return nil, WrongInsertFormatErr
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	// () is optional
 	var colNames []string
-	if parser.matchTokenType(lexer.LEFTBRACKET, true) {
+	if parser.matchTokenTypes(true, lexer.LEFTBRACKET) {
 		for {
 			colName, ret := parser.parseIdentOrWord(false)
 			if !ret {
-				return nil, WrongInsertFormatErr
+				return nil, parser.MakeSyntaxError(1, parser.pos-1)
 			}
-			colNames = append(colNames, colName)
-			if parser.matchTokenType(lexer.COMMA, true) {
-				continue
+			colNames = append(colNames, string(colName))
+			if !parser.matchTokenTypes(true, lexer.COMMA) {
+				break
 			}
-			// should be a )
-			if !parser.matchTokenType(lexer.RIGHTBRACKET, false) {
-				return nil, WrongInsertFormatErr
-			}
-			break
+		}
+		// should be a )
+		if !parser.matchTokenTypes(true, lexer.RIGHTBRACKET) {
+			return nil, parser.MakeSyntaxError(1, parser.pos)
 		}
 	}
 	// should be values (
 	if !parser.matchTokenTypes(false, lexer.VALUES, lexer.LEFTBRACKET) {
-		return nil, WrongInsertFormatErr
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	var valueExpressions []ast.Stm
+	var valueExpressions []*ast.ExpressionStm
 	for {
-		valueExpression, err := parser.resolveExpression(true)
+		valueExpression, err := parser.resolveExpression()
 		if err != nil {
 			return nil, err
 		}
 		valueExpressions = append(valueExpressions, valueExpression)
-		if !parser.matchTokenType(lexer.COMMA, true) {
+		if !parser.matchTokenTypes(true, lexer.COMMA) {
 			break
 		}
 	}
 	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET, lexer.SEMICOLON) {
-		return nil, WrongInsertFormatErr
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.InsertIntoStm{TableName: tableName, Cols: colNames, ValueExpressions: valueExpressions}, nil
+	return &ast.InsertIntoStm{TableName: string(tableName), Cols: colNames, Values: valueExpressions}, nil
 }

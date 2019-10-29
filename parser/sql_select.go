@@ -5,77 +5,123 @@ import (
 	"simpleDb/lexer"
 )
 
-const WrongSelectStmFormatErr = ParseError("wrong select statement error")
+// Select statement is like:
+// * select [all | distinct | distinctrow] select_expression... from table_reference... [WhereStm] [GroupByStm] [HavingStm]
+// [OrderByStm] [LimitStm] [for update | lock in share mode]
+// select_expression could be:
+// expr [as] alias
+// *
 
-func (parser *Parser) resolveSelectStm() (*ast.SelectStm, error) {
-	// select [*|expression[,expression]+] from ident|word WhereStm OrderByStm LimitStm;
-	if parser.matchTokenType(lexer.STAR, true) {
-		return parser.resolveStarSelectStm()
+func (parser *Parser) resolveSelectStm(needCheckSemicolon bool) (stm *ast.SelectStm, err error) {
+	if !parser.matchTokenTypes(false, lexer.SELECT) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return parser.resolveExpressionSelectStm()
+	token, ok := parser.NextToken()
+	if !ok {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	selectTp := ast.SelectAllTp
+	switch token.Tp {
+	case lexer.ALL:
+	case lexer.DISTINCT:
+		selectTp = ast.SelectDistinctTp
+	case lexer.DISTINCTROW:
+		selectTp = ast.SelectDistinctRowTp
+	default:
+		parser.UnReadToken()
+	}
+	var selectExpressionStm *ast.SelectExpressionStm
+	if parser.matchTokenTypes(true, lexer.STAR) {
+		selectExpressionStm, err = parser.parseStarSelectExpression()
+	} else {
+		selectExpressionStm, err = parser.parseExprSelectExpression()
+	}
+	if err != nil {
+		return nil, err
+	}
+	stm, err = parser.resolveRemainingSelectStm(selectTp, selectExpressionStm, needCheckSemicolon)
+	return
 }
 
-func (parser *Parser) resolveStarSelectStm() (*ast.SelectStm, error) {
-	// * from ident|word WhereStm OrderByStm LimitStm;
-	if !parser.matchTokenType(lexer.FROM, false) {
-		return nil, WrongSelectStmFormatErr
-	}
-	tableName, ret := parser.parseIdentOrWord(false)
-	if !ret {
-		return nil, WrongSelectStmFormatErr
-	}
-	whereStm, err := parser.resolveWhereStm(true)
-	if err != nil {
-		return nil, WrongSelectStmFormatErr.Wrapper(err)
-	}
-	orderByStm, err := parser.resolveOrderBy(true)
-	if err != nil {
-		return nil, WrongDeleteStmErr.Wrapper(err)
-	}
-	limitStm, err := parser.resolveLimit(true)
-	if err != nil {
-		return nil, WrongDeleteStmErr.Wrapper(err)
-	}
-	if !parser.matchTokenType(lexer.SEMICOLON, false) {
-		return nil, WrongDeleteStmErr
-	}
-	return &ast.SelectStm{TableName:tableName, WhereStm: whereStm, OrderByStm: orderByStm, LimitStm: limitStm}, nil
+func (parser *Parser) parseStarSelectExpression() (*ast.SelectExpressionStm, error) {
+	return &ast.SelectExpressionStm{
+		Tp:   ast.StarSelectExpressionTp,
+		Expr: lexer.STAR,
+	}, nil
 }
 
-func (parser *Parser) resolveExpressionSelectStm() (*ast.SelectStm, error) {
-	// expression[,expression]+ from ident|word WhereStm OrderByStm LimitStm;
-	var expressions []ast.Stm
+func (parser *Parser) parseExprSelectExpression() (*ast.SelectExpressionStm, error) {
+	var exprs []*ast.ExpressionStm
 	for {
-		expressionStm, err := parser.resolveExpression(true)
+		expr, err := parser.resolveExpression()
 		if err != nil {
-			return nil, WrongSelectStmFormatErr.Wrapper(err)
+			return nil, err
 		}
-		expressions = append(expressions, expressionStm)
-		if !parser.matchTokenType(lexer.COMMA, true) {
+		exprs = append(exprs, expr)
+		if !parser.matchTokenTypes(true, lexer.COMMA) {
 			break
 		}
 	}
-	if !parser.matchTokenType(lexer.FROM, false) {
-		return nil, WrongSelectStmFormatErr
+	return &ast.SelectExpressionStm{
+		Tp:   ast.ExprSelectExpressionTp,
+		Expr: exprs,
+	}, nil
+}
+
+func (parser *Parser) resolveRemainingSelectStm(selectTp ast.SelectTp, expr *ast.SelectExpressionStm, needCheckSemicolon bool) (*ast.SelectStm, error) {
+	if !parser.matchTokenTypes(false, lexer.FROM) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	tableName, ret := parser.parseIdentOrWord(false)
-	if !ret {
-		return nil, WrongSelectStmFormatErr
+	var tables []ast.TableReferenceStm
+	for {
+		tableRef, err := parser.parseTableReferenceStm()
+		if err != nil {
+			return nil, err
+		}
+		tables = append(tables, tableRef)
+		if !parser.matchTokenTypes(true, lexer.COMMA) {
+			break
+		}
 	}
-	whereStm, err := parser.resolveWhereStm(true)
+	whereStm, err := parser.resolveWhereStm()
 	if err != nil {
-		return nil, WrongSelectStmFormatErr.Wrapper(err)
+		return nil, err
 	}
-	orderByStm, err := parser.resolveOrderBy(true)
+	groupByStm, err := parser.parseGroupByStm()
 	if err != nil {
-		return nil, WrongDeleteStmErr.Wrapper(err)
+		return nil, err
 	}
-	limitStm, err := parser.resolveLimit(true)
+	havingStm, err := parser.parseHavingStm()
 	if err != nil {
-		return nil, WrongDeleteStmErr.Wrapper(err)
+		return nil, err
 	}
-	if !parser.matchTokenType(lexer.SEMICOLON, false) {
-		return nil, WrongDeleteStmErr
+	orderByStm, err := parser.parseOrderByStm()
+	if err != nil {
+		return nil, err
 	}
-	return &ast.SelectStm{Expressions: expressions, TableName:tableName, WhereStm: whereStm, OrderByStm: orderByStm, LimitStm: limitStm}, nil
+	limitStm, err := parser.parseLimit()
+	if err != nil {
+		return nil, err
+	}
+	if needCheckSemicolon && !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	lockTp := ast.NoneLockTp
+	if parser.matchTokenTypes(true, lexer.FOR, lexer.UPDATE) {
+		lockTp = ast.ForUpdateLockTp
+	}
+	if parser.matchTokenTypes(true, lexer.LOCK, lexer.IN, lexer.SHARE, lexer.MOD) {
+		lockTp = ast.LockInShareModeTp
+	}
+	return &ast.SelectStm{
+		Tp:                selectTp,
+		SelectExpressions: expr,
+		TableReferences:   tables,
+		Where:             whereStm,
+		OrderBy:           orderByStm,
+		Groupby:           groupByStm,
+		Having:            havingStm,
+		LimitStm:          limitStm,
+		LockTp:            lockTp,
+	}, nil
 }

@@ -5,33 +5,40 @@ import (
 	"simpleDb/lexer"
 )
 
-const WrongRenameStm = ParseError("wrong rename statement format")
+var emptyRenameStm = ast.RenameStm{}
 
-func (parser *Parser) resolveRename() (*ast.RenameStm, error) {
-	// Rename table|database tb1 To tb2
-	isTable := parser.matchTokenType(lexer.TABLE, true)
+// Rename statement can be rename table statement.
+// It's like:
+// * rename table {tb1 To tb2...}
+func (parser *Parser) resolveRenameStm() (ast.RenameStm, error) {
+	if !parser.matchTokenTypes(false, lexer.RENAME) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	isTable := parser.matchTokenTypes(false, lexer.TABLE)
 	if !isTable {
-		if !parser.matchTokenType(lexer.DATABASE, false) {
-			return nil, WrongRenameStm
+		return emptyRenameStm, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	var origNames, modifiedNames []string
+	for {
+		origName, ret := parser.parseIdentOrWord(false)
+		if !ret {
+			return emptyRenameStm, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		if !parser.matchTokenTypes(false, lexer.TO) {
+			return emptyRenameStm, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		modifiedName, ret := parser.parseIdentOrWord(false)
+		if !ret {
+			return emptyRenameStm, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		origNames = append(origNames, string(origName))
+		modifiedNames = append(modifiedNames, string(modifiedName))
+		if parser.matchTokenTypes(true, lexer.SEMICOLON) {
+			break
+		}
+		if !parser.matchTokenTypes(false, lexer.COMMA) {
+			return emptyRenameStm, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 	}
-	origName, ret := parser.parseIdentOrWord(false)
-	if !ret {
-		return nil, WrongRenameStm
-	}
-	if !parser.matchTokenType(lexer.TO, false) {
-		return nil, WrongRenameStm
-	}
-	modifiedName, ret := parser.parseIdentOrWord(false)
-	if !ret {
-		return nil, WrongRenameStm
-	}
-	if !parser.matchTokenType(lexer.SEMICOLON, false) {
-		return nil, WrongRenameStm
-	}
-	tp := lexer.TABLE
-	if !isTable {
-		tp = lexer.DATABASE
-	}
-	return &ast.RenameStm{OrigNames: origName, ModifiedNames: modifiedName, Tp: tp}, nil
+	return ast.RenameStm{OrigNames: origNames, ModifiedNames: modifiedNames}, nil
 }

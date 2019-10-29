@@ -4,246 +4,533 @@ import (
 	"simpleDb/lexer"
 )
 
-type Stm interface {
-	Stms() []Stm
-}
+type Stm interface{}
 
-var EmptySqlStms = SqlStms{}
-
-type SqlStms struct {
-	Stms []Stm
-}
-
-type CreateTableStm struct {
-	TableName  string
-	IfNotExist bool
-	Cols       []*ColumnDefStm
-}
-
-func NewCreateTableStm(tableName string, ifNotExist bool) *CreateTableStm {
-	return &CreateTableStm{TableName: tableName, IfNotExist: ifNotExist}
-}
-
-func (stm *CreateTableStm) Stms() []Stm {
-	return nil
-}
-
-func (stm *CreateTableStm) AppendCol(col *ColumnDefStm) {
-	stm.Cols = append(stm.Cols, col)
-}
-
-func (stm *CreateTableStm) IsTableNameEmpty() bool {
-	return stm.TableName == ""
-}
-
+// create database statement:
+// * create {database|schema} [if not exist] database_name [[Default | character set = value] | [Default | collate = value]];
 type CreateDatabaseStm struct {
 	DatabaseName string
 	IfNotExist   bool
-}
-
-func (stm *CreateDatabaseStm) Stms() []Stm {
-	return nil
+	Charset      string
+	Collate      string
 }
 
 func NewCreateDatabaseStm(databaseName string, ifNotExist bool) *CreateDatabaseStm {
 	return &CreateDatabaseStm{DatabaseName: databaseName, IfNotExist: ifNotExist}
 }
 
+// create table statements:
+// * create table [if not exist] tb_name like orig_tab_name;
+// * create table [if not exist] tb_name2 (
+//    Column_Def..., Index_Def..., Constraint_Def...
+//    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];
+// create table [if not exist] tb_name3 as selectStatement;
+
+// * create table [if not exist] tb_name2 (
+//    Column_Def..., Index_Def..., Constraint_Def...
+//    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];
+type CreateTableStm struct {
+	TableName   string
+	IfNotExist  bool
+	Cols        []ColumnDefStm
+	Indexes     []IndexDefStm
+	Constraints []Stm
+	Engine      string
+	Charset     string
+	Collate     string
+}
+
+// create table [if not exist] as selectStatement;
+type CreateTableAsSelectStm struct {
+	TableName  string
+	IfNotExist bool
+	Select     *SelectStm
+}
+
+// * create table [if not exist] tb_name like orig_tab_name;
+type CreateTableLikeStm struct {
+	TableName      string
+	IfNotExist     bool
+	LikedTableName string
+}
+
+// columnDef:
+// * col_name col_type [not null|null] [default default_value] [AUTO_INCREMENT] [[primary] key] [[unique] key]
 type ColumnDefStm struct {
-	OldColName string
-	ColName    string
-	ColValue   ColumnValue
-	PrimaryKey bool
-	ColumnType ColumnType
+	ColName         string
+	ColumnType      ColumnType
+	AllowNULL       bool
+	ColDefaultValue ColumnValue
+	AutoIncrement   bool
+	PrimaryKey      bool
+	UniqueKey       bool
 }
 
-func NewColumnStm(columnName string) *ColumnDefStm {
-	return &ColumnDefStm{ColName: columnName}
+type ColumnValue []byte
+
+func NewColumnStm(columnName string) ColumnDefStm {
+	return ColumnDefStm{ColName: columnName}
 }
 
-func (stm *ColumnDefStm) Stms() []Stm {
-	return nil
-}
-
-type ColumnRefStm string
-
-func (stm *ColumnRefStm) Stms() []Stm {
-	return nil
-}
-
+// ColumnType represent a column type statement where tp is the column type and
+// Ranges is the column type range, like int(10), 10 is range, float(10, 2), 10 and 2 is
+// the ranges.
 type ColumnType struct {
-	Tp  lexer.TokenType
-	Min int
-	Max int
+	Tp     lexer.TokenType
+	Ranges [2]int
 }
 
-func NewColumnType(tp lexer.TokenType, min, max int) ColumnType {
-	return ColumnType{Tp: tp, Min: min, Max: max}
+func MakeColumnType(tp lexer.TokenType, ranges [2]int) ColumnType {
+	return ColumnType{Tp: tp, Ranges: ranges}
 }
 
+// Index_Def:
+// * {index|key} index_name (col_name, ...)
+type IndexDefStm struct {
+	IndexName string
+	ColNames  []string
+}
+
+// * [Constraint] primary key (col_name [,col_name...)
+// * [Constraint] unique {index|key} index_name (col_name [,col_name...)
+// * [Constraint] foreign key index_name (col_name [,col_name...) references tb_name (key...)
+// [on {delete|update}] reference_option]
+// reference_option is like: {restrict | cascade | set null | no action | set default}
+// Restrict is the default
+type PrimaryKeyDefStm struct {
+	ColNames []string
+}
+
+type UniqueKeyDefStm struct {
+	IndexName string
+	ColNames  []string
+}
+
+type ForeignKeyConstraintDefStm struct {
+	IndexName       string
+	Cols            []string
+	RefTableName    string
+	RefKeys         []string
+	DeleteRefOption ReferenceOptionTp
+	UpdateRefOption ReferenceOptionTp
+}
+
+type ReferenceOptionTp byte
+
+const (
+	RefOptionRestrict ReferenceOptionTp = iota
+	RefOptionCascade
+	RefOptionSetNull
+	RefOptionNoAction
+	RefOptionSetDefault
+)
+
+// Drop database statement is like:
+// * drop {database | schema} [if exists] db_name;
 type DropDatabaseStm struct {
 	DatabaseName string
 	IfExist      bool
 }
 
-func NewDropDatabaseStm(databaseName string, ifExist bool) *DropDatabaseStm {
-	return &DropDatabaseStm{databaseName, ifExist}
+func NewDropDatabaseStm(databaseName string, ifExist bool) DropDatabaseStm {
+	return DropDatabaseStm{databaseName, ifExist}
 }
 
-func (stm *DropDatabaseStm) Stms() []Stm {
-	return nil
-}
-
+// Drop table statement is like:
+// * drop table [if exists] tb_name[,tb_name...];
 type DropTableStm struct {
-	IfExist    bool
+	IfExists   bool
 	TableNames []string
 }
 
-func NewDropTableStm(ifExist bool, tableName ...string) *DropTableStm {
-	return &DropTableStm{ifExist, tableName}
+func NewDropTableStm(ifExists bool, tableName ...string) DropTableStm {
+	return DropTableStm{ifExists, tableName}
 }
 
-func (stm *DropTableStm) Stms() []Stm {
-	return nil
+// Rename statement can be rename table or database statement.
+// It's like:
+// * rename table {tb1 To tb2...}
+type RenameStm struct {
+	OrigNames     []string
+	ModifiedNames []string
 }
 
-type DeleteStm struct {
-	TableName  string
-	WhereStm   *WhereStm
-	OrderByStm *OrderByStm
-	LimitStm   *LimitStm
-}
-
-func (stm *DeleteStm) Stms() []Stm {
-	return nil
-}
-
-func NewDeleteStm(tableName string, whereStm *WhereStm, orderByStm *OrderByStm, limitStm *LimitStm) *DeleteStm {
-	return &DeleteStm{tableName, whereStm, orderByStm, limitStm}
-}
-
-type InsertIntoStm struct {
-	TableName        string
-	Cols             []string
-	ValueExpressions []Stm
-}
-
-func (stm *InsertIntoStm) Stms() []Stm {
-	return nil
-}
-
-type ColumnValue struct {
-	ValueType lexer.TokenType
-	Value     interface{}
-}
-
-func (stm *ColumnValue) Stms() []Stm {
-	return nil
-}
-
-var EmptyColumnValue = ColumnValue{}
-
-func NewColumnValue(valueType lexer.TokenType, value interface{}) ColumnValue {
-	return ColumnValue{valueType, value}
-}
-
-type WhereStm struct {
-	ExpressionStms Stm
-}
-
-func (stm *WhereStm) Stms() []Stm {
-	return nil
-}
-
-type ExpressionStm struct {
-	Params []Stm
-}
-
-type OperationStm lexer.TokenType
-
-func (stm *OperationStm) Stms() []Stm {
-	return nil
-}
-
-type FunctionCallStm struct {
-	FuncName string
-	Params   []Stm
-}
-
-func (stm *FunctionCallStm) Stms() []Stm {
-	return nil
-}
-
-func (stm *ExpressionStm) Stms() []Stm {
-	return stm.Params
-}
-
-func (stm *ExpressionStm) Append(s Stm) {
-	stm.Params = append(stm.Params, s)
-}
-
-type OrderByStm struct {
-	Cols []string
-}
-
-func (stm *OrderByStm) Stms() []Stm {
-	return nil
-}
-
-type LimitStm struct {
-	Count int
-}
-
-func (stm LimitStm) Stms() []Stm {
-	return nil
-}
-
+// Truncate table statement is like:
+// * truncate [table] tb_name
 type TruncateStm struct {
 	TableName string
 }
 
-func (stm *TruncateStm) Stms() []Stm {
-	return nil
-}
+// Alter statement can be alter table statement or alter database statement.
+// Alter table statement is like:
+// * alter [table] tb_name [
+// add 	  [column] col_def |
+// drop   [column] col_name |
+// modify [column] col_def |
+// change [column] old_col_name col_def |
+// add {index|key} indexDef |
+// add [constraint] primaryKeyDef |
+// add [constraint] uniqueKeyDef |
+// add [constraint] foreignKeyDef |
+// drop {index|key} index_name |
+// drop primary key |
+// drop foreign key key_name |
+// engine=value |
+// [[default] | character set = value] |
+// [[default] | collate = value]
+// ]
 
-type RenameStm struct {
-	Tp            lexer.TokenType
-	OrigNames     string
-	ModifiedNames string
-}
-
-func (stm *RenameStm) Stms() []Stm {
-	return nil
-}
-
-type SelectStm struct {
-	Expressions []Stm
-	TableName   string
-	WhereStm    Stm
-	OrderByStm  Stm
-	LimitStm    Stm
-}
-
-func (stm *SelectStm) Stms() []Stm {
-	return nil
-}
-
-type UpdateStm struct {
-	TableName   string
-	Expressions []Stm
-	WhereStm    *WhereStm
-}
-
-func (stm *UpdateStm) Stms() []Stm {
-	return nil
-}
-
-type AlterStm struct {
+// * alter [table] tb_name [
+// add 	  [column] col_def |
+// drop   [column] col_name |
+// modify [column] col_def |
+// change [column] old_col_name col_def |
+type AlterTableAlterColumnStm struct {
 	TableName string
-	Tp        lexer.TokenType
-	ColDef    *ColumnDefStm
+	Tp        AlterTableColumnTp
+	ColName   string
+	ColDef    ColumnDefStm
 }
 
-func (stm *AlterStm) Stms() []Stm {
-	return nil
+type AlterTableColumnTp byte
+
+const (
+	AddColumnTp AlterTableColumnTp = iota
+	DropColumnTp
+	ModifyColumnTp
+	ChangeColumnTp
+)
+
+// Alter table statement is like:
+// alter [table] tb_name
+// * add {index|key} indexDef |
+// * add [constraint] primaryKeyDef |
+// * add [constraint] uniqueKeyDef |
+// * add [constraint] foreignKeyDef |
+// * drop {index|key} index_name |
+// * drop primary key |
+// * drop foreign key key_name |
+type AlterTableDropIndexOrConstraintStm struct {
+	TableName      string
+	Tp             KeyOrConstraintType
+	IndexOrKeyName string
 }
+
+type KeyOrConstraintType byte
+
+const (
+	IndexTp = iota
+	PrimaryKeyTp
+	ForeignKeyTp
+)
+
+// * add {index|key} indexDef |
+// * add [constraint] primaryKeyDef |
+// * add [constraint] uniqueKeyDef |
+// * add [constraint] foreignKeyDef |
+type AlterTableAddIndexOrConstraintStm struct {
+	TableName         string
+	IndexOrConstraint interface{}
+}
+
+// alter [table] tb_name
+// [[default] | character set = value] |
+// [[default] | collate = value]
+type AlterTableCharsetCollateStm struct {
+	TableName string
+	Charset   string
+	Collate   string
+}
+
+type AlterTableAlterEngineStm struct {
+	TableName string
+	Engine    string
+}
+
+// Alter database statement can be:
+// * alter {database | schema} db_name [[Default | character set = value] | [Default | collate = value]]
+type AlterDatabaseStm struct {
+	DatabaseName string
+	Charset      string
+	Collate      string
+}
+
+// Second DML
+// Insert statement is like:
+// * insert into tb_name [( col_name,... )] values (expression,...)
+type InsertIntoStm struct {
+	TableName string
+	Cols      []string
+	Values    []*ExpressionStm
+}
+
+type OperationStm lexer.TokenType
+
+// For expression, compared to mysql, we use a simplified version and only a subset expressions of mysql
+// are supported. An expression statement is like:
+// * variable | expr ope expr | expr [NOT] IN {(expr,...) | (subQuery)} | expr [NOT] LIKE variable | (expr)
+// variable is like:
+// * literal
+// * identifier
+// * functionCall
+// * [NOT] EXISTS (SubQuery)
+// where functionCall is like:
+// funcName(expr,...)
+// where ope supports:
+// +, -, *, /, %, =, IS, !=, IS NOT, >, >=, <, <=, AND, OR.
+type ExpressionStm struct {
+	Tp   ExpressionTp
+	Expr interface{}
+}
+
+type ExpressionTp byte
+
+const (
+	VariableExpressionTp ExpressionTp = iota
+	ExpressionOpeExpressionTp
+	ExpressionInExpressionsTp
+	ExpressionInSubqueryTp
+	ExpressionLikeVariableTp
+)
+
+type ExpressionOpeExpressionStm struct {
+	Expr1 *ExpressionStm
+	Ope   lexer.TokenType
+	Expr2 *ExpressionStm
+}
+
+const (
+	OperationAddTp        = lexer.ADD
+	OperationMinusTp      = lexer.MINUS
+	OperationMulTp        = lexer.MUL
+	OperationDivideTp     = lexer.DIVIDE
+	OperationModTp        = lexer.MOD
+	OperationEqualTp      = lexer.EQUAL
+	OperationIsTp         = lexer.IS
+	OperationNotEqualTp   = lexer.NOTEQUAL
+	OperationGreatTp      = lexer.GREAT
+	OperationGreatEqualTp = lexer.GREATEQUAL
+	OperationLessTp       = lexer.LESS
+	OperationLessEqualTp  = lexer.LESSEQUAL
+	OperationAndTp        = lexer.AND
+	OperationOrTp         = lexer.OR
+	OperationISNotTp      = lexer.OR + 1
+)
+
+type ExpressionInExpressionsStm struct {
+	Expr  *ExpressionStm
+	In    bool
+	Exprs []*ExpressionStm
+}
+
+type ExpressionInSubQueryStm struct {
+	Expr     *ExpressionStm
+	In       bool
+	SubQuery SubQueryStm
+}
+
+type ExpressionLikeVariableStm struct {
+	Expr     *ExpressionStm
+	Like     bool
+	Variable *ExpressionStm
+}
+
+type VariableExpressionStm struct {
+	Tp       VariableTp
+	Variable interface{}
+}
+
+type VariableTp byte
+
+const (
+	LiteralExpressionTp VariableTp = iota
+	IdentifierExpressionTp
+	FunctionCallExpressionTp
+	ExistsSubQueryExpressionTp
+)
+
+type LiteralExpressionStm ColumnValue
+type IdentifierExpression []byte
+
+// FuncName(params...)
+type FunctionCallExpressionStm struct {
+	FuncName string
+	Params   []*ExpressionStm
+}
+
+type ExistsSubQueryExpressionStm struct {
+	Exists   bool
+	SubQuery SubQueryStm
+}
+
+type SubQueryStm *SelectStm
+
+// Update statement is like:
+// * update table_reference set assignments... [WhereStm] [OrderByStm] [LimitStm]
+// * update table_reference... set assignments... [WhereStm]
+type UpdateStm struct {
+	TableRefs   []TableReferenceStm
+	Assignments []AssignmentStm
+	Where       WhereStm
+	OrderBy     *OrderByStm
+	Limit       *LimitStm
+}
+
+// A table reference statement is like:
+// * {tb_name [as alias] | joined_table | table_subquery as alias} | (tableRef)
+// * table_sub_query := (selectStm) as alias
+type TableReferenceStm struct {
+	Tp TableReferenceType
+	// Can be TableReferenceTblStm or JoinedTableStm or TableSubQueryStm
+	TableReference interface{}
+}
+
+type TableReferenceType byte
+
+const (
+	TableReferencePureTableNameTp TableReferenceType = iota
+	TableReferenceJoinedTableTp
+	TableReferenceTableSubQueryTp
+)
+
+type TableReferenceTblStm struct {
+	TableName string
+	Alias     string
+}
+
+// where joined_table is like:
+// * table_reference { {left|right} [outer] join table_reference join_specification | inner join table_reference [join_specification]}
+type JoinedTableStm struct {
+	// Can be a sub tableReferenceStm or a tb_name [as alias]
+	TableReference       interface{}
+	JoinTp               JoinType
+	JoinedTableReference interface{}
+	JoinSpec             JoinSpecification
+}
+
+type JoinType byte
+
+const (
+	LeftOuterJoin JoinType = iota
+	RightOuterJoin
+	InnerJoin
+)
+
+// join_specification is like:
+// on where_condition | using (col,...)
+type JoinSpecification struct {
+	Tp        JoinSpecificationTp
+	Condition interface{}
+}
+
+type JoinSpecificationTp byte
+
+const (
+	JoinSpecificationON JoinSpecificationTp = iota
+	JoinSpecificationUsing
+)
+
+type TableSubQueryStm struct {
+	Select *SelectStm
+	Alias  string
+}
+
+// ColName = expression
+type AssignmentStm struct {
+	ColName string
+	Value   *ExpressionStm
+}
+
+type WhereStm *ExpressionStm
+
+// order by expressions [asc|desc],...
+// pure column can be seen as a kind of expression as well.
+type OrderByStm struct {
+	Expressions []*ExpressionStm
+	Asc         []bool
+}
+
+// Limit statement is like limit {[offset,] row_counter | row_counter OFFSET offset}
+type LimitStm struct {
+	Count  int
+	Offset int
+}
+
+// Delete statement is like:
+// * delete from tb_name [whereStm] [OrderByStm] [LimitStm]
+// * delete tb1,... from table_references [WhereStm]
+type DeleteStm struct {
+	Tp  DeleteStmTp
+	Stm interface{}
+}
+
+type DeleteStmTp byte
+
+const (
+	SingleDeleteStmTp = iota
+	MultiDeleteStmTp
+)
+
+type SingleDeleteStm struct {
+	TableName string
+	Where     WhereStm
+	OrderBy   *OrderByStm
+	Limit     *LimitStm
+}
+
+// * delete tb1,... from table_references [WhereStm]
+type MultiDeleteStm struct {
+	TableNames      []string
+	TableReferences []TableReferenceStm
+	Where           WhereStm
+}
+
+// Select statement is like:
+// * select [all | distinct | distinctrow] select_expression... from table_reference... [WhereStm] [GroupByStm] [HavingStm]
+// [OrderByStm] [LimitStm] [for update | lock in share mode]
+type SelectStm struct {
+	Tp                SelectTp
+	SelectExpressions *SelectExpressionStm
+	TableReferences   []TableReferenceStm
+	Where             WhereStm
+	OrderBy           *OrderByStm
+	Groupby           *GroupByStm
+	Having            HavingStm
+	LimitStm          *LimitStm
+	LockTp            SelectLockTp
+}
+
+type SelectExpressionStm struct {
+	Tp   SelectExpressionTp
+	Expr interface{}
+}
+
+type SelectExpressionTp byte
+
+const (
+	ExprSelectExpressionTp SelectExpressionTp = iota
+	StarSelectExpressionTp
+)
+
+// group by {col_name | expressions [asc|desc]}...
+// pure column can be seen as a kind of expression as well.
+type GroupByStm OrderByStm
+
+// Having WhereStm
+type HavingStm WhereStm
+
+type SelectTp byte
+
+const (
+	SelectAllTp SelectTp = iota
+	SelectDistinctTp
+	SelectDistinctRowTp
+)
+
+type SelectLockTp byte
+
+const (
+	ForUpdateLockTp SelectLockTp = iota
+	LockInShareModeTp
+	NoneLockTp
+)

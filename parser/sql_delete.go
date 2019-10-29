@@ -3,54 +3,92 @@ package parser
 import (
 	"simpleDb/ast"
 	"simpleDb/lexer"
-	"strconv"
 )
 
-const WrongDeleteStmErr = ParseError("wrong delete statement err")
-const WrongIntValueFormat = ParseError("wrong int value format")
+// Delete statement is like:
+// * delete from tb_name [whereStm] [OrderByStm] [LimitStm]
+// * delete tb1,... from table_references [WhereStm]
 
 func (parser *Parser) resolveDeleteStm() (stm *ast.DeleteStm, err error) {
-	// Delete from ident|word  WhereStm OrderByStm LimitStm;
-	if !parser.matchTokenType(lexer.FROM, false) {
-		return nil, WrongDeleteStmErr
+	if !parser.matchTokenTypes(false, lexer.DELETE) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	tableName, ret:= parser.parseIdentOrWord(false)
+	if parser.matchTokenTypes(true, lexer.FROM) {
+		return parser.parseDeleteSingleTableStm()
+	}
+	return parser.parseDeleteMultiTableStm()
+}
+
+func (parser *Parser) parseDeleteSingleTableStm() (stm *ast.DeleteStm, err error) {
+	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
-		return nil, WrongDeleteStmErr
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	whereStm, err := parser.resolveWhereStm(true)
+	whereStm, err := parser.resolveWhereStm()
 	if err != nil {
-		return nil, WrongDeleteStmErr.Wrapper(err)
+		return nil, err
 	}
-	orderByStm, err := parser.resolveOrderBy(true)
+	orderByStm, err := parser.parseOrderByStm()
 	if err != nil {
-		return nil, WrongDeleteStmErr.Wrapper(err)
+		return nil, err
 	}
-	limitStm, err := parser.resolveLimit(true)
+	limitStm, err := parser.parseLimit()
 	if err != nil {
-		return nil, WrongDeleteStmErr.Wrapper(err)
+		return nil, err
 	}
-	// must end with ;
-	if !parser.matchTokenType(lexer.SEMICOLON, false) {
-		return nil, WrongDeleteStmErr
+	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return ast.NewDeleteStm(tableName, whereStm, orderByStm, limitStm), nil
+	return &ast.DeleteStm{
+		Tp: ast.SingleDeleteStmTp,
+		Stm: ast.SingleDeleteStm{
+			TableName: string(tableName),
+			Where:     whereStm,
+			OrderBy:   orderByStm,
+			Limit:     limitStm,
+		},
+	}, nil
 }
 
-func (parser *Parser) parseIntValue(ifNotRollback bool) (int, error) {
-	if !parser.hasNext() {
-		return -1, TokensEndErr
+func (parser *Parser) parseDeleteMultiTableStm() (stm *ast.DeleteStm, err error) {
+	var tableNames []string
+	for {
+		tableName, ok := parser.parseIdentOrWord(false)
+		if !ok {
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		}
+		tableNames = append(tableNames, string(tableName))
+		if !parser.matchTokenTypes(true, lexer.COMMA) {
+			break
+		}
 	}
-	t := parser.l.Tokens[parser.pos]
-	if t.Tp != lexer.INTVALUE {
-		if ifNotRollback { parser.pos -- }
-		return -1, WrongIntValueFormat
+	if !parser.matchTokenTypes(false, lexer.FROM) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	v, err := strconv.Atoi(string(parser.l.Data[t.StartPos : t.EndPos]))
+	var tableRefs []ast.TableReferenceStm
+	for {
+		tableRef, err := parser.parseTableReferenceStm()
+		if err != nil {
+			return nil, err
+		}
+		tableRefs = append(tableRefs, tableRef)
+		if !parser.matchTokenTypes(true, lexer.COMMA) {
+			break
+		}
+	}
+	whereStm, err := parser.resolveWhereStm()
 	if err != nil {
-		if ifNotRollback { parser.pos -- }
-		return -1, WrongIntValueFormat
+		return nil, err
 	}
-	return v, nil
+	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	return &ast.DeleteStm{
+		Tp: ast.MultiDeleteStmTp,
+		Stm: ast.MultiDeleteStm{
+			TableNames:      tableNames,
+			TableReferences: tableRefs,
+			Where:           whereStm,
+		},
+	}, nil
 }
-

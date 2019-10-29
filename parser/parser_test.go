@@ -4,7 +4,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"simpleDb/ast"
 	"simpleDb/lexer"
-	"simpleDb/log"
 	"testing"
 )
 
@@ -17,7 +16,7 @@ func testSqls(t *testing.T, sqls []testEntity) {
 	parser := NewParser()
 	for _, sql := range sqls {
 		stm, err := parser.Parse([]byte(sql.sql))
-		log.LogDebug("%+v\n", stm)
+		//log.LogDebug("%+v\n", stm)
 		assert.Nil(t, err, sql)
 		assert.Equal(t, sql.stm, stm.Stms[0], sql)
 	}
@@ -38,11 +37,11 @@ func TestCreate(t *testing.T) {
 				TableName:  "tb_1",
 				IfNotExist: true,
 				Cols: []*ast.ColumnDefStm{
-					{ColName: "id", ColumnType: ast.ColumnType{Tp: lexer.INT}, PrimaryKey: true, ColValue: ast.ColumnValue{Value: 0, ValueType: lexer.INTVALUE}},
-					{ColName: "name", ColumnType: ast.ColumnType{Tp: lexer.VARCHAR, Min: 20}, ColValue: ast.ColumnValue{Value: "hello", ValueType: lexer.STRINGVALUE}},
-					{ColName: "age", ColumnType: ast.ColumnType{Tp: lexer.FLOAT, Min: 10, Max: 2}, ColValue: ast.ColumnValue{Value: 10, ValueType: lexer.INTVALUE}},
-					{ColName: "location", ColumnType: ast.ColumnType{Tp: lexer.STRING}, ColValue: ast.ColumnValue{Value: "haha", ValueType: lexer.STRINGVALUE}},
-					{ColName: "age", ColumnType: ast.ColumnType{Tp: lexer.CHAR}, ColValue: ast.ColumnValue{Value: byte('z'), ValueType: lexer.CHARVALUE}},
+					{ColName: "id", ColumnType: ast.ColumnType{Tp: lexer.INT}, PrimaryKey: true, ColDefaultValue: ast.ColumnValue{Value: 0, ValueType: lexer.INTVALUE}},
+					{ColName: "name", ColumnType: ast.ColumnType{Tp: lexer.VARCHAR, Min: 20}, ColDefaultValue: ast.ColumnValue{Value: "hello", ValueType: lexer.STRINGVALUE}},
+					{ColName: "age", ColumnType: ast.ColumnType{Tp: lexer.FLOAT, Min: 10, Max: 2}, ColDefaultValue: ast.ColumnValue{Value: 10, ValueType: lexer.INTVALUE}},
+					{ColName: "location", ColumnType: ast.ColumnType{Tp: lexer.STRING}, ColDefaultValue: ast.ColumnValue{Value: "haha", ValueType: lexer.STRINGVALUE}},
+					{ColName: "age", ColumnType: ast.ColumnType{Tp: lexer.CHAR}, ColDefaultValue: ast.ColumnValue{Value: byte('z'), ValueType: lexer.CHARVALUE}},
 				},
 			},
 		},
@@ -60,12 +59,12 @@ func TestCreate(t *testing.T) {
 				TableName:  "tb_1",
 				IfNotExist: false,
 				Cols: []*ast.ColumnDefStm{
-					{ColName: "id", ColumnType: ast.ColumnType{Tp: lexer.INT}, PrimaryKey: true, ColValue: ast.ColumnValue{Value: 0, ValueType: lexer.INTVALUE}},
-					{ColName: "name", ColumnType: ast.ColumnType{Tp: lexer.VARCHAR, Min: 20}, ColValue: ast.ColumnValue{Value: "hello", ValueType: lexer.STRINGVALUE}},
-					{ColName: "age", ColumnType: ast.ColumnType{Tp: lexer.FLOAT, Min: 10, Max: 2}, ColValue: ast.ColumnValue{Value: 10, ValueType: lexer.INTVALUE}},
-					{ColName: "location", ColumnType: ast.ColumnType{Tp: lexer.STRING}, ColValue: ast.ColumnValue{Value: "haha", ValueType: lexer.STRINGVALUE}},
-					{ColName: "p", ColumnType: ast.ColumnType{Tp: lexer.CHAR}, ColValue: ast.ColumnValue{Value: byte('z'), ValueType: lexer.CHARVALUE}},
-					{ColName: "sex", ColumnType: ast.ColumnType{Tp: lexer.BOOL}, ColValue: ast.ColumnValue{Value: true, ValueType: lexer.TRUE}},
+					{ColName: "id", ColumnType: ast.ColumnType{Tp: lexer.INT}, PrimaryKey: true, ColDefaultValue: ast.ColumnValue{Value: 0, ValueType: lexer.INTVALUE}},
+					{ColName: "name", ColumnType: ast.ColumnType{Tp: lexer.VARCHAR, Min: 20}, ColDefaultValue: ast.ColumnValue{Value: "hello", ValueType: lexer.STRINGVALUE}},
+					{ColName: "age", ColumnType: ast.ColumnType{Tp: lexer.FLOAT, Min: 10, Max: 2}, ColDefaultValue: ast.ColumnValue{Value: 10, ValueType: lexer.INTVALUE}},
+					{ColName: "location", ColumnType: ast.ColumnType{Tp: lexer.STRING}, ColDefaultValue: ast.ColumnValue{Value: "haha", ValueType: lexer.STRINGVALUE}},
+					{ColName: "p", ColumnType: ast.ColumnType{Tp: lexer.CHAR}, ColDefaultValue: ast.ColumnValue{Value: byte('z'), ValueType: lexer.CHARVALUE}},
+					{ColName: "sex", ColumnType: ast.ColumnType{Tp: lexer.BOOL}, ColDefaultValue: ast.ColumnValue{Value: true, ValueType: lexer.TRUE}},
 				},
 			},
 		},
@@ -340,9 +339,9 @@ func TestAlter(t *testing.T) {
 				TableName: "tb_1",
 				Tp:        lexer.COLADD,
 				ColDef: &ast.ColumnDefStm{
-					ColName:    "id",
-					ColValue:   ast.ColumnValue{ValueType: lexer.STRINGVALUE, Value: "hello"},
-					ColumnType: ast.ColumnType{Tp: lexer.VARCHAR, Min: 10},
+					ColName:         "id",
+					ColDefaultValue: ast.ColumnValue{ValueType: lexer.STRINGVALUE, Value: "hello"},
+					ColumnType:      ast.ColumnType{Tp: lexer.VARCHAR, Min: 10},
 				},
 			},
 		},
@@ -352,9 +351,9 @@ func TestAlter(t *testing.T) {
 				TableName: "tb_1",
 				Tp:        lexer.COLADD,
 				ColDef: &ast.ColumnDefStm{
-					ColName:    "id",
-					ColValue:   ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.5},
-					ColumnType: ast.ColumnType{Tp: lexer.FLOAT, Min: 10, Max: 2},
+					ColName:         "id",
+					ColDefaultValue: ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.5},
+					ColumnType:      ast.ColumnType{Tp: lexer.FLOAT, Min: 10, Max: 2},
 				},
 			},
 		},
@@ -364,9 +363,9 @@ func TestAlter(t *testing.T) {
 				TableName: "tb_1",
 				Tp:        lexer.COLADD,
 				ColDef: &ast.ColumnDefStm{
-					ColName:    "id2",
-					ColValue:   ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.5},
-					ColumnType: ast.ColumnType{Tp: lexer.FLOAT, Min: -1, Max: -1},
+					ColName:         "id2",
+					ColDefaultValue: ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.5},
+					ColumnType:      ast.ColumnType{Tp: lexer.FLOAT, Min: -1, Max: -1},
 				},
 			},
 		},
@@ -376,10 +375,10 @@ func TestAlter(t *testing.T) {
 				TableName: "tb_1",
 				Tp:        lexer.COLADD,
 				ColDef: &ast.ColumnDefStm{
-					ColName:    "id3",
-					ColValue:   ast.ColumnValue{Value: byte('z'), ValueType: lexer.CHARVALUE},
-					PrimaryKey: true,
-					ColumnType: ast.ColumnType{Tp: lexer.CHAR},
+					ColName:         "id3",
+					ColDefaultValue: ast.ColumnValue{Value: byte('z'), ValueType: lexer.CHARVALUE},
+					PrimaryKey:      true,
+					ColumnType:      ast.ColumnType{Tp: lexer.CHAR},
 				},
 			},
 		},
@@ -389,10 +388,10 @@ func TestAlter(t *testing.T) {
 				TableName: "tb_1",
 				Tp:        lexer.ALTER,
 				ColDef: &ast.ColumnDefStm{
-					ColName:    "col3",
-					ColValue:   ast.ColumnValue{ValueType: lexer.CHARVALUE, Value: byte('z')},
-					PrimaryKey: true,
-					ColumnType: ast.ColumnType{Tp: lexer.CHAR},
+					ColName:         "col3",
+					ColDefaultValue: ast.ColumnValue{ValueType: lexer.CHARVALUE, Value: byte('z')},
+					PrimaryKey:      true,
+					ColumnType:      ast.ColumnType{Tp: lexer.CHAR},
 				},
 			},
 		},
@@ -402,11 +401,11 @@ func TestAlter(t *testing.T) {
 				TableName: "tb_1",
 				Tp:        lexer.CHANGE,
 				ColDef: &ast.ColumnDefStm{
-					OldColName: "col_o",
-					ColName:    "col_3",
-					ColValue:   ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.5},
-					PrimaryKey: true,
-					ColumnType: ast.ColumnType{Tp: lexer.FLOAT, Min: -1, Max: -1},
+					OldColName:      "col_o",
+					ColName:         "col_3",
+					ColDefaultValue: ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.5},
+					PrimaryKey:      true,
+					ColumnType:      ast.ColumnType{Tp: lexer.FLOAT, Min: -1, Max: -1},
 				},
 			},
 		},
