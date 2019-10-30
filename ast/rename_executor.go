@@ -1,7 +1,7 @@
-package engine
+package ast
 
 import "errors"
 
-func ExecuteCreateStm() error {
+func (stm *RenameStm) Execute() error {
 	return errors.New("unsupported statement error")
 }

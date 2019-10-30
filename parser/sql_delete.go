@@ -9,7 +9,7 @@ import (
 // * delete from tb_name [whereStm] [OrderByStm] [LimitStm]
 // * delete tb1,... from table_references [WhereStm]
 
-func (parser *Parser) resolveDeleteStm() (stm *ast.DeleteStm, err error) {
+func (parser *Parser) resolveDeleteStm() (stm ast.Stm, err error) {
 	if !parser.matchTokenTypes(false, lexer.DELETE) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
@@ -19,7 +19,7 @@ func (parser *Parser) resolveDeleteStm() (stm *ast.DeleteStm, err error) {
 	return parser.parseDeleteMultiTableStm()
 }
 
-func (parser *Parser) parseDeleteSingleTableStm() (stm *ast.DeleteStm, err error) {
+func (parser *Parser) parseDeleteSingleTableStm() (stm *ast.SingleDeleteStm, err error) {
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
@@ -39,18 +39,15 @@ func (parser *Parser) parseDeleteSingleTableStm() (stm *ast.DeleteStm, err error
 	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.DeleteStm{
-		Tp: ast.SingleDeleteStmTp,
-		Stm: ast.SingleDeleteStm{
-			TableName: string(tableName),
-			Where:     whereStm,
-			OrderBy:   orderByStm,
-			Limit:     limitStm,
-		},
+	return &ast.SingleDeleteStm{
+		TableName: string(tableName),
+		Where:     whereStm,
+		OrderBy:   orderByStm,
+		Limit:     limitStm,
 	}, nil
 }
 
-func (parser *Parser) parseDeleteMultiTableStm() (stm *ast.DeleteStm, err error) {
+func (parser *Parser) parseDeleteMultiTableStm() (stm *ast.MultiDeleteStm, err error) {
 	var tableNames []string
 	for {
 		tableName, ok := parser.parseIdentOrWord(false)
@@ -83,12 +80,9 @@ func (parser *Parser) parseDeleteMultiTableStm() (stm *ast.DeleteStm, err error)
 	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.DeleteStm{
-		Tp: ast.MultiDeleteStmTp,
-		Stm: ast.MultiDeleteStm{
-			TableNames:      tableNames,
-			TableReferences: tableRefs,
-			Where:           whereStm,
-		},
+	return &ast.MultiDeleteStm{
+		TableNames:      tableNames,
+		TableReferences: tableRefs,
+		Where:           whereStm,
 	}, nil
 }

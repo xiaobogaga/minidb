@@ -8,7 +8,7 @@ import (
 // Insert statement is like:
 // * insert into tb_name [( col_name... )] values (expression...)
 
-func (parser *Parser) resolveInsertStm() (*ast.InsertIntoStm, error) {
+func (parser *Parser) resolveInsertStm() (ast.Stm, error) {
 	if !parser.matchTokenTypes(false, lexer.INSERT) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}

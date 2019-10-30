@@ -12,7 +12,7 @@ import (
 // expr [as] alias
 // *
 
-func (parser *Parser) resolveSelectStm(needCheckSemicolon bool) (stm *ast.SelectStm, err error) {
+func (parser *Parser) resolveSelectStm(needCheckSemicolon bool) (stm ast.Stm, err error) {
 	if !parser.matchTokenTypes(false, lexer.SELECT) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}

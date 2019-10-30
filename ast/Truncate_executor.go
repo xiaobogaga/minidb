@@ -1,7 +1,7 @@
-package engine
+package ast
 
 import "errors"
 
-func ExecuteDropStm() error {
+func (stm *TruncateStm) Execute() error {
 	return errors.New("unsupported statement error")
 }

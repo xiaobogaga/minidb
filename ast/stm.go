@@ -4,7 +4,9 @@ import (
 	"simpleDb/lexer"
 )
 
-type Stm interface{}
+type Stm interface {
+	Execute() error
+}
 
 // create database statement:
 // * create {database|schema} [if not exist] database_name [[Default | character set = value] | [Default | collate = value]];
@@ -13,10 +15,6 @@ type CreateDatabaseStm struct {
 	IfNotExist   bool
 	Charset      string
 	Collate      string
-}
-
-func NewCreateDatabaseStm(databaseName string, ifNotExist bool) *CreateDatabaseStm {
-	return &CreateDatabaseStm{DatabaseName: databaseName, IfNotExist: ifNotExist}
 }
 
 // create table statements:
@@ -32,9 +30,9 @@ func NewCreateDatabaseStm(databaseName string, ifNotExist bool) *CreateDatabaseS
 type CreateTableStm struct {
 	TableName   string
 	IfNotExist  bool
-	Cols        []ColumnDefStm
+	Cols        []*ColumnDefStm
 	Indexes     []IndexDefStm
-	Constraints []Stm
+	Constraints []ConstraintDefStm
 	Engine      string
 	Charset     string
 	Collate     string
@@ -68,10 +66,6 @@ type ColumnDefStm struct {
 
 type ColumnValue []byte
 
-func NewColumnStm(columnName string) ColumnDefStm {
-	return ColumnDefStm{ColName: columnName}
-}
-
 // ColumnType represent a column type statement where tp is the column type and
 // Ranges is the column type range, like int(10), 10 is range, float(10, 2), 10 and 2 is
 // the ranges.
@@ -80,16 +74,25 @@ type ColumnType struct {
 	Ranges [2]int
 }
 
-func MakeColumnType(tp lexer.TokenType, ranges [2]int) ColumnType {
-	return ColumnType{Tp: tp, Ranges: ranges}
-}
-
 // Index_Def:
 // * {index|key} index_name (col_name, ...)
 type IndexDefStm struct {
 	IndexName string
 	ColNames  []string
 }
+
+type ConstraintDefStm struct {
+	Tp         ConstraintTp
+	Constraint interface{}
+}
+
+type ConstraintTp byte
+
+const (
+	PrimaryKeyConstraintTp ConstraintTp = iota
+	UniqueKeyConstraintTp
+	ForeignKeyConstraintTp
+)
 
 // * [Constraint] primary key (col_name [,col_name...)
 // * [Constraint] unique {index|key} index_name (col_name [,col_name...)
@@ -132,19 +135,11 @@ type DropDatabaseStm struct {
 	IfExist      bool
 }
 
-func NewDropDatabaseStm(databaseName string, ifExist bool) DropDatabaseStm {
-	return DropDatabaseStm{databaseName, ifExist}
-}
-
 // Drop table statement is like:
 // * drop table [if exists] tb_name[,tb_name...];
 type DropTableStm struct {
 	IfExists   bool
 	TableNames []string
-}
-
-func NewDropTableStm(ifExists bool, tableName ...string) DropTableStm {
-	return DropTableStm{ifExists, tableName}
 }
 
 // Rename statement can be rename table or database statement.
@@ -189,7 +184,7 @@ type AlterTableAlterColumnStm struct {
 	TableName string
 	Tp        AlterTableColumnTp
 	ColName   string
-	ColDef    ColumnDefStm
+	ColDef    *ColumnDefStm
 }
 
 type AlterTableColumnTp byte
@@ -229,9 +224,17 @@ const (
 // * add [constraint] uniqueKeyDef |
 // * add [constraint] foreignKeyDef |
 type AlterTableAddIndexOrConstraintStm struct {
+	Tp                IndexOrConstraintTp
 	TableName         string
 	IndexOrConstraint interface{}
 }
+
+type IndexOrConstraintTp byte
+
+const (
+	IsIndexTp IndexOrConstraintTp = iota
+	IsConstraintTp
+)
 
 // alter [table] tb_name
 // [[default] | character set = value] |
@@ -459,18 +462,6 @@ type LimitStm struct {
 // Delete statement is like:
 // * delete from tb_name [whereStm] [OrderByStm] [LimitStm]
 // * delete tb1,... from table_references [WhereStm]
-type DeleteStm struct {
-	Tp  DeleteStmTp
-	Stm interface{}
-}
-
-type DeleteStmTp byte
-
-const (
-	SingleDeleteStmTp = iota
-	MultiDeleteStmTp
-)
-
 type SingleDeleteStm struct {
 	TableName string
 	Where     WhereStm

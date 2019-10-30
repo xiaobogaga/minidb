@@ -149,7 +149,7 @@ func (parser *Parser) parseColumnType(ifNotRollback bool) (ast.ColumnType, bool)
 		}
 		return emptyColumnTp, false
 	}
-	return ast.MakeColumnType(t.Tp, ranges), true
+	return ast.ColumnType{Tp: t.Tp, Ranges: ranges}, true
 }
 
 // parseTypeRanges try to parse a range from a type def, such as (5) of int(5), (10, 2) of float(10, 2).

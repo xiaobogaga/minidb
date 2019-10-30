@@ -9,7 +9,7 @@ import (
 // * update table_reference set assignments... [WhereStm] [OrderByStm] [LimitStm]
 // * update table_reference... set assignments... [WhereStm]
 
-func (parser *Parser) resolveUpdateStm() (*ast.UpdateStm, error) {
+func (parser *Parser) resolveUpdateStm() (ast.Stm, error) {
 	if !parser.matchTokenTypes(false, lexer.UPDATE) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
@@ -42,9 +42,9 @@ func (parser *Parser) resolveUpdateStm() (*ast.UpdateStm, error) {
 	var order *ast.OrderByStm
 	var limit *ast.LimitStm
 	var err error
-	where, _ := parser.resolveWhereStm(true)
+	where, _ := parser.resolveWhereStm()
 	if len(tableRefs) > 1 {
-		order, err = parser.parseOrderByStm(true)
+		order, err = parser.parseOrderByStm()
 		if err != nil {
 			return nil, err
 		}

@@ -39,7 +39,7 @@ func (parser *Parser) parseDropStm() (stm ast.Stm, err error) {
 
 // Drop table statement is like:
 // * drop table [if exists] tb_name[,tb_name...] [RESTRICT|CASCADE];
-func (parser *Parser) parseDropTableStm() (ast.Stm, error) {
+func (parser *Parser) parseDropTableStm() (*ast.DropTableStm, error) {
 	ifExist := parser.matchTokenTypes(true, lexer.IF, lexer.EXIST)
 	var tableNames []string
 	for {
@@ -52,20 +52,24 @@ func (parser *Parser) parseDropTableStm() (ast.Stm, error) {
 			break
 		}
 	}
-	dropTableStm := ast.NewDropTableStm(ifExist, tableNames...)
 	parser.matchTokenTypes(true, lexer.RESTRICT)
 	parser.matchTokenTypes(true, lexer.CASCADE)
-	return dropTableStm, nil
+	return &ast.DropTableStm{
+		IfExists:   ifExist,
+		TableNames: tableNames,
+	}, nil
 }
 
 // Drop database statement is like:
 // * drop {database | schema} [if exists] db_name;
-func (parser *Parser) parseDropDatabaseStm() (ast.Stm, error) {
+func (parser *Parser) parseDropDatabaseStm() (*ast.DropDatabaseStm, error) {
 	ifExist := parser.matchTokenTypes(true, lexer.IF, lexer.EXIST)
 	name, ret := parser.parseIdentOrWord(false)
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	dropDatabaseStm := ast.NewDropDatabaseStm(string(name), ifExist)
-	return dropDatabaseStm, nil
+	return &ast.DropDatabaseStm{
+		DatabaseName: string(name),
+		IfExist:      ifExist,
+	}, nil
 }
