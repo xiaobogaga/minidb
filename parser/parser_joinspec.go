@@ -32,7 +32,7 @@ func (parser *Parser) parseOnJoinSpec() (ast.JoinSpecification, error) {
 	if !parser.matchTokenTypes(false, lexer.ON) {
 		return emptyJoinSepc, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	whereStm, err := parser.resolveWhereStm(false)
+	whereStm, err := parser.resolveWhereStm()
 	if err != nil {
 		return emptyJoinSepc, err
 	}

@@ -1,6 +1,8 @@
 package ast
 
-import "errors"
+import (
+	"errors"
+)
 
 func (stm *CreateTableStm) Execute() error {
 	return errors.New("unsupported statement error")

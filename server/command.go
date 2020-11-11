@@ -16,13 +16,13 @@ type Command struct {
 func decodeCommand(packet []byte) (Command, *CommandErr) {
 	switch CommandType(packet[0]) {
 	case TpComQuery:
-		return Command{Tp: TpComQuery, arg: packet, Command: }, nil
+		return Command{Tp: TpComQuery, arg: packet, Command:}, nil
 	case TpComQuit:
-		return Command{Tp: TpComQuit, Command: }, nil
+		return Command{Tp: TpComQuit, Command:}, nil
 	case TpComInitDB:
-		return Command{Tp: TpComInitDB, arg: packet, Command: }, nil
+		return Command{Tp: TpComInitDB, arg: packet, Command:}, nil
 	case TpComPing:
-		return Command{Tp: TpComPing, Command: }, nil
+		return Command{Tp: TpComPing, Command:}, nil
 	default:
 		return Command{}, &CommandErr{ErrCode: ER_UNKNOWN_COM_ERROR}
 	}
@@ -123,8 +123,8 @@ func (c ComQuery) Do(arg []byte) (bool, OkMsg, *CommandErr) {
 			Params:  nil,
 		}
 	}
-	for _, stm := range {
-		
+	for _, stm := range stms {
+		stm.Execute()
 	}
 	return false, -1, nil
 }

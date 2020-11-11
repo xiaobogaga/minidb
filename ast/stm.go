@@ -271,36 +271,34 @@ type OperationStm lexer.TokenType
 
 // For expression, compared to mysql, we use a simplified version and only a subset expressions of mysql
 // are supported. An expression statement is like:
-// * variable | expr ope expr | expr [NOT] IN {(expr,...) | (subQuery)} | expr [NOT] LIKE variable | (expr)
-// variable is like:
-// * literal
-// * identifier
-// * functionCall
-// * [NOT] EXISTS (SubQuery)
+// term (ope term)
+// a term can be:
+// * literal | (expr) | identifier | functionCall |
 // where functionCall is like:
 // funcName(expr,...)
 // where ope supports:
-// +, -, *, /, %, =, IS, !=, IS NOT, >, >=, <, <=, AND, OR.
+// +, -, *, /, %, =, IS, !=, IS NOT, >, >=, <, <=, AND, OR,
+// Note: currently we don't consider [NOT] IN, [NOT] LIKE
 type ExpressionStm struct {
-	Tp   ExpressionTp
-	Expr interface{}
+	ExprTerms []ExpressionTerm
+	Ops       []ExpressionOpTP
 }
 
-type ExpressionTp byte
+type ExpressionTerm struct {
+	Tp           ExpressionTermTP
+	RealExprTerm interface{}
+}
+
+type ExpressionTermTP byte
 
 const (
-	VariableExpressionTp ExpressionTp = iota
-	ExpressionOpeExpressionTp
-	ExpressionInExpressionsTp
-	ExpressionInSubqueryTp
-	ExpressionLikeVariableTp
+	LiteralExpressionTermTP ExpressionTermTP = 0
+	SubExpressionTermTP
+	IdentifierExpressionTermTP
+	FuncCallExpressionTermTP
 )
 
-type ExpressionOpeExpressionStm struct {
-	Expr1 *ExpressionStm
-	Ope   lexer.TokenType
-	Expr2 *ExpressionStm
-}
+type ExpressionOpTP lexer.TokenType
 
 const (
 	OperationAddTp        = lexer.ADD
@@ -320,37 +318,23 @@ const (
 	OperationISNotTp      = lexer.OR + 1
 )
 
-type ExpressionInExpressionsStm struct {
-	Expr  *ExpressionStm
-	In    bool
-	Exprs []*ExpressionStm
-}
-
-type ExpressionInSubQueryStm struct {
-	Expr     *ExpressionStm
-	In       bool
-	SubQuery SubQueryStm
-}
-
-type ExpressionLikeVariableStm struct {
-	Expr     *ExpressionStm
-	Like     bool
-	Variable *ExpressionStm
-}
-
-type VariableExpressionStm struct {
-	Tp       VariableTp
-	Variable interface{}
-}
-
-type VariableTp byte
-
-const (
-	LiteralExpressionTp VariableTp = iota
-	IdentifierExpressionTp
-	FunctionCallExpressionTp
-	ExistsSubQueryExpressionTp
-)
+//type ExpressionInExpressionsStm struct {
+//	Expr  *ExpressionStm
+//	In    bool
+//	Exprs []*ExpressionStm
+//}
+//
+//type ExpressionInSubQueryStm struct {
+//	Expr     *ExpressionStm
+//	In       bool
+//	SubQuery SubQueryStm
+//}
+//
+//type ExpressionLikeVariableStm struct {
+//	Expr     *ExpressionStm
+//	Like     bool
+//	Variable *ExpressionStm
+//}
 
 type LiteralExpressionStm ColumnValue
 type IdentifierExpression []byte
@@ -360,6 +344,8 @@ type FunctionCallExpressionStm struct {
 	FuncName string
 	Params   []*ExpressionStm
 }
+
+type SubExpressionTerm ExpressionTerm
 
 type ExistsSubQueryExpressionStm struct {
 	Exists   bool
@@ -394,6 +380,7 @@ const (
 	TableReferencePureTableNameTp TableReferenceType = iota
 	TableReferenceJoinedTableTp
 	TableReferenceTableSubQueryTp
+	TableReferenceSubTableReferenceStmTP
 )
 
 type TableReferenceTblStm struct {
@@ -482,7 +469,7 @@ type MultiDeleteStm struct {
 type SelectStm struct {
 	Tp                SelectTp
 	SelectExpressions *SelectExpressionStm
-	TableReferences   []TableReferenceStm
+	TableReferences   []TableReferenceStm // If there are more tables, query are using join.
 	Where             WhereStm
 	OrderBy           *OrderByStm
 	Groupby           *GroupByStm

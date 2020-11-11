@@ -172,7 +172,7 @@ func (parser *Parser) parseCreateTableAsStm(ifNotExist bool, tableName []byte) (
 	return &ast.CreateTableAsSelectStm{
 		TableName:  string(tableName),
 		IfNotExist: ifNotExist,
-		Select:     selectStm,
+		Select:     selectStm.(*ast.SelectStm),
 	}, nil
 }
 

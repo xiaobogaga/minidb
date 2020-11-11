@@ -1,6 +1,8 @@
 package ast
 
-import "errors"
+import (
+	"errors"
+)
 
 func (stm *DropDatabaseStm) Execute() error {
 	return errors.New("unsupported statement error")

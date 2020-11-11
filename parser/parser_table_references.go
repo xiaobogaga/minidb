@@ -8,9 +8,11 @@ import (
 // Port from mysql.
 
 // A table reference statement is like:
-// * {tb_name [as alias] | joined_table | (table_subquery) as alias} | (tableRef)
-// where joined_table is like:
-// * table_reference { {left|right} [outer] join table_reference join_specification | inner join table_factor [join_specification]}
+// table_factor | joined_table
+// where table_factor can be:
+// * {tb_name [as alias] | (table_subquery) as alias} | (tableRef)
+// and joined_table is like:
+// * table_factor { {left|right} [outer] join table_reference join_specification | inner join table_factor [join_specification] } *
 // join_specification is like:
 // on where_condition | using (col...)
 
@@ -21,24 +23,20 @@ import (
 var emptyTableRefStm = ast.TableReferenceStm{}
 
 func (parser *Parser) parseTableReferenceStm() (stm ast.TableReferenceStm, err error) {
-	hasLeftBracket := parser.matchTokenTypes(true, lexer.LEFTBRACKET)
-	if hasLeftBracket {
-		stm, err = parser.parseTableReferenceStm()
-	} else {
-		token, ok := parser.NextToken()
-		if !ok {
-			return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
-		}
-		switch token.Tp {
-		case lexer.SELECT:
-			// Sub query
-			parser.UnReadToken()
-			stm, err = parser.parseTableSubQuery()
-		case lexer.IDENT, lexer.WORD:
-			// Table as
-			parser.UnReadToken()
-			stm, err = parser.parseTableAsStm()
-		}
+	token, ok := parser.NextToken()
+	if !ok {
+		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	switch token.Tp {
+	case lexer.LEFTBRACKET:
+		parser.UnReadToken()
+		stm, err = parser.parseSubTableRefOrTableSubQuery()
+	case lexer.IDENT, lexer.WORD:
+		parser.UnReadToken()
+		stm, err = parser.parseTableAsStm()
+	}
+
+	for {
 		// Also need to check join type, because maybe a joined_table reference.
 		token, ok = parser.NextToken()
 		switch token.Tp {
@@ -51,15 +49,47 @@ func (parser *Parser) parseTableReferenceStm() (stm ast.TableReferenceStm, err e
 		default:
 			// If not, unread this token.
 			parser.UnReadToken()
+			break
+		}
+		if err != nil {
+			return
 		}
 	}
-	if err != nil {
-		return emptyTableRefStm, err
-	}
-	if hasLeftBracket && !parser.matchTokenTypes(true, lexer.RIGHTBRACKET) {
+
+	return stm, err
+}
+
+func (parser *Parser) parseSubTableRefOrTableSubQuery() (stm ast.TableReferenceStm, err error) {
+	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
 		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return stm, nil
+	token, ok := parser.NextToken()
+	if !ok {
+		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos)
+	}
+	switch token.Tp {
+	case lexer.SELECT:
+		parser.UnReadToken()
+		stm, err = parser.parseTableSubQuery()
+	default:
+		parser.UnReadToken()
+		stm, err = parser.parseSubTableRefStm()
+	}
+	return stm, err
+}
+
+func (parser *Parser) parseSubTableRefStm() (stm ast.TableReferenceStm, err error) {
+	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
+		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	stm, err = parser.parseTableReferenceStm()
+	if err != nil {
+		return
+	}
+	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
+		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	return
 }
 
 func (parser *Parser) parseTableAsStm() (ast.TableReferenceStm, error) {
@@ -106,7 +136,7 @@ func (parser *Parser) parseTableSubQuery() (ast.TableReferenceStm, error) {
 	return ast.TableReferenceStm{
 		Tp: ast.TableReferenceTableSubQueryTp,
 		TableReference: ast.TableSubQueryStm{
-			Select: selectStm,
+			Select: selectStm.(*ast.SelectStm),
 			Alias:  string(alias),
 		},
 	}, nil
@@ -117,7 +147,7 @@ func (parser *Parser) parseLeftRightOuterJoinStm(tableRef ast.TableReferenceStm,
 	if !parser.matchTokenTypes(false, lexer.JOIN) {
 		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	tableRef, err := parser.parseTableReferenceStm()
+	joinedTableRef, err := parser.parseTableReferenceStm()
 	if err != nil {
 		return emptyTableRefStm, err
 	}
@@ -130,7 +160,7 @@ func (parser *Parser) parseLeftRightOuterJoinStm(tableRef ast.TableReferenceStm,
 		TableReference: ast.JoinedTableStm{
 			TableReference:       tableRef,
 			JoinTp:               leftOrRight,
-			JoinedTableReference: tableRef,
+			JoinedTableReference: joinedTableRef,
 			JoinSpec:             joinSpec,
 		},
 	}, nil
@@ -140,7 +170,7 @@ func (parser *Parser) parseInnerJoinStm(tableRef ast.TableReferenceStm) (ast.Tab
 	if !parser.matchTokenTypes(false, lexer.JOIN) {
 		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	tableRef, err := parser.parseTableReferenceStm()
+	joinedTableRef, err := parser.parseTableReferenceStm()
 	if err != nil {
 		return emptyTableRefStm, err
 	}
@@ -153,7 +183,7 @@ func (parser *Parser) parseInnerJoinStm(tableRef ast.TableReferenceStm) (ast.Tab
 		TableReference: ast.JoinedTableStm{
 			TableReference:       tableRef,
 			JoinTp:               ast.InnerJoin,
-			JoinedTableReference: tableRef,
+			JoinedTableReference: joinedTableRef,
 			JoinSpec:             joinSpec,
 		},
 	}, nil
