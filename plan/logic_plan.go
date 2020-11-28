@@ -1,5 +1,7 @@
 package plan
 
+import "fmt"
+
 type Schema struct {
 	FieldMap map[string]Field
 	Name     string
@@ -29,16 +31,22 @@ type LogicPlan interface {
 type ScanLogicPlan struct {
 	dataSource  interface{}
 	name        string
+	alias       string
 	projections []string
 }
 
-func NewScanLogicPlan() ScanLogicPlan {
+func NewScanLogicPlan(name, alias string) ScanLogicPlan {
 	// Todo
-	return ScanLogicPlan{}
+	return ScanLogicPlan{
+		name:  name,
+		alias: alias,
+	}
 }
 
-func (scan ScanLogicPlan) Schema() Schema     {}
-func (scan ScanLogicPlan) String() string     {}
+func (scan ScanLogicPlan) Schema() Schema {}
+func (scan ScanLogicPlan) String() string {
+	return fmt.Sprintf("ScanLogicPlan: %s as %s", scan.name, scan.alias)
+}
 func (scan ScanLogicPlan) Child() []LogicPlan {}
 
 type SelectionLogicPlan struct {

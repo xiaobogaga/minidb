@@ -5,7 +5,7 @@ import (
 )
 
 type Stm interface {
-	Execute() error
+	// Execute() error
 }
 
 // create database statement:
@@ -366,33 +366,55 @@ type UpdateStm struct {
 }
 
 // A table reference statement is like:
-// * {tb_name [as alias] | joined_table | table_subquery as alias} | (tableRef)
-// * table_sub_query := (selectStm) as alias
+// table_factor | joined_table
+// where table_factor can be:
+// * {tb_name [as alias] | (table_subquery) as alias} | (tableRef)
+// and joined_table is like:
+// * table_factor { {left|right} [outer] join table_reference join_specification | inner join table_factor [join_specification] } *
+// join_specification is like:
+// on where_condition | using (col...)
+
+// Diff with mysql
+// * index_hint are not supported.
+// * cross join, straight join and natural join keywords are not supported.
 type TableReferenceStm struct {
 	Tp TableReferenceType
-	// Can be TableReferenceTblStm or JoinedTableStm or TableSubQueryStm
+	// Can be JoinedTableStm or TableFactorStm
 	TableReference interface{}
 }
 
 type TableReferenceType byte
 
 const (
-	TableReferencePureTableNameTp TableReferenceType = iota
-	TableReferenceJoinedTableTp
+	TableReferenceTableFactorTp TableReferenceType = iota
+	TableReferenceJoinTableTp
+)
+
+type TableReferenceTableFactorType byte
+
+const (
+	TableReferencePureTableNameTp TableReferenceTableFactorType = iota
 	TableReferenceTableSubQueryTp
 	TableReferenceSubTableReferenceStmTP
 )
 
-type TableReferenceTblStm struct {
+type TableReferenceTableFactorStm struct {
+	Tp                   TableReferenceTableFactorType
+	TableFactorReference interface{} // Can be TableSubQueryStm or TableReferenceTblStm or TableReferenceStm (for subTable)
+}
+
+type TableReferencePureTableRefStm struct {
 	TableName string
 	Alias     string
 }
 
 // where joined_table is like:
-// * table_reference { {left|right} [outer] join table_reference join_specification | inner join table_reference [join_specification]}
+// * table_factor { {left|right} [outer] join table_reference join_specification | inner join table_factor [join_specification] } *
+// join_specification is like:
+// on where_condition | using (col...)
+
 type JoinedTableStm struct {
-	// Can be a sub tableReferenceStm or a tb_name [as alias]
-	TableReference       interface{}
+	TableReference       interface{} // can be
 	JoinTp               JoinType
 	JoinedTableReference interface{}
 	JoinSpec             JoinSpecification

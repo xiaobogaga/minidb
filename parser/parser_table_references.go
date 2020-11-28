@@ -20,20 +20,24 @@ import (
 // * index_hint are not supported.
 // * cross join, straight join and natural join keywords are not supported.
 
-var emptyTableRefStm = ast.TableReferenceStm{}
+var (
+	emptyTableRefStm            = ast.TableReferenceStm{}
+	emptyTableRefTableFactorStm = ast.TableReferenceTableFactorStm{}
+)
 
 func (parser *Parser) parseTableReferenceStm() (stm ast.TableReferenceStm, err error) {
 	token, ok := parser.NextToken()
 	if !ok {
 		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
+	var tableFactorStm ast.TableReferenceTableFactorStm
 	switch token.Tp {
 	case lexer.LEFTBRACKET:
 		parser.UnReadToken()
-		stm, err = parser.parseSubTableRefOrTableSubQuery()
+		tableFactorStm, err = parser.parseSubTableRefOrTableSubQuery()
 	case lexer.IDENT, lexer.WORD:
 		parser.UnReadToken()
-		stm, err = parser.parseTableAsStm()
+		tableFactorStm, err = parser.parseTableAsStm()
 	}
 
 	for {
@@ -41,14 +45,18 @@ func (parser *Parser) parseTableReferenceStm() (stm ast.TableReferenceStm, err e
 		token, ok = parser.NextToken()
 		switch token.Tp {
 		case lexer.LEFT:
-			stm, err = parser.parseLeftRightOuterJoinStm(stm, ast.LeftOuterJoin)
+			stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, ast.LeftOuterJoin)
 		case lexer.RIGHT:
-			stm, err = parser.parseLeftRightOuterJoinStm(stm, ast.RightOuterJoin)
+			stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, ast.RightOuterJoin)
 		case lexer.INNER:
-			stm, err = parser.parseInnerJoinStm(stm)
+			stm, err = parser.parseInnerJoinStm(tableFactorStm)
 		default:
 			// If not, unread this token.
 			parser.UnReadToken()
+			stm = ast.TableReferenceStm{
+				Tp:             ast.TableReferenceTableFactorTp,
+				TableReference: tableFactorStm,
+			}
 			break
 		}
 		if err != nil {
@@ -59,13 +67,13 @@ func (parser *Parser) parseTableReferenceStm() (stm ast.TableReferenceStm, err e
 	return stm, err
 }
 
-func (parser *Parser) parseSubTableRefOrTableSubQuery() (stm ast.TableReferenceStm, err error) {
+func (parser *Parser) parseSubTableRefOrTableSubQuery() (stm ast.TableReferenceTableFactorStm, err error) {
 	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	token, ok := parser.NextToken()
 	if !ok {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos)
 	}
 	switch token.Tp {
 	case lexer.SELECT:
@@ -78,36 +86,39 @@ func (parser *Parser) parseSubTableRefOrTableSubQuery() (stm ast.TableReferenceS
 	return stm, err
 }
 
-func (parser *Parser) parseSubTableRefStm() (stm ast.TableReferenceStm, err error) {
+func (parser *Parser) parseSubTableRefStm() (stm ast.TableReferenceTableFactorStm, err error) {
 	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	stm, err = parser.parseTableReferenceStm()
+	tableRef, err := parser.parseTableReferenceStm()
 	if err != nil {
 		return
 	}
 	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return
+	return ast.TableReferenceTableFactorStm{
+		Tp:                   ast.TableReferenceSubTableReferenceStmTP,
+		TableFactorReference: tableRef,
+	}, nil
 }
 
-func (parser *Parser) parseTableAsStm() (ast.TableReferenceStm, error) {
+func (parser *Parser) parseTableAsStm() (ast.TableReferenceTableFactorStm, error) {
 	tableName, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	alias := ""
 	if parser.matchTokenTypes(true, lexer.AS) {
 		ret, ok := parser.parseIdentOrWord(false)
 		if !ok {
-			return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+			return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		alias = string(ret)
 	}
-	return ast.TableReferenceStm{
+	return ast.TableReferenceTableFactorStm{
 		Tp: ast.TableReferencePureTableNameTp,
-		TableReference: ast.TableReferenceTblStm{
+		TableFactorReference: ast.TableReferencePureTableRefStm{
 			TableName: string(tableName),
 			Alias:     alias,
 		},
@@ -115,34 +126,34 @@ func (parser *Parser) parseTableAsStm() (ast.TableReferenceStm, error) {
 }
 
 // * table_sub_query := (selectStm) as alias
-func (parser *Parser) parseTableSubQuery() (ast.TableReferenceStm, error) {
+func (parser *Parser) parseTableSubQuery() (ast.TableReferenceTableFactorStm, error) {
 	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	selectStm, err := parser.resolveSelectStm(false)
 	if err != nil {
-		return emptyTableRefStm, err
+		return emptyTableRefTableFactorStm, err
 	}
 	if parser.matchTokenTypes(false, lexer.AS) {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	alias, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
-		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return ast.TableReferenceStm{
+	return ast.TableReferenceTableFactorStm{
 		Tp: ast.TableReferenceTableSubQueryTp,
-		TableReference: ast.TableSubQueryStm{
+		TableFactorReference: ast.TableSubQueryStm{
 			Select: selectStm.(*ast.SelectStm),
 			Alias:  string(alias),
 		},
 	}, nil
 }
 
-func (parser *Parser) parseLeftRightOuterJoinStm(tableRef ast.TableReferenceStm, leftOrRight ast.JoinType) (ast.TableReferenceStm, error) {
+func (parser *Parser) parseLeftRightOuterJoinStm(tableRef ast.TableReferenceTableFactorStm, leftOrRight ast.JoinType) (ast.TableReferenceStm, error) {
 	parser.matchTokenTypes(true, lexer.OUTER)
 	if !parser.matchTokenTypes(false, lexer.JOIN) {
 		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
@@ -156,7 +167,7 @@ func (parser *Parser) parseLeftRightOuterJoinStm(tableRef ast.TableReferenceStm,
 		return emptyTableRefStm, err
 	}
 	return ast.TableReferenceStm{
-		Tp: ast.TableReferenceJoinedTableTp,
+		Tp: ast.TableReferenceJoinTableTp,
 		TableReference: ast.JoinedTableStm{
 			TableReference:       tableRef,
 			JoinTp:               leftOrRight,
@@ -166,7 +177,7 @@ func (parser *Parser) parseLeftRightOuterJoinStm(tableRef ast.TableReferenceStm,
 	}, nil
 }
 
-func (parser *Parser) parseInnerJoinStm(tableRef ast.TableReferenceStm) (ast.TableReferenceStm, error) {
+func (parser *Parser) parseInnerJoinStm(tableRef ast.TableReferenceTableFactorStm) (ast.TableReferenceStm, error) {
 	if !parser.matchTokenTypes(false, lexer.JOIN) {
 		return emptyTableRefStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
@@ -179,7 +190,7 @@ func (parser *Parser) parseInnerJoinStm(tableRef ast.TableReferenceStm) (ast.Tab
 		return emptyTableRefStm, err
 	}
 	return ast.TableReferenceStm{
-		Tp: ast.TableReferenceJoinedTableTp,
+		Tp: ast.TableReferenceJoinTableTp,
 		TableReference: ast.JoinedTableStm{
 			TableReference:       tableRef,
 			JoinTp:               ast.InnerJoin,
