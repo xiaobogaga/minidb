@@ -85,7 +85,6 @@ func makeSelectLogicPlan(input LogicPlan, whereStm ast.WhereStm) SelectionLogicP
 }
 
 func ExprStmToLogicExpr(expr *ast.ExpressionStm) LogicExpr {
-	// Todo
 	var leftLogicExpr, rightLogicExpr LogicExpr
 	_, isLeftExprExprStm := expr.LeftExpr.(*ast.ExpressionStm)
 	if isLeftExprExprStm {
@@ -116,7 +115,7 @@ func ExprTermStmToLogicExpr(exprTerm *ast.ExpressionTerm) LogicExpr {
 		case ast.LiteralExpressionTermTP:
 			return LiteralExprToLiteralLogicPlan(exprTerm.RealExprTerm.(ast.LiteralExpressionStm))
 		case ast.IdentifierExpressionTermTP:
-			return
+			return IdentifierExprToIdentifierLogicPlan()
 		}
 	}
 }

@@ -10,7 +10,7 @@ import (
 // A table reference statement is like:
 // table_factor | joined_table
 // where table_factor can be:
-// * {tb_name [as alias] | (table_subquery) as alias} | (tableRef)
+// * {tb_name [[as] alias] | (table_subquery) as alias} | (tableRef)
 // and joined_table is like:
 // * table_factor { {left|right} [outer] join table_reference join_specification | inner join table_factor [join_specification] } *
 // join_specification is like:
@@ -40,30 +40,23 @@ func (parser *Parser) parseTableReferenceStm() (stm ast.TableReferenceStm, err e
 		tableFactorStm, err = parser.parseTableAsStm()
 	}
 
-	for {
-		// Also need to check join type, because maybe a joined_table reference.
-		token, ok = parser.NextToken()
-		switch token.Tp {
-		case lexer.LEFT:
-			stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, ast.LeftOuterJoin)
-		case lexer.RIGHT:
-			stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, ast.RightOuterJoin)
-		case lexer.INNER:
-			stm, err = parser.parseInnerJoinStm(tableFactorStm)
-		default:
-			// If not, unread this token.
-			parser.UnReadToken()
-			stm = ast.TableReferenceStm{
-				Tp:             ast.TableReferenceTableFactorTp,
-				TableReference: tableFactorStm,
-			}
-			break
-		}
-		if err != nil {
-			return
+	// Also need to check join type, because maybe a joined_table reference.
+	token, ok = parser.NextToken()
+	switch token.Tp {
+	case lexer.LEFT:
+		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, ast.LeftOuterJoin)
+	case lexer.RIGHT:
+		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, ast.RightOuterJoin)
+	case lexer.INNER:
+		stm, err = parser.parseInnerJoinStm(tableFactorStm)
+	default:
+		// If not, unread this token.
+		parser.UnReadToken()
+		stm = ast.TableReferenceStm{
+			Tp:             ast.TableReferenceTableFactorTp,
+			TableReference: tableFactorStm,
 		}
 	}
-
 	return stm, err
 }
 
@@ -115,6 +108,11 @@ func (parser *Parser) parseTableAsStm() (ast.TableReferenceTableFactorStm, error
 			return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		alias = string(ret)
+	} else {
+		ident, isIdent := parser.parseIdentOrWord(true)
+		if isIdent {
+			alias = string(ident)
+		}
 	}
 	return ast.TableReferenceTableFactorStm{
 		Tp: ast.TableReferencePureTableNameTp,

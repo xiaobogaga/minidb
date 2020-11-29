@@ -5,7 +5,9 @@ type LogicExpr interface {
 	String() string
 }
 
-type ColumnExpr struct{}
+// can be a table name or a column name.
+// For example: select a.name from people a;
+type IdentifierLogicPlan struct{}
 
 type LiteralExpr struct{}
 
