@@ -51,13 +51,23 @@ func (parser *Parser) parseStarSelectExpression() (*ast.SelectExpressionStm, err
 }
 
 func (parser *Parser) parseExprSelectExpression() (*ast.SelectExpressionStm, error) {
-	var exprs []*ast.ExpressionStm
+	var exprs []*ast.SelectExpr
 	for {
 		expr, err := parser.resolveExpression()
 		if err != nil {
 			return nil, err
 		}
-		exprs = append(exprs, expr)
+		selectExpr := &ast.SelectExpr{Expr: expr}
+		alias := ""
+		if parser.matchTokenTypes(true, lexer.AS) {
+			ret, ok := parser.parseIdentOrWord(false)
+			if !ok {
+				return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			}
+			alias = string(ret)
+		}
+		selectExpr.Alias = alias
+		exprs = append(exprs, selectExpr)
 		if !parser.matchTokenTypes(true, lexer.COMMA) {
 			break
 		}

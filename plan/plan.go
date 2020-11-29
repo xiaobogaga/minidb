@@ -127,6 +127,9 @@ func makeLimitLogicPlan(input LogicPlan, limitStm *ast.LimitStm) LimitLogicPlan 
 }
 
 func makeProjectionLogicPlan(input LogicPlan, selectExprStm *ast.SelectExpressionStm) ProjectionLogicPlan {
+	projectionLogicPlan := ProjectionLogicPlan{
+		Input: input,
+	}
 
 }
 

@@ -507,7 +507,7 @@ type SelectStm struct {
 
 type SelectExpressionStm struct {
 	Tp   SelectExpressionTp
-	Expr interface{}
+	Expr interface{} // can be lexer.STAR or []*SelectExpr
 }
 
 type SelectExpressionTp byte
@@ -516,6 +516,11 @@ const (
 	ExprSelectExpressionTp SelectExpressionTp = iota
 	StarSelectExpressionTp
 )
+
+type SelectExpr struct {
+	Expr  *ExpressionStm
+	Alias string
+}
 
 // group by {expressions}...
 type GroupByStm []*ExpressionStm
