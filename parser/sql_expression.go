@@ -70,8 +70,10 @@ func (parser *Parser) LexerOpToExpressionOp(op lexer.TokenType) ast.ExpressionOp
 		return ast.OperationAnd
 	case lexer.OR:
 		return ast.OperationOr
-	case lexer.OR + 1:
-		return ast.OperationISNot
+	//	case lexer.OR + 1:
+	//		return ast.OperationISNot
+	case lexer.DOT:
+		return ast.OperationDot
 	default:
 		panic("unknown op type")
 	}
@@ -196,7 +198,7 @@ func isTokenAOpe(token lexer.Token) bool {
 	switch token.Tp {
 	case lexer.ADD, lexer.MINUS, lexer.MUL, lexer.DIVIDE, lexer.MOD, lexer.EQUAL, lexer.IS,
 		lexer.NOTEQUAL, lexer.GREAT, lexer.GREATEQUAL, lexer.LESS, lexer.LESSEQUAL, lexer.AND,
-		lexer.OR:
+		lexer.OR, lexer.DOT:
 		return true
 	default:
 		return false

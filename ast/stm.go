@@ -287,7 +287,7 @@ type ExpressionStm struct {
 type ExpressionTerm struct {
 	UnaryOp      UnaryOpTp
 	Tp           ExpressionTermTP
-	RealExprTerm interface{}
+	RealExprTerm interface{} // can be LiteralExpressionStm, IdentifierExpression, FunctionCallExpressionStm, SubExpressionTerm
 }
 
 type UnaryOpTp byte
@@ -306,9 +306,9 @@ type OrderedExpressionStm struct {
 type ExpressionTermTP byte
 
 const (
-	LiteralExpressionTermTP ExpressionTermTP = 0
+	LiteralExpressionTermTP ExpressionTermTP = 0 // raw value like string, char, float.
 	SubExpressionTermTP
-	IdentifierExpressionTermTP
+	IdentifierExpressionTermTP // should be column
 	FuncCallExpressionTermTP
 )
 
@@ -332,7 +332,8 @@ var (
 	OperationLessEqual  ExpressionOp = ExpressionOp{Tp: lexer.LESSEQUAL, Priority: 1}
 	OperationAnd        ExpressionOp = ExpressionOp{Tp: lexer.AND, Priority: 1}
 	OperationOr         ExpressionOp = ExpressionOp{Tp: lexer.OR, Priority: 1}
-	OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
+	// OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
+	OperationDot ExpressionOp = ExpressionOp{Tp: lexer.DOT, Priority: 2}
 )
 
 //type ExpressionInExpressionsStm struct {

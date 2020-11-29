@@ -86,7 +86,39 @@ func makeSelectLogicPlan(input LogicPlan, whereStm ast.WhereStm) SelectionLogicP
 
 func ExprStmToLogicExpr(expr *ast.ExpressionStm) LogicExpr {
 	// Todo
+	var leftLogicExpr, rightLogicExpr LogicExpr
+	_, isLeftExprExprStm := expr.LeftExpr.(*ast.ExpressionStm)
+	if isLeftExprExprStm {
+		leftLogicExpr = ExprStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionStm))
+	} else {
+		leftLogicExpr = ExprTermStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionTerm))
+	}
+	if expr.RightExpr == nil {
+		return leftLogicExpr
+	}
+	_, isRightExprExprStm := expr.RightExpr.(*ast.ExpressionStm)
+	if isRightExprExprStm {
+		rightLogicExpr = ExprStmToLogicExpr(expr.RightExpr.(*ast.ExpressionStm))
+	} else {
+		rightLogicExpr = ExprTermStmToLogicExpr(expr.RightExpr.(*ast.ExpressionTerm))
+	}
+	return buildLogicExprWithOp(leftLogicExpr, rightLogicExpr, expr.Op)
+}
 
+func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op ast.ExpressionOp) LogicExpr {
+	// Todo
+
+}
+
+func ExprTermStmToLogicExpr(exprTerm *ast.ExpressionTerm) LogicExpr {
+	if exprTerm.UnaryOp == ast.NoneUnaryOpTp {
+		switch exprTerm.Tp {
+		case ast.LiteralExpressionTermTP:
+			return LiteralExprToLiteralLogicPlan(exprTerm.RealExprTerm.(ast.LiteralExpressionStm))
+		case ast.IdentifierExpressionTermTP:
+			return
+		}
+	}
 }
 
 func makeGroupByLogicPlan(input LogicPlan, groupBy *ast.GroupByStm) GroupByLogicPlan {
@@ -96,8 +128,11 @@ func makeGroupByLogicPlan(input LogicPlan, groupBy *ast.GroupByStm) GroupByLogic
 	}
 }
 
-func ExprStmsToLogicExprs(expressions []*ast.ExpressionStm) []LogicExpr {
-	// Todo
+func ExprStmsToLogicExprs(expressions []*ast.ExpressionStm) (ret []LogicExpr) {
+	for _, expr := range expressions {
+		ret = append(ret, ExprStmToLogicExpr(expr))
+	}
+	return ret
 }
 
 func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm) OrderedExpr {

@@ -206,6 +206,7 @@ const (
 	// Special characters
 	SEMICOLON
 	COMMA
+	DOT // .
 )
 
 type Token struct {
@@ -339,7 +340,7 @@ func (l *Lexer) Lex(data []byte) ([]Token, error) {
 func (l *Lexer) read() (t []Token, err error) {
 	for l.pos < len(l.Data) {
 		switch l.Data[l.pos] {
-		case '!', '=', '>', '<', '+', '-', '*', '/', '%', '(', ')', ',', ';':
+		case '!', '=', '>', '<', '+', '-', '*', '/', '%', '(', ')', ',', ';', '.':
 			err = l.readSpecialCharacters()
 		case '`':
 			err = l.readIdent()
@@ -420,6 +421,9 @@ func (l *Lexer) readSpecialCharacters() error {
 	case ',':
 		l.pos++
 		l.Tokens = append(l.Tokens, Token{Tp: COMMA, StartPos: l.pos - 1, EndPos: l.pos})
+	case '.':
+		l.pos++
+		l.Tokens = append(l.Tokens, Token{Tp: DOT, StartPos: l.pos - 1, EndPos: l.pos})
 	default:
 		return l.MakeLexerError(1, l.pos)
 	}
