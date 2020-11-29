@@ -279,15 +279,24 @@ type OperationStm lexer.TokenType
 // where ope supports:
 // +, -, *, /, %, =, IS, !=, IS NOT, >, >=, <, <=, AND, OR,
 // Note: currently we don't consider [NOT] IN, [NOT] LIKE
+// Note: literal can be -5
 type ExpressionStm struct {
 	ExprTerms []ExpressionTerm
 	Ops       []ExpressionOpTP
 }
 
 type ExpressionTerm struct {
+	UnaryOp      UnaryOpTp
 	Tp           ExpressionTermTP
 	RealExprTerm interface{}
 }
+
+type UnaryOpTp byte
+
+const (
+	NoneUnaryOpTp UnaryOpTp = iota
+	NegativeUnaryOpTp
+)
 
 // Todo.
 type OrderedExpressionStm struct {

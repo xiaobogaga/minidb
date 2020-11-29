@@ -86,6 +86,7 @@ func makeSelectLogicPlan(input LogicPlan, whereStm ast.WhereStm) SelectionLogicP
 
 func ExprStmToLogicExpr(expr *ast.ExpressionStm) LogicExpr {
 	// Todo
+
 }
 
 func makeGroupByLogicPlan(input LogicPlan, groupBy *ast.GroupByStm) GroupByLogicPlan {
@@ -130,7 +131,8 @@ func makeProjectionLogicPlan(input LogicPlan, selectExprStm *ast.SelectExpressio
 	projectionLogicPlan := ProjectionLogicPlan{
 		Input: input,
 	}
-
+	// Todo
+	return projectionLogicPlan
 }
 
 func MakePhysicalPlan(logicPlan LogicPlan) PhysicalPlan {

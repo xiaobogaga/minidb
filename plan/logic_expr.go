@@ -2,6 +2,7 @@ package plan
 
 type LogicExpr interface {
 	toField(input LogicPlan) Field
+	String() string
 }
 
 type ColumnExpr struct{}

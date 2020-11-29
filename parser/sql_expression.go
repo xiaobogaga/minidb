@@ -15,6 +15,7 @@ import (
 // where ope supports:
 // +, -, *, /, %, =, IS, !=, IS NOT, >, >=, <, <=, AND, OR,
 // Note: currently we don't consider [NOT] IN, [NOT] LIKE
+// Note: literal can be -5
 func (parser *Parser) resolveExpression() (expr *ast.ExpressionStm, err error) {
 	exprTerm, err := parser.parseExpressionTerm()
 	if err != nil {
@@ -63,11 +64,23 @@ func (parser *Parser) parseExpressionTerm() (expr *ast.ExpressionTerm, err error
 	//	// Must be not exist subquery
 	//	parser.UnReadToken()
 	//	expr, err = parser.parseExistsSubQueryExpression()
+	case lexer.MINUS:
+		parser.UnReadToken()
+		expr, err = parser.parseUnaryExpressionTerm()
 	case lexer.LEFTBRACKET:
 		expr, err = parser.parseSubExpressionTerm()
 	default:
 		return nil, parser.MakeSyntaxError(1, parser.pos)
 	}
+	return
+}
+
+func (parser *Parser) parseUnaryExpressionTerm() (expr *ast.ExpressionTerm, err error) {
+	if parser.matchTokenTypes(false, lexer.MINUS) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	exprTerm, err := parser.parseExpressionTerm()
+	exprTerm.UnaryOp = ast.NegativeUnaryOpTp
 	return
 }
 
