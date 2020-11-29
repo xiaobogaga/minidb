@@ -14,22 +14,18 @@ func (parser *Parser) parseGroupByStm() (*ast.GroupByStm, error) {
 		return nil, nil
 	}
 	var expressionStms []*ast.ExpressionStm
-	var asc []bool
 	for {
 		expressionStm, err := parser.resolveExpression()
 		if err != nil {
 			return nil, err
 		}
 		expressionStms = append(expressionStms, expressionStm)
-		asc = append(asc, parser.parseAscOrDesc())
 		if !parser.matchTokenTypes(true, lexer.COMMA) {
 			break
 		}
 	}
-	return &ast.GroupByStm{
-		Expressions: expressionStms,
-		Asc:         asc,
-	}, nil
+	groupBy := ast.GroupByStm(expressionStms)
+	return &groupBy, nil
 }
 
 // Return desc if matched, or return asc (true as default) otherwise.

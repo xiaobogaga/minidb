@@ -289,6 +289,12 @@ type ExpressionTerm struct {
 	RealExprTerm interface{}
 }
 
+// Todo.
+type OrderedExpressionStm struct {
+	Expression *ExpressionStm
+	Asc        bool
+}
+
 type ExpressionTermTP byte
 
 const (
@@ -414,9 +420,9 @@ type TableReferencePureTableRefStm struct {
 // on where_condition | using (col...)
 
 type JoinedTableStm struct {
-	TableReference       interface{} // can be
+	TableReference       TableReferenceTableFactorStm
 	JoinTp               JoinType
-	JoinedTableReference interface{}
+	JoinedTableReference TableReferenceStm
 	JoinSpec             JoinSpecification
 }
 
@@ -458,8 +464,7 @@ type WhereStm *ExpressionStm
 // order by expressions [asc|desc],...
 // pure column can be seen as a kind of expression as well.
 type OrderByStm struct {
-	Expressions []*ExpressionStm
-	Asc         []bool
+	Expressions []*OrderedExpressionStm
 }
 
 // Limit statement is like limit {[offset,] row_counter | row_counter OFFSET offset}
@@ -512,9 +517,8 @@ const (
 	StarSelectExpressionTp
 )
 
-// group by {col_name | expressions [asc|desc]}...
-// pure column can be seen as a kind of expression as well.
-type GroupByStm OrderByStm
+// group by {expressions}...
+type GroupByStm []*ExpressionStm
 
 // Having WhereStm
 type HavingStm WhereStm

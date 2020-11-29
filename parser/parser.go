@@ -170,7 +170,7 @@ func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2
 			if ifNotRollback {
 				parser.pos -= i + 2
 			}
-			return
+			return ret, success
 		}
 		ret[i] = r.(int)
 	}

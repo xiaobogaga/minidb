@@ -32,3 +32,6 @@ type Or struct{}
 type Add struct{}
 
 type AggrExpr struct{}
+
+type OrderedExpr struct {
+}

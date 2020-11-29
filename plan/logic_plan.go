@@ -1,6 +1,9 @@
 package plan
 
-import "fmt"
+import (
+	"fmt"
+	"simpleDb/ast"
+)
 
 type Schema struct {
 	FieldMap map[string]Field
@@ -80,7 +83,7 @@ func (having HavingLogicPlan) Child() []LogicPlan {}
 
 type OrderByLogicPlan struct {
 	Input LogicPlan
-	Expr  LogicExpr
+	Expr  OrderedExpr
 }
 
 func (orderBy OrderByLogicPlan) Schema() Schema     {}
@@ -107,8 +110,8 @@ func (proj ProjectionLogicPlan) String() string     {}
 func (proj ProjectionLogicPlan) Child() []LogicPlan {}
 
 type JoinLogicPlan struct {
-	LeftLogicPlan LogicPlan
-	JoinType
+	LeftLogicPlan  LogicPlan
+	JoinType       ast.JoinType
 	RightLogicPlan LogicPlan
 }
 
@@ -120,6 +123,31 @@ const (
 
 func NewJoinLogicPlan() JoinLogicPlan {}
 
-func (join JoinLogicPlan) Schema() Schema     {}
-func (join JoinLogicPlan) String() string     {}
+func (join JoinLogicPlan) Schema() Schema {}
+func (join JoinLogicPlan) String() string {
+	return fmt.Sprintf("Join(%s, %s, %s)\n", joinTypeToString(join.JoinType), join.LeftLogicPlan, join.RightLogicPlan)
+}
 func (join JoinLogicPlan) Child() []LogicPlan {}
+
+func joinTypeToString(joinType ast.JoinType) string {
+	switch joinType {
+	case ast.InnerJoin:
+		return "innerJoin"
+	case ast.LeftOuterJoin:
+		return "leftOuterJoin"
+	case ast.RightOuterJoin:
+		return "rightOuterJoin"
+	default:
+		return ""
+	}
+}
+
+type LimitLogicPlan struct {
+	Input  LogicPlan
+	Count  int
+	Offset int
+}
+
+func (limit LimitLogicPlan) Schema() Schema     {}
+func (limit LimitLogicPlan) String() string     {}
+func (limit LimitLogicPlan) Child() []LogicPlan {}
