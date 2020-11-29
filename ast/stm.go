@@ -267,8 +267,6 @@ type InsertIntoStm struct {
 	Values    []*ExpressionStm
 }
 
-type OperationStm lexer.TokenType
-
 // For expression, compared to mysql, we use a simplified version and only a subset expressions of mysql
 // are supported. An expression statement is like:
 // term (ope term)
@@ -281,8 +279,9 @@ type OperationStm lexer.TokenType
 // Note: currently we don't consider [NOT] IN, [NOT] LIKE
 // Note: literal can be -5
 type ExpressionStm struct {
-	ExprTerms []ExpressionTerm
-	Ops       []ExpressionOpTP
+	LeftExpr  interface{} // can be ExpressionTerm or ExpressionAst
+	Op        ExpressionOp
+	RightExpr interface{}
 }
 
 type ExpressionTerm struct {
@@ -313,24 +312,27 @@ const (
 	FuncCallExpressionTermTP
 )
 
-type ExpressionOpTP lexer.TokenType
+type ExpressionOp struct {
+	Tp       lexer.TokenType
+	Priority int
+}
 
-const (
-	OperationAddTp        = lexer.ADD
-	OperationMinusTp      = lexer.MINUS
-	OperationMulTp        = lexer.MUL
-	OperationDivideTp     = lexer.DIVIDE
-	OperationModTp        = lexer.MOD
-	OperationEqualTp      = lexer.EQUAL
-	OperationIsTp         = lexer.IS
-	OperationNotEqualTp   = lexer.NOTEQUAL
-	OperationGreatTp      = lexer.GREAT
-	OperationGreatEqualTp = lexer.GREATEQUAL
-	OperationLessTp       = lexer.LESS
-	OperationLessEqualTp  = lexer.LESSEQUAL
-	OperationAndTp        = lexer.AND
-	OperationOrTp         = lexer.OR
-	OperationISNotTp      = lexer.OR + 1
+var (
+	OperationAdd        ExpressionOp = ExpressionOp{Tp: lexer.ADD, Priority: 1}
+	OperationMinus      ExpressionOp = ExpressionOp{Tp: lexer.MINUS, Priority: 1}
+	OperationMul        ExpressionOp = ExpressionOp{Tp: lexer.MUL, Priority: 2}
+	OperationDivide     ExpressionOp = ExpressionOp{Tp: lexer.DIVIDE, Priority: 2}
+	OperationMod        ExpressionOp = ExpressionOp{Tp: lexer.MOD, Priority: 1}
+	OperationEqual      ExpressionOp = ExpressionOp{Tp: lexer.EQUAL, Priority: 1}
+	OperationIs         ExpressionOp = ExpressionOp{Tp: lexer.IS, Priority: 1}
+	OperationNotEqual   ExpressionOp = ExpressionOp{Tp: lexer.NOTEQUAL, Priority: 1}
+	OperationGreat      ExpressionOp = ExpressionOp{Tp: lexer.GREAT, Priority: 1}
+	OperationGreatEqual ExpressionOp = ExpressionOp{Tp: lexer.GREATEQUAL, Priority: 1}
+	OperationLess       ExpressionOp = ExpressionOp{Tp: lexer.LESS, Priority: 1}
+	OperationLessEqual  ExpressionOp = ExpressionOp{Tp: lexer.LESSEQUAL, Priority: 1}
+	OperationAnd        ExpressionOp = ExpressionOp{Tp: lexer.AND, Priority: 1}
+	OperationOr         ExpressionOp = ExpressionOp{Tp: lexer.OR, Priority: 1}
+	OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
 )
 
 //type ExpressionInExpressionsStm struct {

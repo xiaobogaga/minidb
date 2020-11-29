@@ -21,9 +21,9 @@ func (parser *Parser) resolveExpression() (expr *ast.ExpressionStm, err error) {
 	if err != nil {
 		return nil, err
 	}
-	var exprs []ast.ExpressionTerm
-	exprs = append(exprs, *exprTerm)
-	var ops []ast.ExpressionOpTP
+	var exprs []*ast.ExpressionTerm
+	exprs = append(exprs, exprTerm)
+	var ops []ast.ExpressionOp
 	for {
 		token, ok := parser.NextToken()
 		if !ok || !isTokenAOpe(token) {
@@ -34,13 +34,93 @@ func (parser *Parser) resolveExpression() (expr *ast.ExpressionStm, err error) {
 		if err != nil {
 			return nil, err
 		}
-		ops = append(ops, ast.ExpressionOpTP(token.Tp))
-		exprs = append(exprs, *rightExprTerm)
+		ops = append(ops, parser.LexerOpToExpressionOp(token.Tp))
+		exprs = append(exprs, rightExprTerm)
 	}
-	return &ast.ExpressionStm{
-		ExprTerms: exprs,
-		Ops:       ops,
-	}, nil
+	return parser.buildExpressionsTree(ops, exprs), nil
+}
+
+func (parser *Parser) LexerOpToExpressionOp(op lexer.TokenType) ast.ExpressionOp {
+	switch op {
+	case lexer.ADD:
+		return ast.OperationAdd
+	case lexer.MINUS:
+		return ast.OperationMinus
+	case lexer.MUL:
+		return ast.OperationMul
+	case lexer.DIVIDE:
+		return ast.OperationDivide
+	case lexer.MOD:
+		return ast.OperationMod
+	case lexer.EQUAL:
+		return ast.OperationEqual
+	case lexer.IS:
+		return ast.OperationIs
+	case lexer.NOTEQUAL:
+		return ast.OperationNotEqual
+	case lexer.GREAT:
+		return ast.OperationGreat
+	case lexer.GREATEQUAL:
+		return ast.OperationGreatEqual
+	case lexer.LESS:
+		return ast.OperationLess
+	case lexer.LESSEQUAL:
+		return ast.OperationLessEqual
+	case lexer.AND:
+		return ast.OperationAnd
+	case lexer.OR:
+		return ast.OperationOr
+	case lexer.OR + 1:
+		return ast.OperationISNot
+	default:
+		panic("unknown op type")
+	}
+}
+
+func (parser *Parser) buildExpressionsTree(ops []ast.ExpressionOp, exprTerms []*ast.ExpressionTerm) *ast.ExpressionStm {
+	if len(ops) == 0 {
+		return &ast.ExpressionStm{LeftExpr: exprTerms[0]}
+	}
+	if len(ops) == 1 {
+		return &ast.ExpressionStm{LeftExpr: exprTerms[0], Op: ops[0], RightExpr: exprTerms[1]}
+	}
+	expressionStack := make([]interface{}, 0, len(exprTerms))
+	for _, exprTerm := range exprTerms {
+		expressionStack = append(expressionStack, exprTerm)
+	}
+	for i := 2; len(expressionStack) > 2; i = i % len(expressionStack) {
+		nextOp := ops[i-1]
+		lastOp := ops[i-2]
+		if lastOp.Priority >= nextOp.Priority {
+			// We can merge last two expression to a new expression node.
+			lastLeftExpression, lastRightExpression := expressionStack[i-2], expressionStack[i-1]
+			newExpr := parser.makeNewExpression(lastLeftExpression, lastRightExpression, lastOp)
+			expressionStack = append(expressionStack[:i-1], expressionStack[i:]...)
+			expressionStack[i-2] = newExpr
+			ops = append(ops[:i-2], ops[i-1:]...)
+			continue
+		}
+		i++
+	}
+	return parser.makeNewExpression(expressionStack[0], expressionStack[1], ops[0])
+}
+
+func (parser *Parser) makeNewExpression(leftExpr interface{}, rightExpr interface{}, op ast.ExpressionOp) *ast.ExpressionStm {
+	_, leftIsExpressionTerm := leftExpr.(*ast.ExpressionTerm)
+	_, rightIsExpressionTerm := rightExpr.(*ast.ExpressionTerm)
+	ret := new(ast.ExpressionStm)
+	if leftIsExpressionTerm {
+		ret.LeftExpr = leftExpr.(*ast.ExpressionTerm)
+	} else {
+		ret.LeftExpr = leftExpr.(*ast.ExpressionStm)
+	}
+	if rightIsExpressionTerm {
+		ret.RightExpr = rightExpr.(*ast.ExpressionTerm)
+	} else {
+		ret.RightExpr = rightExpr.(*ast.ExpressionStm)
+	}
+	ret.Op = op
+	return ret
 }
 
 func (parser *Parser) parseExpressionTerm() (expr *ast.ExpressionTerm, err error) {
