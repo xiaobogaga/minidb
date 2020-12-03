@@ -1,10 +1,11 @@
 package lexer
 
 import (
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func testOneSql(t *testing.T, sql string) {
@@ -14,7 +15,7 @@ func testOneSql(t *testing.T, sql string) {
 }
 
 func testOneSqlShouldErr(t *testing.T, sql string) {
-	//
+
 }
 
 type testEntity struct {

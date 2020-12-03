@@ -206,7 +206,6 @@ const (
 	// Special characters
 	SEMICOLON
 	COMMA
-	DOT // .
 )
 
 type Token struct {
@@ -340,7 +339,7 @@ func (l *Lexer) Lex(data []byte) ([]Token, error) {
 func (l *Lexer) read() (t []Token, err error) {
 	for l.pos < len(l.Data) {
 		switch l.Data[l.pos] {
-		case '!', '=', '>', '<', '+', '-', '*', '/', '%', '(', ')', ',', ';', '.':
+		case '!', '=', '>', '<', '+', '-', '*', '/', '%', '(', ')', ',', ';':
 			err = l.readSpecialCharacters()
 		case '`':
 			err = l.readIdent()
@@ -421,9 +420,6 @@ func (l *Lexer) readSpecialCharacters() error {
 	case ',':
 		l.pos++
 		l.Tokens = append(l.Tokens, Token{Tp: COMMA, StartPos: l.pos - 1, EndPos: l.pos})
-	case '.':
-		l.pos++
-		l.Tokens = append(l.Tokens, Token{Tp: DOT, StartPos: l.pos - 1, EndPos: l.pos})
 	default:
 		return l.MakeLexerError(1, l.pos)
 	}
@@ -456,7 +452,7 @@ func (l *Lexer) readContinuousSpace() {
 	}
 }
 
-var wordPattern = regexp.MustCompile("[a-zA-Z]+\\.\\*|[a-zA-Z]+[.]\\w+")
+var wordPattern = regexp.MustCompile("[a-zA-Z]+\\.?[a-zA-Z]*\\.?[a-zA-Z]*")
 
 func (l *Lexer) readWord() error {
 	startPos := l.pos
@@ -465,9 +461,27 @@ func (l *Lexer) readWord() error {
 	keyWord, ok := keyWords[strings.ToUpper(word)]
 	if !ok {
 		// Should be a word like TableName, ColumnName etc.
+		err := l.matchDotPattern(word)
+		if err != nil {
+			return err
+		}
 		l.Tokens = append(l.Tokens, Token{Tp: WORD, StartPos: startPos, EndPos: l.pos})
 	} else {
 		l.Tokens = append(l.Tokens, Token{Tp: keyWord, StartPos: startPos, EndPos: l.pos})
+	}
+	return nil
+}
+
+func (l *Lexer) matchDotPattern(word string) error {
+	// we at most have two .. such as schema.table.column
+	splits := strings.Split(word, ".")
+	if len(splits) >= 4 {
+		return l.MakeLexerError(1, l.pos-len(word))
+	}
+	for _, p := range splits {
+		if len(p) <= 0 {
+			return l.MakeLexerError(1, l.pos-len(word))
+		}
 	}
 	return nil
 }

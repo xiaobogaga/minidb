@@ -1,15 +1,15 @@
 package plan
 
-type PhysicalPlan interface {
-	Execute() []RecordBatch
-}
+// type PhysicalPlan interface {
+// 	Execute() []RecordBatch
+// }
 
-type TableScanExec struct{}
+// type TableScanExec struct{}
 
-type SelectionExec struct{}
+// type SelectionExec struct{}
 
-type ProjectionExec struct{}
+// type ProjectionExec struct{}
 
-type HashAggregateExec struct{}
+// type HashAggregateExec struct{}
 
-type HashJoinExec struct{}
+// type HashJoinExec struct{}

@@ -5,16 +5,19 @@ import (
 	"simpleDb/plan"
 )
 
-func Exec(stm ast.Stm) {
+func Exec(stm ast.Stm, currentDB string) {
 
 }
 
-func ExecuteSelectStm(stm *ast.SelectStm) error {
+func ExecuteSelectStm(stm *ast.SelectStm, currentDB string) error {
 	// we need to generate a logic plan for this selectStm.
-	logicPlan := plan.MakeLogicPlan(stm)
-	physicalPlan := plan.MakePhysicalPlan(logicPlan)
+	logicPlan, err := plan.MakeLogicPlan(stm, currentDB)
+	if err != nil {
+		return err
+	}
+	// physicalPlan := plan.MakePhysicalPlan(logicPlan)
 	for {
-		data := physicalPlan.Execute()
+		data := logicPlan.Execute()
 		if data == nil {
 			// means we have all data
 			return nil

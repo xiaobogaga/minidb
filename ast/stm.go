@@ -306,7 +306,7 @@ type OrderedExpressionStm struct {
 type ExpressionTermTP byte
 
 const (
-	LiteralExpressionTermTP ExpressionTermTP = 0 // raw value like string, char, float.
+	LiteralExpressionTermTP ExpressionTermTP = iota // raw value like string, char, float.
 	SubExpressionTermTP
 	IdentifierExpressionTermTP // should be column
 	FuncCallExpressionTermTP
@@ -333,7 +333,7 @@ var (
 	OperationAnd        ExpressionOp = ExpressionOp{Tp: lexer.AND, Priority: 1}
 	OperationOr         ExpressionOp = ExpressionOp{Tp: lexer.OR, Priority: 1}
 	// OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
-	OperationDot ExpressionOp = ExpressionOp{Tp: lexer.DOT, Priority: 2}
+	// OperationDot ExpressionOp = ExpressionOp{Tp: lexer.DOT, Priority: 2}
 )
 
 //type ExpressionInExpressionsStm struct {
@@ -418,7 +418,7 @@ const (
 
 type TableReferenceTableFactorStm struct {
 	Tp                   TableReferenceTableFactorType
-	TableFactorReference interface{} // Can be TableSubQueryStm or TableReferenceTblStm or TableReferenceStm (for subTable)
+	TableFactorReference interface{} // Can be TableSubQueryStm or TableReferencePureTableRefStm or TableReferenceStm (for subTable)
 }
 
 type TableReferencePureTableRefStm struct {

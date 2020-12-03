@@ -1,19 +1,19 @@
 package plan
 
-type PhysicalExpr interface {
-	Evaluate(input RecordBatch)
-}
+// type PhysicalExpr interface {
+// 	Evaluate(input RecordBatch)
+// }
 
-type ColumnPhysicalExpr struct{}
+// type ColumnPhysicalExpr struct{}
 
-type LiteralPhysicalExpr struct{}
+// type LiteralPhysicalExpr struct{}
 
-type BinaryPhysicalExpr struct{}
+// type BinaryPhysicalExpr struct{}
 
-type EQPhysicalExpr struct{}
+// type EQPhysicalExpr struct{}
 
-type AddPhysicalExpr struct{}
+// type AddPhysicalExpr struct{}
 
-type AggregatePhysicalExpr struct{}
+// type AggregatePhysicalExpr struct{}
 
-// etc...
+// // etc...

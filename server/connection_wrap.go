@@ -272,6 +272,7 @@ func (wrap *connectionWrapper) setConnection(id uint32, conn net.Conn, fromUnixS
 // Parsing sql commands until exit.
 func (wrap *connectionWrapper) parseCommand() {
 	defer wrap.conn.Close()
+	// currentDataBase := ""
 	for {
 		select {
 		case <-wrap.ctx.Done():

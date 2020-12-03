@@ -1,9 +1,17 @@
 package plan
 
-import "simpleDb/ast"
+import (
+	"errors"
+	"simpleDb/ast"
+	"simpleDb/lexer"
+	"strings"
+)
 
-func MakeLogicPlan(ast *ast.SelectStm) LogicPlan {
-	scanLogicPlans := makeScanLogicPlans(ast.TableReferences)
+func MakeLogicPlan(ast *ast.SelectStm, currentDB string) (LogicPlan, error) {
+	scanLogicPlans, err := makeScanLogicPlans(ast.TableReferences, currentDB)
+	if err != nil {
+		return nil, err
+	}
 	joinLogicPlan := scanLogicPlans[0]
 	if len(scanLogicPlans) >= 2 {
 		joinLogicPlan = makeJoinLogicPlan(scanLogicPlans)
@@ -14,16 +22,24 @@ func MakeLogicPlan(ast *ast.SelectStm) LogicPlan {
 	projectionsLogicPlan := makeProjectionLogicPlan(havingLogicPlan, ast.SelectExpressions)
 	orderByLogicPlan := makeOrderByLogicPlan(projectionsLogicPlan, ast.OrderBy)
 	limitLogicPlan := makeLimitLogicPlan(orderByLogicPlan, ast.LimitStm)
-	return limitLogicPlan
+	return limitLogicPlan, limitLogicPlan.TypeCheck()
 }
 
-func makeScanLogicPlans(tableRefs []ast.TableReferenceStm) (ret []LogicPlan) {
+func makeScanLogicPlans(tableRefs []ast.TableReferenceStm, currentDB string) (ret []LogicPlan, err error) {
 	for _, tableRef := range tableRefs {
 		switch tableRef.Tp {
 		case ast.TableReferenceTableFactorTp:
-			ret = append(ret, makeScanLogicPlan(tableRef.TableReference.(ast.TableReferenceTableFactorStm)))
+			plan, err := makeScanLogicPlan(tableRef.TableReference.(ast.TableReferenceTableFactorStm), currentDB)
+			if err != nil {
+				return nil, err
+			}
+			ret = append(ret, plan)
 		case ast.TableReferenceJoinTableTp: // Build scanLogicPlan for the join op.
-			ret = append(ret, makeScanLogicPlanForJoin(tableRef.TableReference.(ast.JoinedTableStm)))
+			plan, err := makeScanLogicPlanForJoin(tableRef.TableReference.(ast.JoinedTableStm), currentDB)
+			if err != nil {
+				return nil, err
+			}
+			ret = append(ret, plan)
 		default:
 			panic("unsupported table ref type")
 		}
@@ -31,36 +47,65 @@ func makeScanLogicPlans(tableRefs []ast.TableReferenceStm) (ret []LogicPlan) {
 	return
 }
 
-func makeScanLogicPlan(tableRefTableFactorStm ast.TableReferenceTableFactorStm) LogicPlan {
+func makeScanLogicPlan(tableRefTableFactorStm ast.TableReferenceTableFactorStm, currentDB string) (LogicPlan, error) {
 	switch tableRefTableFactorStm.Tp {
 	case ast.TableReferencePureTableNameTp:
-		// Todo
-		return ScanLogicPlan{}
+		table := tableRefTableFactorStm.TableFactorReference.(ast.TableReferencePureTableRefStm)
+		schemaName, tableName, err := splitSchemaAndTableName(table.TableName)
+		if err != nil {
+			return nil, err
+		}
+		if schemaName == "" {
+			schemaName = currentDB
+		}
+		return ScanLogicPlan{
+			Name:       tableName,
+			SchemaName: schemaName,
+			Alias:      table.Alias,
+			Input:      TableScan{Name: tableName, Schema: schemaName},
+		}, nil
 	case ast.TableReferenceTableSubQueryTp, ast.TableReferenceSubTableReferenceStmTP:
 		panic("doesn't support sub query currently")
 	}
-	return nil
+	return nil, nil
 }
 
-func makeScanLogicPlanForJoin(joinTableStm ast.JoinedTableStm) JoinLogicPlan {
+func splitSchemaAndTableName(schemaTable string) (schema, table string, err error) {
+	splits := strings.Split(schemaTable, ".")
+	if len(splits) >= 3 || len(splits[0]) == 0 || len(splits[1]) == 0 {
+		err = errors.New("wrong table or schema format")
+		return
+	}
+	return splits[0], splits[1], nil
+}
+
+func makeScanLogicPlanForJoin(joinTableStm ast.JoinedTableStm, currentDB string) (LogicPlan, error) {
 	// a inorder traversal to build logic plan.
-	leftLogicPlan := makeScanLogicPlan(joinTableStm.TableReference)
-	rightLogicPlan := buildLogicPlanForTableReferenceStm(joinTableStm.JoinedTableReference)
+	leftLogicPlan, err := makeScanLogicPlan(joinTableStm.TableReference, currentDB)
+	if err != nil {
+		return nil, err
+	}
+	rightLogicPlan, err := buildLogicPlanForTableReferenceStm(joinTableStm.JoinedTableReference, currentDB)
+	if err != nil {
+		return nil, err
+	}
 	return JoinLogicPlan{
 		LeftLogicPlan:  leftLogicPlan,
 		RightLogicPlan: rightLogicPlan,
 		JoinType:       joinTableStm.JoinTp,
-	}
+	}, nil
 }
 
-func buildLogicPlanForTableReferenceStm(tableRef ast.TableReferenceStm) LogicPlan {
+func buildLogicPlanForTableReferenceStm(tableRef ast.TableReferenceStm, currentDB string) (LogicPlan, error) {
 	switch tableRef.Tp {
 	case ast.TableReferenceTableFactorTp:
-		return makeScanLogicPlan(tableRef.TableReference.(ast.TableReferenceTableFactorStm))
+		return makeScanLogicPlan(tableRef.TableReference.(ast.TableReferenceTableFactorStm), currentDB)
 	case ast.TableReferenceJoinTableTp:
-		return makeScanLogicPlanForJoin(tableRef.TableReference.(ast.JoinedTableStm))
+		return makeScanLogicPlanForJoin(tableRef.TableReference.(ast.JoinedTableStm), currentDB)
+	default:
+		panic("wrong tableRef type")
 	}
-	return nil
+	return nil, nil
 }
 
 // len(tableRefs) >= 2
@@ -105,19 +150,86 @@ func ExprStmToLogicExpr(expr *ast.ExpressionStm) LogicExpr {
 }
 
 func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op ast.ExpressionOp) LogicExpr {
-	// Todo
-
+	switch op.Tp {
+	case lexer.ADD:
+		return AddLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.MINUS:
+		return MinusLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.MUL:
+		return MulLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.DIVIDE:
+		return DivideLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.MOD:
+		return ModLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.EQUAL:
+		return EqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.IS:
+		return IsLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.NOTEQUAL:
+		return NotEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.GREAT:
+		return GreatLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.GREATEQUAL:
+		return GreatEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.LESS:
+		return LessLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.LESSEQUAL:
+		return LessEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.AND:
+		return AndLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+	case lexer.OR:
+		return OrLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		// case lexer.DOT:
+		// For DotLogicExpr, the leftLogicExpr must be a IdentifierLogicExpr and rightLogicExpt must be
+		// a DotLogicExpr or IdentifierLogicExpr.
+		// A little tricky
+		// dotLogicExpr := DotLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		// dotLogicExpr.ReBuildIdentifierType()
+		// return dotLogicExpr
+	default:
+		panic("wrong op type")
+	}
 }
 
 func ExprTermStmToLogicExpr(exprTerm *ast.ExpressionTerm) LogicExpr {
-	if exprTerm.UnaryOp == ast.NoneUnaryOpTp {
-		switch exprTerm.Tp {
-		case ast.LiteralExpressionTermTP:
-			return LiteralExprToLiteralLogicPlan(exprTerm.RealExprTerm.(ast.LiteralExpressionStm))
-		case ast.IdentifierExpressionTermTP:
-			return IdentifierExprToIdentifierLogicPlan()
-		}
+	var logicExpr LogicExpr
+	switch exprTerm.Tp {
+	case ast.LiteralExpressionTermTP:
+		logicExpr = LiteralExprToLiteralLogicExpr(exprTerm.RealExprTerm.(ast.LiteralExpressionStm))
+	case ast.IdentifierExpressionTermTP:
+		logicExpr = IdentifierExprToIdentifierLogicExpr(exprTerm.RealExprTerm.(ast.IdentifierExpression))
+	case ast.FuncCallExpressionTermTP:
+		logicExpr = FuncCallExprToLogicExpr(exprTerm.RealExprTerm.(ast.FunctionCallExpressionStm))
+	case ast.SubExpressionTermTP:
+		logicExpr = SubExprTermToLogicExpr(exprTerm.RealExprTerm.(ast.SubExpressionTerm))
+	default:
+		panic("unknown expr term type")
 	}
+	if exprTerm.UnaryOp == ast.NegativeUnaryOpTp {
+		return NegativeLogicExpr{Input: logicExpr}
+	}
+	return logicExpr
+}
+
+func LiteralExprToLiteralLogicExpr(literalExprStm ast.LiteralExpressionStm) LogicExpr {
+	return LiteralLogicExpr{Data: literalExprStm}
+}
+
+func IdentifierExprToIdentifierLogicExpr(identifierExpr ast.IdentifierExpression) LogicExpr {
+	return IdentifierLogicExpr{Ident: identifierExpr, IdentifierTp: ColumnNameTP}
+}
+
+func FuncCallExprToLogicExpr(funcCallExpr ast.FunctionCallExpressionStm) LogicExpr {
+	funcCallLogicExpr := FuncCallLogicExpr{FuncName: funcCallExpr.FuncName}
+	for _, param := range funcCallExpr.Params {
+		funcCallLogicExpr.Params = append(funcCallLogicExpr.Params, ExprStmToLogicExpr(param))
+	}
+	return funcCallLogicExpr
+}
+
+func SubExprTermToLogicExpr(subExpr ast.SubExpressionTerm) LogicExpr {
+	expr := ast.ExpressionTerm(subExpr)
+	return ExprTermStmToLogicExpr(&expr)
 }
 
 func makeGroupByLogicPlan(input LogicPlan, groupBy *ast.GroupByStm) GroupByLogicPlan {
@@ -134,8 +246,13 @@ func ExprStmsToLogicExprs(expressions []*ast.ExpressionStm) (ret []LogicExpr) {
 	return ret
 }
 
-func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm) OrderedExpr {
-	// Todo
+func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm) OrderedLogicExpr {
+	ret := OrderedLogicExpr{}
+	for _, expr := range orderedExprs {
+		ret.expr = append(ret.expr, ExprStmToLogicExpr(expr.Expression))
+		ret.asc = append(ret.asc, expr.Asc)
+	}
+	return ret
 }
 
 func makeHavingLogicPlan(input LogicPlan, having ast.HavingStm) HavingLogicPlan {
@@ -148,8 +265,8 @@ func makeHavingLogicPlan(input LogicPlan, having ast.HavingStm) HavingLogicPlan 
 
 func makeOrderByLogicPlan(input LogicPlan, orderBy *ast.OrderByStm) OrderByLogicPlan {
 	return OrderByLogicPlan{
-		Input: input,
-		Expr:  OrderedExpressionToOrderedExprs(orderBy.Expressions),
+		Input:   input,
+		OrderBy: OrderedExpressionToOrderedExprs(orderBy.Expressions),
 	}
 }
 
@@ -167,8 +284,4 @@ func makeProjectionLogicPlan(input LogicPlan, selectExprStm *ast.SelectExpressio
 	}
 	// Todo
 	return projectionLogicPlan
-}
-
-func MakePhysicalPlan(logicPlan LogicPlan) PhysicalPlan {
-
 }

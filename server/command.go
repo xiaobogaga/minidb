@@ -111,7 +111,7 @@ func (c ComPing) Encode() []byte {
 
 type ComQuery string
 
-func (c ComQuery) Do(arg []byte) (bool, OkMsg, *CommandErr) {
+func (c ComQuery) Do(arg []byte, db string) (bool, OkMsg, *CommandErr) {
 	// Parse a query and execute it.
 	query := string(arg)
 	commandLog.InfoF("ComQuery: try to do a query: %s", query)
@@ -124,7 +124,7 @@ func (c ComQuery) Do(arg []byte) (bool, OkMsg, *CommandErr) {
 		}
 	}
 	for _, stm := range stms {
-		stm.Execute()
+		stm.Execute(db)
 	}
 	return false, -1, nil
 }
