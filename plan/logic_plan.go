@@ -147,7 +147,7 @@ func (groupBy GroupByLogicPlan) TypeCheck() error {
 		return err
 	}
 	for _, expr := range groupBy.GroupByExpr {
-		err = expr.TypeCheck((groupBy.Input))
+		err = expr.TypeCheck(groupBy.Input)
 		if err != nil {
 			return err
 		}
@@ -213,7 +213,9 @@ func (orderBy OrderByLogicPlan) TypeCheck() error {
 	return orderBy.OrderBy.TypeCheck(orderBy.Input)
 }
 
-func (orderBy OrderByLogicPlan) Execute() storage.RecordBatch {}
+func (orderBy OrderByLogicPlan) Execute() storage.RecordBatch {
+
+}
 
 type AggregateLogicScan struct{}
 
@@ -294,7 +296,8 @@ const (
 func (join JoinLogicPlan) Schema() storage.Schema {
 	leftSchema := join.LeftLogicPlan.Schema()
 	rightSchema := join.RightLogicPlan.Schema()
-	return leftSchema.Merge(rightSchema)
+	mergedSchema, _ := leftSchema.Merge(rightSchema)
+	return mergedSchema
 }
 
 func (join JoinLogicPlan) String() string {

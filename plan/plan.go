@@ -8,6 +8,9 @@ import (
 )
 
 func MakeLogicPlan(ast *ast.SelectStm, currentDB string) (LogicPlan, error) {
+	if ast.Groupby != nil {
+		return MakeAggreLogicPlan()
+	}
 	scanLogicPlans, err := makeScanLogicPlans(ast.TableReferences, currentDB)
 	if err != nil {
 		return nil, err
@@ -17,9 +20,9 @@ func MakeLogicPlan(ast *ast.SelectStm, currentDB string) (LogicPlan, error) {
 		joinLogicPlan = makeJoinLogicPlan(scanLogicPlans)
 	}
 	selectLogicPlan := makeSelectLogicPlan(joinLogicPlan, ast.Where)
-	groupByLogicPlan := makeGroupByLogicPlan(selectLogicPlan, ast.Groupby)
-	havingLogicPlan := makeHavingLogicPlan(groupByLogicPlan, ast.Having)
-	projectionsLogicPlan := makeProjectionLogicPlan(havingLogicPlan, ast.SelectExpressions)
+	//	groupByLogicPlan := makeGroupByLogicPlan(selectLogicPlan, ast.Groupby)
+	//	havingLogicPlan := makeHavingLogicPlan(groupByLogicPlan, ast.Having)
+	projectionsLogicPlan := makeProjectionLogicPlan(selectLogicPlan, ast.SelectExpressions)
 	orderByLogicPlan := makeOrderByLogicPlan(projectionsLogicPlan, ast.OrderBy)
 	limitLogicPlan := makeLimitLogicPlan(orderByLogicPlan, ast.LimitStm)
 	return limitLogicPlan, limitLogicPlan.TypeCheck()
