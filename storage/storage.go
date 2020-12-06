@@ -1,6 +1,9 @@
 package storage
 
-import "errors"
+import (
+	"encoding/binary"
+	"errors"
+)
 
 type Storage struct {
 	Dbs map[string]DbInfo
@@ -39,12 +42,23 @@ type TableInfo struct {
 	Schema Schema
 }
 
+// This is for join, a schema might have multiple sub table schemas.
 type Schema struct {
-	FieldMap map[string]map[string]map[string]Field // a schema can be a join of two tables: map[schema]map[tableName][colName]Field
+	Tables []SingleTableSchema
+	Name   string
+}
+
+// A SingleTableSchema is a list of Fields representing a temporal table format.
+// It can has multiple columns, each column has a DatabaseName, TableName, ColumnName to allow
+// multiple columns coexist with same columnName but are from different database.
+type SingleTableSchema struct {
+	Columns    []Field
+	TableName  string
+	SchemaName string
 }
 
 // FetchData returns the data starting at row index `rowIndex` and the batchSize is batchSize.
-func (table TableInfo) FetchData(rowIndex, batchSize int) RecordBatch {
+func (table TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
 	// Todo
 }
 
@@ -184,8 +198,51 @@ func (schema Schema) AddField() {
 }
 
 type RecordBatch struct {
-	Fields  map[string]Field
-	Records map[string]ColumnVector
+	Fields  []Field
+	Records []ColumnVector
+}
+
+func (recordBatch *RecordBatch) RowCount() int {
+	for _, r := range recordBatch.Records {
+		return r.Size()
+	}
+	return 0
+}
+
+func (recordBatch *RecordBatch) GetColumnValue(colName string) ColumnVector {
+
+}
+
+func (recordBatch *RecordBatch) ColumnCount() int {
+	return len(recordBatch.Records)
+}
+
+func (recordBatch *RecordBatch) Join(another *RecordBatch) *RecordBatch {}
+
+// Append new to recordBatch, they are in the same layout.
+func (recordBatch *RecordBatch) Append(new *RecordBatch) {}
+
+func (recordBatch *RecordBatch) OrderBy(columnVector ColumnVector) {}
+
+// Set the i-th column values in recordBatch by using columnVector.
+func (recordBatch *RecordBatch) SetColumnValue(col int, columnVector ColumnVector) {
+	recordBatch.Records[col] = columnVector
+}
+
+// Append row i of record to recordBatch.
+func (recordBatch *RecordBatch) AppendRecord(record *RecordBatch, row int) {
+	for col := 0; col < recordBatch.ColumnCount(); col++ {
+		recordBatch.Records[col].Append(record.Records[col].Values[row])
+	}
+}
+
+func (recordBatch *RecordBatch) CopyFrom(copyFrom *RecordBatch, from, size int) *RecordBatch {
+
+}
+
+// Return data[startIndex: startIndex + size - 1]
+func (recordBatch *RecordBatch) Slice(startIndex, size int) *RecordBatch {
+
 }
 
 type Field struct {
@@ -195,10 +252,62 @@ type Field struct {
 	SchemaName string
 }
 
+func (f Field) CanEqual(another Field) bool {
+
+}
+
+func (f Field) CanCompare(another Field) bool {
+
+}
+
+func (f Field) IsFieldNumerialType() bool {
+	return f.TP == Int || f.TP == BigInt || f.TP == Float
+}
+
+func (f Field) CanLogicOp(another Field) bool {
+
+}
+
+func (f Field) IsComparable() bool {
+
+}
+
+// Return whether f can be cascaded to tp
+func (f Field) CanCascadeTo(tp FieldTP) bool {
+
+}
+
+type OpType byte
+
+const (
+	AddOpType OpType = iota
+	MinusOpType
+	MulOpType
+	DivideOpType
+	AndOpType
+	OrOpType
+	ModOpType
+	GreatOpType
+	GreatEqualOpType
+	LessOpType
+	LessEqualOpType
+	EqualOpType
+	NotEqualOpType
+	IsOpType
+)
+
+func (f Field) InferenceType(another Field, op OpType) FieldTP {
+
+}
+
+func InferenceType(data []byte) Field {
+
+}
+
 // A column of field.
 type ColumnVector struct {
 	Field  Field
-	Values []interface{}
+	Values [][]byte
 }
 
 func (column ColumnVector) GetField() Field {
@@ -213,10 +322,115 @@ func (column ColumnVector) Size() int {
 	return len(column.Values)
 }
 
+func (column ColumnVector) Negative() ColumnVector {
+	// column must be a numeric type
+	ret := ColumnVector{Field: column.Field}
+	for _, value := range column.Values {
+		v, _ := negative(column.Field.TP, value)
+		ret.Values = append(ret.Values, v)
+	}
+	return ret
+}
+
+func (column ColumnVector) Add(another ColumnVector) ColumnVector {
+
+}
+
+func (column ColumnVector) Minus(another ColumnVector) ColumnVector {
+
+}
+
+func (column ColumnVector) Mul(another ColumnVector) ColumnVector {
+
+}
+
+func (column ColumnVector) Divide(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) Mod(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) Equal(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) Is(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) NotEqual(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) Great(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) GreatEqual(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) Less(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) LessEqual(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) And(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) Or(another ColumnVector) ColumnVector {}
+
+func (column ColumnVector) Sort(others []ColumnVector, asc []bool) ColumnVector {
+
+}
+
+func (column ColumnVector) BoolValue(row int) bool {
+
+}
+
+func (column ColumnVector) Append(value []byte) {
+
+}
+
+func bytesToTp(value []byte) FieldTP {
+
+}
+
+func valueToBytes() {
+
+}
+
+func negative(tp FieldTP, value []byte) ([]byte, error) {
+	switch tp {
+	case Int:
+		v := Decode(tp, value)
+		return Encode(tp, -(v.(uint64)))
+	case Float:
+
+	default:
+
+	}
+}
+
+func Encode(tp FieldTP, value interface{}) ([]byte, error) {
+	switch tp {
+	case Bool:
+		if value.(bool) {
+			return []byte{1}, nil
+		}
+		return []byte{0}, nil
+	case Int:
+		buf := make([]byte, binary.MaxVarintLen64)
+		binary.PutUvarint(buf, value.(uint64))
+		return buf, nil
+	case Float:
+		f := value.(float64)
+		bits := math.
+			binary.BigEndian
+	}
+}
+
+func Decode(tp FieldTP, value []byte) interface{} {
+	switch tp {
+	case Bool:
+		return value[0] == 1
+	case Int:
+		v := binary.BigEndian.Uint64(value)
+		return v
+	case Float:
+
+	}
+}
+
 type FieldTP string
 
 const (
-	Identifier FieldTP = "identifier"
 	Bool       FieldTP = "bool"
 	Int        FieldTP = "int"
 	BigInt     FieldTP = "bigint"
@@ -230,7 +444,3 @@ const (
 	MediumText FieldTP = "mediumText"
 	Constant   FieldTP = "constant" // like numeric or string or char value.
 )
-
-func IsFieldNumerialType(f Field) bool {
-	return f.TP == Int || f.TP == BigInt || f.TP == Float
-}

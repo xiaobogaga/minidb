@@ -50,7 +50,7 @@ const (
 	LIKE
 	LEFTBRACKET // not keyword
 	// column def keywords
-	// Data type
+	// data type
 	// It turns out mysql has many different types. For now, only a subset are supported
 	BOOL
 	INT     // support int()

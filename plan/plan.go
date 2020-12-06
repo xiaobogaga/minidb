@@ -17,11 +17,13 @@ func MakeLogicPlan(ast *ast.SelectStm, currentDB string) (LogicPlan, error) {
 		joinLogicPlan = makeJoinLogicPlan(scanLogicPlans)
 	}
 	selectLogicPlan := makeSelectLogicPlan(joinLogicPlan, ast.Where)
-	groupByLogicPlan := makeGroupByLogicPlan(selectLogicPlan, ast.Groupby)
-	havingLogicPlan := makeHavingLogicPlan(groupByLogicPlan, ast.Having)
-	projectionsLogicPlan := makeProjectionLogicPlan(havingLogicPlan, ast.SelectExpressions)
-	orderByLogicPlan := makeOrderByLogicPlan(projectionsLogicPlan, ast.OrderBy)
-	limitLogicPlan := makeLimitLogicPlan(orderByLogicPlan, ast.LimitStm)
+	if ast.Groupby != nil {
+		return MakeAggreLogicPlan(selectLogicPlan, ast)
+	}
+	orderByLogicPlan := makeOrderByLogicPlan(selectLogicPlan, ast.OrderBy, false)
+
+	projectionsLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, ast.SelectExpressions)
+	limitLogicPlan := makeLimitLogicPlan(projectionsLogicPlan, ast.LimitStm)
 	return limitLogicPlan, limitLogicPlan.TypeCheck()
 }
 
@@ -58,11 +60,14 @@ func makeScanLogicPlan(tableRefTableFactorStm ast.TableReferenceTableFactorStm, 
 		if schemaName == "" {
 			schemaName = currentDB
 		}
-		return ScanLogicPlan{
+		if table.Alias == "" {
+			table.Alias = table.TableName
+		}
+		return &ScanLogicPlan{
 			Name:       tableName,
 			SchemaName: schemaName,
 			Alias:      table.Alias,
-			Input:      TableScan{Name: tableName, Schema: schemaName},
+			Input:      &TableScan{Name: tableName, SchemaName: schemaName},
 		}, nil
 	case ast.TableReferenceTableSubQueryTp, ast.TableReferenceSubTableReferenceStmTP:
 		panic("doesn't support sub query currently")
@@ -89,7 +94,7 @@ func makeScanLogicPlanForJoin(joinTableStm ast.JoinedTableStm, currentDB string)
 	if err != nil {
 		return nil, err
 	}
-	return JoinLogicPlan{
+	return &JoinLogicPlan{
 		LeftLogicPlan:  leftLogicPlan,
 		RightLogicPlan: rightLogicPlan,
 		JoinType:       joinTableStm.JoinTp,
@@ -113,7 +118,7 @@ func makeJoinLogicPlan(input []LogicPlan) LogicPlan {
 	leftLogicPlan := input[0]
 	for i := 1; i < len(input); i++ {
 		rightLogicPlan := input[i]
-		leftLogicPlan = JoinLogicPlan{
+		leftLogicPlan = &JoinLogicPlan{
 			LeftLogicPlan:  leftLogicPlan,
 			RightLogicPlan: rightLogicPlan,
 			JoinType:       ast.InnerJoin,
@@ -122,8 +127,8 @@ func makeJoinLogicPlan(input []LogicPlan) LogicPlan {
 	return leftLogicPlan
 }
 
-func makeSelectLogicPlan(input LogicPlan, whereStm ast.WhereStm) SelectionLogicPlan {
-	return SelectionLogicPlan{
+func makeSelectLogicPlan(input LogicPlan, whereStm ast.WhereStm) *SelectionLogicPlan {
+	return &SelectionLogicPlan{
 		Input: input,
 		Expr:  ExprStmToLogicExpr(whereStm),
 	}
@@ -180,8 +185,8 @@ func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op ast.Expres
 	case lexer.OR:
 		return OrLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
 		// case lexer.DOT:
-		// For DotLogicExpr, the leftLogicExpr must be a IdentifierLogicExpr and rightLogicExpt must be
-		// a DotLogicExpr or IdentifierLogicExpr.
+		// For DotLogicExpr, the leftLogicExpr must be a IdentifierLogicAggrExpr and rightLogicExpt must be
+		// a DotLogicExpr or IdentifierLogicAggrExpr.
 		// A little tricky
 		// dotLogicExpr := DotLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
 		// dotLogicExpr.ReBuildIdentifierType()
@@ -216,7 +221,7 @@ func LiteralExprToLiteralLogicExpr(literalExprStm ast.LiteralExpressionStm) Logi
 }
 
 func IdentifierExprToIdentifierLogicExpr(identifierExpr ast.IdentifierExpression) LogicExpr {
-	return IdentifierLogicExpr{Ident: identifierExpr, IdentifierTp: ColumnNameTP}
+	return IdentifierLogicExpr{Ident: identifierExpr}
 }
 
 func FuncCallExprToLogicExpr(funcCallExpr ast.FunctionCallExpressionStm) LogicExpr {
@@ -232,20 +237,6 @@ func SubExprTermToLogicExpr(subExpr ast.SubExpressionTerm) LogicExpr {
 	return ExprTermStmToLogicExpr(&expr)
 }
 
-func makeGroupByLogicPlan(input LogicPlan, groupBy *ast.GroupByStm) GroupByLogicPlan {
-	return GroupByLogicPlan{
-		Input:       input,
-		GroupByExpr: ExprStmsToLogicExprs(*groupBy),
-	}
-}
-
-func ExprStmsToLogicExprs(expressions []*ast.ExpressionStm) (ret []LogicExpr) {
-	for _, expr := range expressions {
-		ret = append(ret, ExprStmToLogicExpr(expr))
-	}
-	return ret
-}
-
 func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm) OrderedLogicExpr {
 	ret := OrderedLogicExpr{}
 	for _, expr := range orderedExprs {
@@ -255,33 +246,42 @@ func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm) O
 	return ret
 }
 
-func makeHavingLogicPlan(input LogicPlan, having ast.HavingStm) HavingLogicPlan {
-	// Todo
-	return HavingLogicPlan{
-		Input: input,
-		Expr:  ExprStmToLogicExpr(having),
-	}
-}
-
-func makeOrderByLogicPlan(input LogicPlan, orderBy *ast.OrderByStm) OrderByLogicPlan {
-	return OrderByLogicPlan{
+func makeOrderByLogicPlan(input LogicPlan, orderBy *ast.OrderByStm, isAggr bool) *OrderByLogicPlan {
+	return &OrderByLogicPlan{
 		Input:   input,
 		OrderBy: OrderedExpressionToOrderedExprs(orderBy.Expressions),
+		IsAggr:  isAggr,
 	}
 }
 
-func makeLimitLogicPlan(input LogicPlan, limitStm *ast.LimitStm) LimitLogicPlan {
-	return LimitLogicPlan{
+func makeLimitLogicPlan(input LogicPlan, limitStm *ast.LimitStm) *LimitLogicPlan {
+	return &LimitLogicPlan{
 		Input:  input,
 		Count:  limitStm.Count,
 		Offset: limitStm.Offset,
 	}
 }
 
-func makeProjectionLogicPlan(input LogicPlan, selectExprStm *ast.SelectExpressionStm) ProjectionLogicPlan {
-	projectionLogicPlan := ProjectionLogicPlan{
+func SelectExprToAsExprLogicExpr(selectExprs []*ast.SelectExpr) []AsLogicExpr {
+	ret := make([]AsLogicExpr, len(selectExprs))
+	for i := 0; i < len(selectExprs); i++ {
+		as := AsLogicExpr{}
+		as.Expr = ExprStmToLogicExpr(selectExprs[i].Expr)
+		as.Alias = selectExprs[i].Alias
+		ret[i] = as
+	}
+	return ret
+}
+
+func makeProjectionLogicPlan(input LogicPlan, selectExprStm *ast.SelectExpressionStm) *ProjectionLogicPlan {
+	projectionLogicPlan := &ProjectionLogicPlan{
 		Input: input,
 	}
-	// Todo
+	switch selectExprStm.Tp {
+	case ast.StarSelectExpressionTp:
+		return projectionLogicPlan
+	case ast.ExprSelectExpressionTp:
+		projectionLogicPlan.Exprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*ast.SelectExpr))
+	}
 	return projectionLogicPlan
 }

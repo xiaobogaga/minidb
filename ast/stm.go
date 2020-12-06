@@ -517,6 +517,7 @@ type SelectStm struct {
 	LockTp            SelectLockTp
 }
 
+// selectExpr can use alias.
 type SelectExpressionStm struct {
 	Tp   SelectExpressionTp
 	Expr interface{} // can be lexer.STAR or []*SelectExpr
