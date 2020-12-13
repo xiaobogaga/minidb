@@ -357,7 +357,7 @@ var (
 type LiteralExpressionStm ColumnValue
 type IdentifierExpression []byte
 
-// FuncName(params...)
+// Name(params...)
 type FunctionCallExpressionStm struct {
 	FuncName string
 	Params   []*ExpressionStm

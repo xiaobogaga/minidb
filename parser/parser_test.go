@@ -1,4 +1,5 @@
 package parser
+
 //
 //import (
 //	"github.com/stretchr/testify/assert"
@@ -152,7 +153,7 @@ package parser
 //							&add,
 //							&ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 100},
 //							&add,
-//							&ast.FunctionCallStm{FuncName: "sqrt", Params: []ast.Stm{&ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.0}}},
+//							&ast.FunctionCallStm{Name: "sqrt", Params: []ast.Stm{&ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 10.0}}},
 //						}},
 //					&ast.ColumnValue{ValueType: lexer.FLOATVALUE, Value: 20.5},
 //					&ast.ColumnValue{ValueType: lexer.CHARVALUE, Value: byte('z')},

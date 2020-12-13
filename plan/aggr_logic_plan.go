@@ -1,28 +1,31 @@
 package plan
 
 import (
+	"errors"
 	"fmt"
 	"simpleDb/ast"
 	"simpleDb/storage"
 )
 
 // For groupBy exprs.
+// HashGroupBy.
 type GroupByLogicPlan struct {
 	Input       LogicPlan
 	GroupByExpr []LogicExpr
 	AggrExprs   []LogicExpr
-	data        *storage.RecordBatch
+	data        *storage.RecordBatch // All record batch from the input.
+	keys        *storage.RecordBatch // The keys from groupBy clause
+	retData     *storage.RecordBatch // The data will return by the AggrExprs
 	index       int
 }
 
 func (groupBy GroupByLogicPlan) Schema() storage.Schema {
 	retTable := storage.SingleTableSchema{}
 	ret := storage.Schema{
-		Name:   "groupBy",
 		Tables: []storage.SingleTableSchema{retTable},
 	}
 	for _, aggrExpr := range groupBy.AggrExprs {
-		f := aggrExpr.toField(groupBy.Input)
+		f := aggrExpr.toField()
 		retTable.Columns = append(retTable.Columns, f)
 	}
 	return ret
@@ -42,9 +45,12 @@ func (groupBy GroupByLogicPlan) TypeCheck() error {
 		return err
 	}
 	for _, expr := range groupBy.GroupByExpr {
-		err = expr.TypeCheck(groupBy.Input)
+		err = expr.TypeCheck()
 		if err != nil {
 			return err
+		}
+		if expr.HasGroupFunc() {
+			return errors.New("invalid use of group function")
 		}
 	}
 	// Now we check whether aggrExprs is okay.
@@ -61,17 +67,78 @@ func (groupBy GroupByLogicPlan) Execute() *storage.RecordBatch {
 	if groupBy.data == nil {
 		groupBy.InitializeData()
 	}
-
+	ret := groupBy.retData.Slice(groupBy.index, BatchSize)
+	groupBy.index += BatchSize
+	return ret
 }
 
+// GroupBy.
+// |---|---|---|  group by col1, col2.
+// |---|---|---|           |----|----|
 func (groupBy GroupByLogicPlan) InitializeData() {
 	if groupBy.data != nil {
 		return
 	}
+	// Load all data from input and calculate the data for the keys.
+	groupBy.data = MakeEmptyRecordBatchFromSchema(groupBy.Input.Schema())
+	groupBy.keys = &storage.RecordBatch{}
+	for _, groupByExpr := range groupBy.GroupByExpr {
+		f := groupByExpr.toField()
+		groupBy.keys.Fields = append(groupBy.keys.Fields, f)
+	}
+	for {
+		batch := groupBy.Input.Execute()
+		if batch == nil {
+			break
+		}
+		groupBy.data.Append(batch)
+		// Now we calculate the values of keys.
+		for j, groupByExpr := range groupBy.GroupByExpr {
+			groupBy.keys.Records[j].Appends(groupByExpr.Evaluate(batch).Values)
+		}
+	}
 
+	// Here we have all data including keys.
+	// Table1(data), Table2(keys) - group by keys.
+	// |-|-|-|     , |-|-|-|
+
+	// Now builds accumulators.
+	groupBy.retData = MakeEmptyRecordBatchFromSchema(groupBy.Schema())
+	keyMap := map[string][]LogicExpr{}
+	for i := 0; i < groupBy.keys.RowCount(); i++ {
+		key := groupBy.keys.RowKey(i)
+		value, ok := keyMap[string(key)]
+		if !ok {
+			value = groupBy.CloneAggrExpr(false)
+			keyMap[string(key)] = value
+		}
+		for _, expr := range value {
+			// Accumulate row i at groupBy.data.
+			expr.Accumulate(i, groupBy.data)
+		}
+	}
+	// Now we have accumulate all data. It's time to collect all individual group now.
+	for _, values := range keyMap {
+		for i, value := range values {
+			groupBy.retData.Records[i].Append(value.AccumulateValue())
+		}
+	}
 }
 
-func (groupBy GroupByLogicPlan) Reset() {}
+func (groupBy GroupByLogicPlan) CloneAggrExpr(needAccumulator bool) (ret []LogicExpr) {
+	ret = make([]LogicExpr, len(groupBy.AggrExprs))
+	for i, aggrExpr := range groupBy.AggrExprs {
+		ret[i] = aggrExpr.Clone(needAccumulator)
+	}
+	return ret
+}
+
+func (groupBy GroupByLogicPlan) Reset() {
+	groupBy.data = nil
+	groupBy.keys = nil
+	groupBy.retData = nil
+	groupBy.index = 0
+}
 
 // For Having condition
 type HavingLogicPlan struct {
@@ -80,7 +147,7 @@ type HavingLogicPlan struct {
 }
 
 func (having HavingLogicPlan) Schema() storage.Schema {
-	// Should be the same schema as Input.
+	// Should be the same schema as Expr.
 	return having.Input.Schema()
 }
 
@@ -100,7 +167,30 @@ func (having HavingLogicPlan) TypeCheck() error {
 	return having.Expr.AggrTypeCheck(having.Input.GroupByExpr)
 }
 
-func (having HavingLogicPlan) Execute() *storage.RecordBatch {}
+func (having HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
+	i := 0
+	for i < BatchSize {
+		recordBatch := having.Input.Execute()
+		if recordBatch == nil {
+			return
+		}
+		if ret == nil {
+			ret = MakeEmptyRecordBatchFromSchema(having.Input.Schema())
+		}
+		selectedRows := having.Expr.Evaluate(recordBatch)
+		selectedRecord := recordBatch.Filter(selectedRows)
+		ret.Append(selectedRecord)
+		i += selectedRecord.RowCount()
+		//for row := 0; row < selectedRows.Size(); row ++ {
+		//	if !selectedRows.Bool(row) {
+		//		continue
+		//	}
+		//	ret.AppendRecord(recordBatch, row)
+		//	i ++
+		//}
+	}
+	return
+}
 
 func (having HavingLogicPlan) Reset() {
 	having.Input.Reset()
@@ -121,20 +211,20 @@ func MakeAggreLogicPlan(input LogicPlan, ast *ast.SelectStm) (LogicPlan, error) 
 func makeHavingLogicPlan(input GroupByLogicPlan, having ast.HavingStm) HavingLogicPlan {
 	return HavingLogicPlan{
 		Input: input,
-		Expr:  ExprStmToLogicExpr(having),
+		Expr:  ExprStmToLogicExpr(having, input),
 	}
 }
 
 func makeGroupByLogicPlan(input LogicPlan, groupBy *ast.GroupByStm) GroupByLogicPlan {
 	return GroupByLogicPlan{
 		Input:       input,
-		GroupByExpr: ExprStmsToLogicExprs(*groupBy),
+		GroupByExpr: ExprStmsToLogicExprs(*groupBy, input),
 	}
 }
 
-func ExprStmsToLogicExprs(expressions []*ast.ExpressionStm) (ret []LogicExpr) {
+func ExprStmsToLogicExprs(expressions []*ast.ExpressionStm, input LogicPlan) (ret []LogicExpr) {
 	for _, expr := range expressions {
-		ret = append(ret, ExprStmToLogicExpr(expr))
+		ret = append(ret, ExprStmToLogicExpr(expr, input))
 	}
 	return ret
 }

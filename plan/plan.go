@@ -130,26 +130,26 @@ func makeJoinLogicPlan(input []LogicPlan) LogicPlan {
 func makeSelectLogicPlan(input LogicPlan, whereStm ast.WhereStm) *SelectionLogicPlan {
 	return &SelectionLogicPlan{
 		Input: input,
-		Expr:  ExprStmToLogicExpr(whereStm),
+		Expr:  ExprStmToLogicExpr(whereStm, input),
 	}
 }
 
-func ExprStmToLogicExpr(expr *ast.ExpressionStm) LogicExpr {
+func ExprStmToLogicExpr(expr *ast.ExpressionStm, input LogicPlan) LogicExpr {
 	var leftLogicExpr, rightLogicExpr LogicExpr
 	_, isLeftExprExprStm := expr.LeftExpr.(*ast.ExpressionStm)
 	if isLeftExprExprStm {
-		leftLogicExpr = ExprStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionStm))
+		leftLogicExpr = ExprStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionStm), input)
 	} else {
-		leftLogicExpr = ExprTermStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionTerm))
+		leftLogicExpr = ExprTermStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionTerm), input)
 	}
 	if expr.RightExpr == nil {
 		return leftLogicExpr
 	}
 	_, isRightExprExprStm := expr.RightExpr.(*ast.ExpressionStm)
 	if isRightExprExprStm {
-		rightLogicExpr = ExprStmToLogicExpr(expr.RightExpr.(*ast.ExpressionStm))
+		rightLogicExpr = ExprStmToLogicExpr(expr.RightExpr.(*ast.ExpressionStm), input)
 	} else {
-		rightLogicExpr = ExprTermStmToLogicExpr(expr.RightExpr.(*ast.ExpressionTerm))
+		rightLogicExpr = ExprTermStmToLogicExpr(expr.RightExpr.(*ast.ExpressionTerm), input)
 	}
 	return buildLogicExprWithOp(leftLogicExpr, rightLogicExpr, expr.Op)
 }
@@ -196,22 +196,22 @@ func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op ast.Expres
 	}
 }
 
-func ExprTermStmToLogicExpr(exprTerm *ast.ExpressionTerm) LogicExpr {
+func ExprTermStmToLogicExpr(exprTerm *ast.ExpressionTerm, input LogicPlan) LogicExpr {
 	var logicExpr LogicExpr
 	switch exprTerm.Tp {
 	case ast.LiteralExpressionTermTP:
 		logicExpr = LiteralExprToLiteralLogicExpr(exprTerm.RealExprTerm.(ast.LiteralExpressionStm))
 	case ast.IdentifierExpressionTermTP:
-		logicExpr = IdentifierExprToIdentifierLogicExpr(exprTerm.RealExprTerm.(ast.IdentifierExpression))
+		logicExpr = IdentifierExprToIdentifierLogicExpr(exprTerm.RealExprTerm.(ast.IdentifierExpression), input)
 	case ast.FuncCallExpressionTermTP:
-		logicExpr = FuncCallExprToLogicExpr(exprTerm.RealExprTerm.(ast.FunctionCallExpressionStm))
+		logicExpr = FuncCallExprToLogicExpr(exprTerm.RealExprTerm.(ast.FunctionCallExpressionStm), input)
 	case ast.SubExpressionTermTP:
-		logicExpr = SubExprTermToLogicExpr(exprTerm.RealExprTerm.(ast.SubExpressionTerm))
+		logicExpr = SubExprTermToLogicExpr(exprTerm.RealExprTerm.(ast.SubExpressionTerm), input)
 	default:
 		panic("unknown expr term type")
 	}
 	if exprTerm.UnaryOp == ast.NegativeUnaryOpTp {
-		return NegativeLogicExpr{Input: logicExpr}
+		return NegativeLogicExpr{Expr: logicExpr}
 	}
 	return logicExpr
 }
@@ -220,27 +220,28 @@ func LiteralExprToLiteralLogicExpr(literalExprStm ast.LiteralExpressionStm) Logi
 	return LiteralLogicExpr{Data: literalExprStm}
 }
 
-func IdentifierExprToIdentifierLogicExpr(identifierExpr ast.IdentifierExpression) LogicExpr {
-	return IdentifierLogicExpr{Ident: identifierExpr}
+func IdentifierExprToIdentifierLogicExpr(identifierExpr ast.IdentifierExpression, input LogicPlan) LogicExpr {
+	return IdentifierLogicExpr{Ident: identifierExpr, input: input}
 }
 
-func FuncCallExprToLogicExpr(funcCallExpr ast.FunctionCallExpressionStm) LogicExpr {
-	funcCallLogicExpr := FuncCallLogicExpr{FuncName: funcCallExpr.FuncName}
-	for _, param := range funcCallExpr.Params {
-		funcCallLogicExpr.Params = append(funcCallLogicExpr.Params, ExprStmToLogicExpr(param))
+func FuncCallExprToLogicExpr(funcCallExpr ast.FunctionCallExpressionStm, input LogicPlan) LogicExpr {
+	params := make([]LogicExpr, len(funcCallExpr.Params))
+	for i, param := range funcCallExpr.Params {
+		params[i] = ExprStmToLogicExpr(param, input)
 	}
+	funcCallLogicExpr := MakeFuncCallLogicExpr(funcCallExpr.FuncName, params)
 	return funcCallLogicExpr
 }
 
-func SubExprTermToLogicExpr(subExpr ast.SubExpressionTerm) LogicExpr {
+func SubExprTermToLogicExpr(subExpr ast.SubExpressionTerm, input LogicPlan) LogicExpr {
 	expr := ast.ExpressionTerm(subExpr)
-	return ExprTermStmToLogicExpr(&expr)
+	return ExprTermStmToLogicExpr(&expr, input)
 }
 
-func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm) OrderedLogicExpr {
+func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm, input LogicPlan) OrderedLogicExpr {
 	ret := OrderedLogicExpr{}
 	for _, expr := range orderedExprs {
-		ret.expr = append(ret.expr, ExprStmToLogicExpr(expr.Expression))
+		ret.expr = append(ret.expr, ExprStmToLogicExpr(expr.Expression, input))
 		ret.asc = append(ret.asc, expr.Asc)
 	}
 	return ret
@@ -249,7 +250,7 @@ func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm) O
 func makeOrderByLogicPlan(input LogicPlan, orderBy *ast.OrderByStm, isAggr bool) *OrderByLogicPlan {
 	return &OrderByLogicPlan{
 		Input:   input,
-		OrderBy: OrderedExpressionToOrderedExprs(orderBy.Expressions),
+		OrderBy: OrderedExpressionToOrderedExprs(orderBy.Expressions, input),
 		IsAggr:  isAggr,
 	}
 }
@@ -262,11 +263,11 @@ func makeLimitLogicPlan(input LogicPlan, limitStm *ast.LimitStm) *LimitLogicPlan
 	}
 }
 
-func SelectExprToAsExprLogicExpr(selectExprs []*ast.SelectExpr) []AsLogicExpr {
+func SelectExprToAsExprLogicExpr(selectExprs []*ast.SelectExpr, input LogicPlan) []AsLogicExpr {
 	ret := make([]AsLogicExpr, len(selectExprs))
 	for i := 0; i < len(selectExprs); i++ {
 		as := AsLogicExpr{}
-		as.Expr = ExprStmToLogicExpr(selectExprs[i].Expr)
+		as.Expr = ExprStmToLogicExpr(selectExprs[i].Expr, input)
 		as.Alias = selectExprs[i].Alias
 		ret[i] = as
 	}
@@ -281,7 +282,7 @@ func makeProjectionLogicPlan(input LogicPlan, selectExprStm *ast.SelectExpressio
 	case ast.StarSelectExpressionTp:
 		return projectionLogicPlan
 	case ast.ExprSelectExpressionTp:
-		projectionLogicPlan.Exprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*ast.SelectExpr))
+		projectionLogicPlan.Exprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*ast.SelectExpr), input)
 	}
 	return projectionLogicPlan
 }

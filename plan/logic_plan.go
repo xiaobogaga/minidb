@@ -38,7 +38,7 @@ func (scan *ScanLogicPlan) Schema() storage.Schema {
 			TP:         column.TP,
 		})
 	}
-	return storage.Schema{Name: scan.Alias, Tables: []storage.SingleTableSchema{tableSchema}}
+	return storage.Schema{Tables: []storage.SingleTableSchema{tableSchema}}
 }
 
 func (scan *ScanLogicPlan) String() string {
@@ -215,11 +215,15 @@ func (sel *SelectionLogicPlan) TypeCheck() error {
 	if err != nil {
 		return err
 	}
-	err = sel.Expr.TypeCheck(sel.Input)
+	err = sel.Expr.TypeCheck()
 	if err != nil {
 		return err
 	}
-	f := sel.Expr.toField(sel.Input)
+	// Note:
+	if sel.Expr.HasGroupFunc() {
+		return errors.New("invalid use of group function")
+	}
+	f := sel.Expr.toField()
 	if f.TP != storage.Bool {
 		return errors.New(fmt.Sprintf("%s doesn't return bool value", sel.Expr.String()))
 	}
@@ -252,16 +256,21 @@ func (sel *SelectionLogicPlan) Execute() (ret *storage.RecordBatch) {
 		if recordBatch == nil {
 			return ret
 		}
-		selectedRows := sel.Expr.Evaluate(recordBatch)
-		ret := MakeEmptyRecordBatchFromSchema(sel.Schema())
-		for row := 0; row < selectedRows.Size(); row++ {
-			if !selectedRows.BoolValue(row) {
-				continue
-			}
-			// Now row is selected
-			ret.AppendRecord(recordBatch, row)
-			i++
+		if ret == nil {
+			ret = MakeEmptyRecordBatchFromSchema(sel.Schema())
 		}
+		selectedRows := sel.Expr.Evaluate(recordBatch)
+		selectedRecords := recordBatch.Filter(selectedRows)
+		ret.Append(selectedRecords)
+		i += selectedRecords.RowCount()
+		//for row := 0; row < selectedRows.Size(); row++ {
+		//	if !selectedRows.Bool(row) {
+		//		continue
+		//	}
+		//	// Now row is selected
+		//	ret.AppendRecord(recordBatch, row)
+		//	i++
+		//}
 	}
 	return
 }
@@ -282,7 +291,7 @@ type OrderByLogicPlan struct {
 }
 
 func (orderBy *OrderByLogicPlan) Schema() storage.Schema {
-	// Should be the same as Input
+	// Should be the same as Expr
 	return orderBy.Input.Schema()
 }
 
@@ -299,7 +308,7 @@ func (orderBy *OrderByLogicPlan) TypeCheck() error {
 	if err != nil {
 		return err
 	}
-	err = orderBy.OrderBy.TypeCheck(orderBy.Input)
+	err = orderBy.OrderBy.TypeCheck()
 	if err != nil {
 		return err
 	}
@@ -339,6 +348,7 @@ func (orderBy OrderByLogicPlan) InitializeAndSort() {
 func (orderBy *OrderByLogicPlan) Reset() {
 	orderBy.Input.Reset()
 	orderBy.data = nil
+	orderBy.index = 0
 }
 
 type ProjectionLogicPlan struct {
@@ -358,10 +368,10 @@ func (proj *ProjectionLogicPlan) Schema() storage.Schema {
 	table := storage.SingleTableSchema{}
 	ret := storage.Schema{
 		Tables: []storage.SingleTableSchema{table},
-		Name:   "projection",
+		// Name:   "projection",
 	}
 	for _, expr := range proj.Exprs {
-		f := expr.toField(proj.Input)
+		f := expr.toField()
 		table.Columns = append(table.Columns, f)
 	}
 	return ret
@@ -381,7 +391,7 @@ func (proj *ProjectionLogicPlan) TypeCheck() error {
 		return err
 	}
 	for _, expr := range proj.Exprs {
-		err = expr.TypeCheck(proj.Input)
+		err = expr.TypeCheck()
 		if err != nil {
 			return err
 		}
@@ -450,10 +460,11 @@ func (limit *LimitLogicPlan) Execute() *storage.RecordBatch {
 	if limit.Index+size > limit.Count {
 		size = limit.Count - (limit.Index - limit.Offset)
 	}
-	ret.CopyFrom(ret, startIndex, size)
-	return ret
+	// ret.Copy(ret, startIndex, size)
+	return ret.Slice(startIndex, size)
 }
 
 func (limit *LimitLogicPlan) Reset() {
 	limit.Input.Reset()
+	limit.Index = 0
 }
