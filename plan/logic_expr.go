@@ -14,7 +14,9 @@ type LogicExpr interface {
 	TypeCheck(input LogicPlan) error
 	AggrTypeCheck(groupByExpr []LogicExpr) error
 	Evaluate(input *storage.RecordBatch) storage.ColumnVector
-	// Name() string
+	Accumulate(row int, input *storage.RecordBatch) // Accumulate the value.
+	AccumulateValue() []byte
+	Clone(cloneAccumulator bool) LogicExpr
 }
 
 // can be a.b.c or a.b or a
@@ -23,6 +25,7 @@ type IdentifierLogicExpr struct {
 	Schema string
 	Table  string
 	Column string
+	accumulator []byte // put accumulator here is not a good idea. It's better to seperate.
 }
 
 func (ident IdentifierLogicExpr) toField(input LogicPlan) storage.Field {
@@ -86,6 +89,28 @@ func (ident IdentifierLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", ident))
 }
 
+func (ident IdentifierLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
+	ret := IdentifierLogicExpr{
+		Ident:  ident.Ident,
+		Schema: ident.Schema,
+		Table:  ident.Table,
+		Column: ident.Column,
+	}
+	if cloneAccumulate {
+		ret.accumulator = ident.accumulator
+	}
+	return ret
+}
+
+func (ident IdentifierLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	col := input.GetColumnValue(ident.Column)
+	ident.accumulator = col.Values[row]
+}
+
+func (ident IdentifierLogicExpr) AccumulateValue() []byte {
+	return ident.accumulator
+}
+
 type LiteralLogicExpr struct {
 	TP   storage.FieldTP
 	Data []byte
@@ -115,6 +140,18 @@ func (literal LiteralLogicExpr) Evaluate(input *storage.RecordBatch) storage.Col
 
 func (literal LiteralLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return nil
+}
+
+func (literal LiteralLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	return
+}
+
+func (literal LiteralLogicExpr) AccumulateValue() []byte {
+	return literal.Data
+}
+
+func (literal LiteralLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return literal
 }
 
 type NegativeLogicExpr struct {
@@ -169,6 +206,24 @@ func (negative NegativeLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 		}
 	}
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", negative))
+}
+
+func (negative NegativeLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	negative.Input.Accumulate(row, input)
+}
+
+func (negative NegativeLogicExpr) AccumulateValue() []byte {
+	val := negative.Input.AccumulateValue()
+	// Todo return -val
+	return val
+}
+
+func (negative NegativeLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return NegativeLogicExpr{
+		Input: negative.Input.Clone(cloneAccumulator),
+		Name: negative.Name,
+		Alias: negative.Alias,
+	}
 }
 
 // Math expr
@@ -233,6 +288,27 @@ func (add AddLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", add))
 }
 
+func (add AddLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	add.Left.Accumulate(row, input)
+	add.Right.Accumulate(row, input)
+}
+
+func (add AddLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := add.Left.AccumulateValue()
+	rightAccumulateValue := add.Right.AccumulateValue()
+	// Todo
+	return leftAccumulateValue
+}
+
+func (add AddLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return AddLogicExpr{
+		Left: add.Left.Clone(cloneAccumulator),
+		Right: add.Right.Clone(cloneAccumulator),
+		Name: add.Name,
+		Alias: add.Alias,
+	}
+}
+
 type MinusLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -285,6 +361,27 @@ func (minus MinusLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnV
 	leftColumnVector := minus.Left.Evaluate(input)
 	rightColumnVector := minus.Right.Evaluate(input)
 	return leftColumnVector.Minus(rightColumnVector)
+}
+
+func (minus MinusLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	minus.Left.Accumulate(row, input)
+	minus.Right.Accumulate(row, input)
+}
+
+func (minus MinusLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := minus.Left.AccumulateValue()
+	rightAccumulateValue := minus.Right.AccumulateValue()
+	// Todo
+	return leftAccumulateValue
+}
+
+func (minus MinusLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return MinusLogicExpr{
+		Left:  minus.Left.Clone(cloneAccumulator),
+		Right: minus.Right.Clone(cloneAccumulator),
+		Name:  minus.Name,
+		Alias: minus.Alias,
+	}
 }
 
 type MulLogicExpr struct {
@@ -341,6 +438,27 @@ func (mul MulLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", mul))
 }
 
+func (mul MulLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	mul.Left.Accumulate(row, input)
+	mul.Right.Accumulate(row, input)
+}
+
+func (mul MulLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := mul.Left.AccumulateValue()
+	rightAccumulateValue := mul.Right.AccumulateValue()
+	// Todo
+	return leftAccumulateValue
+}
+
+func (mul MulLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return MulLogicExpr{
+		Left:  mul.Left.Clone(cloneAccumulator),
+		Right: mul.Right.Clone(cloneAccumulator),
+		Name:  mul.Name,
+		Alias: mul.Alias,
+	}
+}
+
 type DivideLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -395,6 +513,27 @@ func (divide DivideLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", divide))
 }
 
+func (divide DivideLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	divide.Left.Accumulate(row, input)
+	divide.Right.Accumulate(row, input)
+}
+
+func (divide DivideLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := divide.Left.AccumulateValue()
+	rightAccumulateValue := divide.Right.AccumulateValue()
+	// Todo
+	return leftAccumulateValue
+}
+
+func (divide DivideLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return DivideLogicExpr{
+		Left:  divide.Left.Clone(cloneAccumulator),
+		Right: divide.Right.Clone(cloneAccumulator),
+		Name:  divide.Name,
+		Alias: divide.Alias,
+	}
+}
+
 type ModLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -445,6 +584,24 @@ func (mod ModLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 		}
 	}
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", mod))
+}
+
+func (mod ModLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	mod.Left.Accumulate(row, input)
+	mod.Right.Accumulate(row, input)
+}
+
+func (mod ModLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := mod.Left.AccumulateValue()
+	rightAccumulateValue := mod.Right.AccumulateValue()
+}
+
+func (mod ModLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return ModLogicExpr{
+		Left:  mod.Left.Clone(cloneAccumulator),
+		Right: mod.Right.Clone(cloneAccumulator),
+		Name:  mod.Name,
+	}
 }
 
 type EqualLogicExpr struct {
@@ -501,6 +658,26 @@ func (equal EqualLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", equal))
 }
 
+func (equal EqualLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	equal.Left.Accumulate(row, input)
+	equal.Right.Accumulate(row, input)
+}
+
+func (equal EqualLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := equal.Left.AccumulateValue()
+	rightAccumulateValue := equal.Right.AccumulateValue()
+	// Todo
+	return leftAccumulateValue
+}
+
+func (equal EqualLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return EqualLogicExpr{
+		Left:  equal.Left.Clone(cloneAccumulator),
+		Right: equal.Right.Clone(cloneAccumulator),
+		Name:  equal.Name,
+	}
+}
+
 type IsLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -551,6 +728,26 @@ func (is IsLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 		}
 	}
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", is))
+}
+
+func (is IsLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	is.Left.Accumulate(row, input)
+	is.Right.Accumulate(row, input)
+}
+
+func (is IsLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := is.Left.AccumulateValue()
+	rightAccumulateValue := is.Right.AccumulateValue()
+	// Todo
+	return leftAccumulateValue
+}
+
+func (is IsLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return IsLogicExpr{
+		Left:  is.Left.Clone(cloneAccumulator),
+		Right: is.Right.Clone(cloneAccumulator),
+		Name:  is.Name,
+	}
 }
 
 type NotEqualLogicExpr struct {
@@ -604,6 +801,24 @@ func (notEqual NotEqualLogicExpr) Evaluate(input *storage.RecordBatch) storage.C
 	leftColumnVector := notEqual.Left.Evaluate(input)
 	rightColumnVector := notEqual.Right.Evaluate(input)
 	return leftColumnVector.NotEqual(rightColumnVector)
+}
+
+func (notEqual NotEqualLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	notEqual.Left.Accumulate(row, input)
+	notEqual.Right.Accumulate(row, input)
+}
+
+func (notEqual NotEqualLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := notEqual.Left.AccumulateValue()
+	rightAccumulateValue := notEqual.Right.AccumulateValue()
+}
+
+func (notEqual NotEqualLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return NotEqualLogicExpr{
+		Left:  notEqual.Left.Clone(cloneAccumulator),
+		Right: notEqual.Right.Clone(cloneAccumulator),
+		Name:  notEqual.Name,
+	}
 }
 
 type GreatLogicExpr struct {
@@ -660,6 +875,24 @@ func (great GreatLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", great))
 }
 
+func (great GreatLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	great.Left.Accumulate(row, input)
+	great.Right.Accumulate(row, input)
+}
+
+func (great GreatLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := great.Left.AccumulateValue()
+	rightAccumulateValue := great.Right.AccumulateValue()
+}
+
+func (great GreatLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return GreatLogicExpr{
+		Left:  great.Left.Clone(cloneAccumulator),
+		Right: great.Right.Clone(cloneAccumulator),
+		Name:  great.Name,
+	}
+}
+
 type GreatEqualLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -711,6 +944,24 @@ func (greatEqual GreatEqualLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) err
 		}
 	}
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", greatEqual))
+}
+
+func (greatEqual GreatEqualLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	greatEqual.Left.Accumulate(row, input)
+	greatEqual.Right.Accumulate(row, input)
+}
+
+func (greatEqual GreatEqualLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := greatEqual.Left.AccumulateValue()
+	rightAccumulateValue := greatEqual.Right.AccumulateValue()
+}
+
+func (greatEqual GreatEqualLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return GreatEqualLogicExpr{
+		Left:  greatEqual.Left.Clone(cloneAccumulator),
+		Right: greatEqual.Right.Clone(cloneAccumulator),
+		Name:  greatEqual.Name,
+	}
 }
 
 type LessLogicExpr struct {
@@ -767,6 +1018,24 @@ func (less LessLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", less))
 }
 
+func (less LessLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	less.Left.Accumulate(row, input)
+	less.Right.Accumulate(row, input)
+}
+
+func (less LessLogicExpr) AccumulateValue() []byte {
+	less.Left.AccumulateValue()
+	less.Right.AccumulateValue()
+}
+
+func (less LessLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return LessLogicExpr{
+		Left:  less.Left.Clone(cloneAccumulator),
+		Right: less.Right.Clone(cloneAccumulator),
+		Name:  less.Name,
+	}
+}
+
 type LessEqualLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -817,6 +1086,24 @@ func (lessEqual LessEqualLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error
 		}
 	}
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", lessEqual))
+}
+
+func (lessEqual LessEqualLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	lessEqual.Left.Accumulate(row, input)
+	lessEqual.Right.Accumulate(row, input)
+}
+
+func (lessEqual LessEqualLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := lessEqual.Left.AccumulateValue()
+	rightAccumulateValue := lessEqual.Right.AccumulateValue()
+}
+
+func (lessEqual LessEqualLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return LessEqualLogicExpr{
+		Left:  lessEqual.Left.Clone(cloneAccumulator),
+		Right: lessEqual.Right.Clone(cloneAccumulator),
+		Name:  lessEqual.Name,
+	}
 }
 
 type AndLogicExpr struct {
@@ -873,6 +1160,24 @@ func (and AndLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", and))
 }
 
+func (and AndLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	and.Left.Accumulate(row, input)
+	and.Right.Accumulate(row, input)
+}
+
+func (and AndLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := and.Left.AccumulateValue()
+	rightAccumulateValue := and.Right.AccumulateValue()
+}
+
+func (and AndLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return AndLogicExpr{
+		Left:  and.Left.Clone(cloneAccumulator),
+		Right: and.Right.Clone(cloneAccumulator),
+		Name:  and.Name,
+	}
+}
+
 type OrLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -924,6 +1229,23 @@ func (or OrLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 		}
 	}
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", or))
+}
+
+func (or OrLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	or.Left.Accumulate(row, input)
+	or.Right.Accumulate(row, input)
+}
+
+func (or OrLogicExpr) AccumulateValue() []byte {
+	leftAccumulateValue := or.Left.AccumulateValue()
+	rightAccumulateValue := or.Right.AccumulateValue()
+}
+func (or OrLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
+	return OrLogicExpr{
+		Left:  or.Left.Clone(cloneAccumulator),
+		Right: or.Right.Clone(cloneAccumulator),
+		Name:  or.Name,
+	}
 }
 
 type OrderedLogicExpr struct {

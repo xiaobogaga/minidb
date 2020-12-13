@@ -38,7 +38,7 @@ func (scan *ScanLogicPlan) Schema() storage.Schema {
 			TP:         column.TP,
 		})
 	}
-	return storage.Schema{Name: scan.Alias, Tables: []storage.SingleTableSchema{tableSchema}}
+	return storage.Schema{Tables: []storage.SingleTableSchema{tableSchema}}
 }
 
 func (scan *ScanLogicPlan) String() string {
@@ -252,16 +252,21 @@ func (sel *SelectionLogicPlan) Execute() (ret *storage.RecordBatch) {
 		if recordBatch == nil {
 			return ret
 		}
-		selectedRows := sel.Expr.Evaluate(recordBatch)
-		ret := MakeEmptyRecordBatchFromSchema(sel.Schema())
-		for row := 0; row < selectedRows.Size(); row++ {
-			if !selectedRows.BoolValue(row) {
-				continue
-			}
-			// Now row is selected
-			ret.AppendRecord(recordBatch, row)
-			i++
+		if ret == nil {
+			ret = MakeEmptyRecordBatchFromSchema(sel.Schema())
 		}
+		selectedRows := sel.Expr.Evaluate(recordBatch)
+		selectedRecords := recordBatch.Filter(selectedRows)
+		ret.Append(selectedRecords)
+		i += selectedRecords.RowCount()
+		//for row := 0; row < selectedRows.Size(); row++ {
+		//	if !selectedRows.Bool(row) {
+		//		continue
+		//	}
+		//	// Now row is selected
+		//	ret.AppendRecord(recordBatch, row)
+		//	i++
+		//}
 	}
 	return
 }
@@ -339,6 +344,7 @@ func (orderBy OrderByLogicPlan) InitializeAndSort() {
 func (orderBy *OrderByLogicPlan) Reset() {
 	orderBy.Input.Reset()
 	orderBy.data = nil
+	orderBy.index = 0
 }
 
 type ProjectionLogicPlan struct {
@@ -358,7 +364,7 @@ func (proj *ProjectionLogicPlan) Schema() storage.Schema {
 	table := storage.SingleTableSchema{}
 	ret := storage.Schema{
 		Tables: []storage.SingleTableSchema{table},
-		Name:   "projection",
+		// Name:   "projection",
 	}
 	for _, expr := range proj.Exprs {
 		f := expr.toField(proj.Input)
@@ -456,4 +462,5 @@ func (limit *LimitLogicPlan) Execute() *storage.RecordBatch {
 
 func (limit *LimitLogicPlan) Reset() {
 	limit.Input.Reset()
+	limit.Index = 0
 }

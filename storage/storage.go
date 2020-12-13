@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/binary"
-	"errors"
 )
 
 type Storage struct {
@@ -18,7 +17,7 @@ func (storage Storage) GetDbInfo(schema string) DbInfo {
 	return storage.Dbs[schema]
 }
 
-var storage Storage = Storage{}
+var storage = Storage{}
 
 func GetStorage() Storage {
 	return storage
@@ -40,12 +39,13 @@ func (dbs DbInfo) GetTable(table string) TableInfo {
 
 type TableInfo struct {
 	Schema Schema
+	Datas  []ColumnVector
 }
 
 // This is for join, a schema might have multiple sub table schemas.
 type Schema struct {
 	Tables []SingleTableSchema
-	Name   string
+	// Name   string // Because this can support join tables. do we need name?
 }
 
 // A SingleTableSchema is a list of Fields representing a temporal table format.
@@ -59,47 +59,53 @@ type SingleTableSchema struct {
 
 // FetchData returns the data starting at row index `rowIndex` and the batchSize is batchSize.
 func (table TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
-	// Todo
+	ret := &RecordBatch{
+		Fields:  table.Schema.Tables[0].Columns,
+		Records: make([]ColumnVector, len(table.Schema.Tables[0].Columns)),
+	}
+	if len(table.Datas) == 0 {
+		return ret
+	}
+	for i := rowIndex; i < batchSize && i < table.Datas[0].Size(); i++ {
+		for j, col := range table.Datas {
+			ret.Records[j].Append(col.Values[i])
+		}
+	}
+	return ret
 }
 
 func (schema Schema) HasSubTable(tableName string) bool {
-	_, ok := schema.FieldMap[tableName]
-	return ok
+	for _, table := range schema.Tables {
+		if table.TableName == tableName {
+			return true
+		}
+	}
+	return false
 }
 
 // HasColumn returns whether this schema has such schema, table and column.
-// schemaName, tableName can be empty, then it will iterate all dbschema to find such column.
+// schemaName, tableName can be empty, then it will iterate all db schema to find such column.
 func (schema Schema) HasColumn(schemaName, tableName, columnName string) bool {
-	if schemaName != "" {
-		dbSchema, ok := schema.FieldMap[schemaName]
-		if !ok {
-			return false
+	for _, table := range schema.Tables {
+		// Schema can be empty
+		if schemaName == "" && table.TableName == tableName && schema.TableHasColumn(table.Columns, columnName) {
+			return true
 		}
-		tableSchema, ok := dbSchema[tableName]
-		if !ok {
-			return false
+		if schemaName == "" && tableName == "" && schema.TableHasColumn(table.Columns, columnName) {
+			return true
 		}
-		_, ok = tableSchema[columnName]
-		return ok
+		if schemaName != "" && (schemaName == table.SchemaName) && table.TableName == tableName &&
+			schema.TableHasColumn(table.Columns, columnName) {
+			return true
+		}
 	}
-	if tableName != "" {
-		for _, dbSchema := range schema.FieldMap {
-			tableSchema, ok := dbSchema[tableName]
-			if !ok {
-				continue
-			}
-			_, ok = tableSchema[columnName]
-			return ok
-		}
-		return false
-	}
-	for _, dbSchema := range schema.FieldMap {
-		for _, tableSchema := range dbSchema {
-			for colName, _ := range tableSchema {
-				if colName == columnName {
-					return true
-				}
-			}
+	return false
+}
+
+func (schema Schema) TableHasColumn(fields []Field, column string) bool {
+	for _, f := range fields {
+		if f.Name == column {
+			return true
 		}
 	}
 	return false
@@ -109,92 +115,35 @@ func (schema Schema) HasAmbiguousColumn(schemaName, tableName, columnName string
 	if schemaName != "" && tableName != "" {
 		return false
 	}
-	i := 0
-	if tableName == "" {
-		for _, dbSchema := range schema.FieldMap {
-			for _, tableSchema := range dbSchema {
-				for colName, _ := range tableSchema {
-					if colName == columnName {
-						i++
-					}
-				}
-			}
+	times := 0
+	for _, table := range schema.Tables {
+		if tableName == "" && schema.TableHasColumn(table.Columns, columnName) {
+			times++
 		}
-		return i >= 2
-	}
-	i = 0
-	// Then tableName mustn't be empty and schemaName must be empty.
-	for _, dbSchema := range schema.FieldMap {
-		tableSchema, ok := dbSchema[tableName]
-		if !ok {
-			continue
-		}
-		for colName, _ := range tableSchema {
-			if colName == columnName {
-				i++
-			}
+		if tableName != "" && tableName == table.TableName && schema.TableHasColumn(table.Columns, columnName) {
+			times++
 		}
 	}
-	return i >= 2
+	return times > 1
 }
 
+var emptyField = Field{}
+
 func (schema Schema) GetField(columnName string) Field {
-	for _, dbSchema := range schema.FieldMap {
-		for _, tableSchema := range dbSchema {
-			for colName, f := range tableSchema {
-				if colName == columnName {
-					return f
-				}
+	for _, table := range schema.Tables {
+		for _, field := range table.Columns {
+			if field.Name == columnName {
+				return field
 			}
 		}
 	}
-	// Todo
-	return Field{}
+	return emptyField
 }
 
 func (schema Schema) Merge(right Schema) (Schema, error) {
-	ret := Schema{
-		FieldMap: map[string]map[string]map[string]Field{},
-	}
-	for dbSchemaName, dbSchema := range schema.FieldMap {
-		ret.AddNewDbTableSchema(dbSchemaName, dbSchema)
-	}
-	// Merge right schema. We doesn't allow to merge same table(means belongs to same database)
-	for dbSchemaName, dbSchema := range right.FieldMap {
-		retDbSchema, ok := ret.FieldMap[dbSchemaName]
-		if !ok {
-			ret.AddNewDbTableSchema(dbSchemaName, dbSchema)
-			continue
-		}
-		for tableName, tableSchema := range dbSchema {
-			retTableSchema, ok := retDbSchema[tableName]
-			if ok {
-				return Schema{}, errors.New("duplicate table name")
-			}
-			retTableSchema = map[string]Field{}
-			for col, field := range tableSchema {
-				retTableSchema[col] = field
-			}
-			retDbSchema[tableName] = retTableSchema
-		}
-	}
+	ret := schema // Are we safe here.
+	ret.Tables = append(ret.Tables, right.Tables...)
 	return ret, nil
-}
-
-func (schema Schema) AddNewDbTableSchema(dbName string, dbSchema map[string]map[string]Field) {
-	retDbSchema := map[string]map[string]Field{}
-	for tableName, table := range dbSchema {
-		retTableSchema := map[string]Field{}
-		for col, field := range table {
-			retTableSchema[col] = field
-		}
-		retDbSchema[tableName] = retTableSchema
-	}
-	schema.FieldMap[dbName] = retDbSchema
-}
-
-func (schema Schema) AddField() {
-
 }
 
 type RecordBatch struct {
@@ -209,20 +158,72 @@ func (recordBatch *RecordBatch) RowCount() int {
 	return 0
 }
 
-func (recordBatch *RecordBatch) GetColumnValue(colName string) ColumnVector {
+var emptyColumnVector = ColumnVector{}
 
+func (recordBatch *RecordBatch) GetColumnValue(colName string) ColumnVector {
+	for _, col := range recordBatch.Records {
+		if col.Field.Name == colName {
+			return col
+		}
+	}
+	// Todo: do we need to change it to pointer
+	return emptyColumnVector
 }
 
 func (recordBatch *RecordBatch) ColumnCount() int {
 	return len(recordBatch.Records)
 }
 
-func (recordBatch *RecordBatch) Join(another *RecordBatch) *RecordBatch {}
+// recordBatch join another.
+func (recordBatch *RecordBatch) Join(another *RecordBatch) *RecordBatch {
+	ret := &RecordBatch{
+		Fields: make([]Field, len(recordBatch.Fields) + len(another.Fields)),
+		Records: make([]ColumnVector, len(recordBatch.Records) + len(another.Records)),
+	}
+	// set Field first.
+	for i, f := range recordBatch.Fields {
+		ret.Fields[i] = f
+	}
+	j := len(recordBatch.Fields)
+	for i, f := range another.Fields {
+		ret.Fields[j + i] = f
+	}
+	// set column vector.
+	for i, col := range recordBatch.Records {
+		ret.Records[i] = col
+	}
+	j = len(recordBatch.Fields)
+	for i, col := range another.Records {
+		ret.Records[i + j] = col
+	}
+	return ret
+}
 
 // Append new to recordBatch, they are in the same layout.
-func (recordBatch *RecordBatch) Append(new *RecordBatch) {}
+func (recordBatch *RecordBatch) Append(new *RecordBatch) {
+	for i, col := range new.Records {
+		recordBatch.Records[i].Appends(col.Values)
+	}
+}
 
-func (recordBatch *RecordBatch) OrderBy(columnVector ColumnVector) {}
+// columnVector represents the order of recordBatch. It's has just one row.
+// whose field is Field{Name: "order", TP: storage.Int}.
+func (recordBatch *RecordBatch) OrderBy(columnVector ColumnVector) {
+	temp := &RecordBatch{Fields: recordBatch.Fields, Records: make([]ColumnVector, len(recordBatch.Records))}
+	for i, col := range recordBatch.Records {
+		temp.Records[i].Field = temp.Fields[i]
+		temp.Records[i].Values = make([][]byte, len(col.Values))
+	}
+	// Reorder
+	for j := 0; j < columnVector.Size(); j++ {
+		// Move j -> newIndex
+		newIndex := columnVector.Int(j)
+		for i, col := range recordBatch.Records {
+			temp.Records[i].Values[newIndex] = col.Values[j]
+		}
+	}
+	recordBatch.CopyFrom(temp, 0, temp.RowCount())
+}
 
 // Set the i-th column values in recordBatch by using columnVector.
 func (recordBatch *RecordBatch) SetColumnValue(col int, columnVector ColumnVector) {
@@ -240,11 +241,22 @@ func (recordBatch *RecordBatch) CopyFrom(copyFrom *RecordBatch, from, size int) 
 
 }
 
+// selectedRows is a bool column which represent each row in recordBatch is selected or not.
+func (recordBatch *RecordBatch) Filter(selectedRows ColumnVector) *RecordBatch {
+
+}
+
 // Return data[startIndex: startIndex + size - 1]
 func (recordBatch *RecordBatch) Slice(startIndex, size int) *RecordBatch {
 
 }
 
+// Encode row key.
+func (recordBatch *RecordBatch) RowKey(row int) []byte {
+
+}
+
+// For type check.
 type Field struct {
 	TP         FieldTP
 	Name       string
@@ -370,12 +382,25 @@ func (column ColumnVector) Sort(others []ColumnVector, asc []bool) ColumnVector 
 
 }
 
-func (column ColumnVector) BoolValue(row int) bool {
+func (column ColumnVector) Bool(row int) bool {
+
+}
+
+func (column ColumnVector) Int(row int) int {
 
 }
 
 func (column ColumnVector) Append(value []byte) {
 
+}
+
+func (column ColumnVector) Appends(values [][]byte) {
+
+}
+
+type RowValue struct {
+	Field Field
+	Data  []byte
 }
 
 func bytesToTp(value []byte) FieldTP {
