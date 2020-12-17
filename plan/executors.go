@@ -7,8 +7,29 @@ import (
 	"strings"
 )
 
-func Exec(stm parser.Stm, currentDB string) {
-
+func Exec(stm parser.Stm, currentDB string) error {
+	switch stm.(type) {
+	case parser.CreateDatabaseStm:
+		return ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
+	case parser.DropDatabaseStm:
+		return ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
+	case parser.CreateTableStm:
+		return ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
+	case parser.DropTableStm:
+		return ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
+	case parser.InsertIntoStm:
+		return ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
+	case parser.UpdateStm:
+		return ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
+	case parser.SingleDeleteStm:
+		return ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
+	case parser.MultiDeleteStm:
+		return ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
+	case parser.TruncateStm:
+		return ExecuteTruncateStm(stm.(*parser.TruncateStm))
+	default:
+		return errors.New("unsupported statement")
+	}
 }
 
 func ExecuteSelectStm(stm *parser.SelectStm, currentDB string) error {
@@ -38,7 +59,7 @@ func ExecuteCreateDatabaseStm(stm *parser.CreateDatabaseStm) error {
 	return nil
 }
 
-func ExecuteRemoveDatabaseStm(stm *parser.DropDatabaseStm) error {
+func ExecuteDropDatabaseStm(stm *parser.DropDatabaseStm) error {
 	if !storage.GetStorage().HasSchema(stm.DatabaseName) {
 		return nil
 	}
