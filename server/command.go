@@ -1,11 +1,11 @@
 package server
 
 import (
-	"simpleDb/log"
 	"simpleDb/parser"
+	"simpleDb/util"
 )
 
-var commandLog = log.GetLog("Command")
+var commandLog = util.GetLog("Command")
 
 type Command struct {
 	Tp      CommandType

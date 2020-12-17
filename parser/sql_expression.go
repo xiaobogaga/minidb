@@ -1,10 +1,5 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // For expression, compared to mysql, we use a simplified version and only a subset expressions of mysql
 // are supported. An expression statement is like:
 // term (ope term)
@@ -16,14 +11,14 @@ import (
 // +, -, *, /, %, =, IS, !=, IS NOT, >, >=, <, <=, AND, OR,
 // Note: currently we don't consider [NOT] IN, [NOT] LIKE
 // Note: literal can be -5
-func (parser *Parser) resolveExpression() (expr *ast.ExpressionStm, err error) {
+func (parser *Parser) resolveExpression() (expr *ExpressionStm, err error) {
 	exprTerm, err := parser.parseExpressionTerm()
 	if err != nil {
 		return nil, err
 	}
-	var exprs []*ast.ExpressionTerm
+	var exprs []*ExpressionTerm
 	exprs = append(exprs, exprTerm)
-	var ops []ast.ExpressionOp
+	var ops []ExpressionOp
 	for {
 		token, ok := parser.NextToken()
 		if !ok || !isTokenAOpe(token) {
@@ -40,36 +35,36 @@ func (parser *Parser) resolveExpression() (expr *ast.ExpressionStm, err error) {
 	return parser.buildExpressionsTree(ops, exprs), nil
 }
 
-func (parser *Parser) LexerOpToExpressionOp(op lexer.TokenType) ast.ExpressionOp {
+func (parser *Parser) LexerOpToExpressionOp(op TokenType) ExpressionOp {
 	switch op {
-	case lexer.ADD:
-		return ast.OperationAdd
-	case lexer.MINUS:
-		return ast.OperationMinus
-	case lexer.MUL:
-		return ast.OperationMul
-	case lexer.DIVIDE:
-		return ast.OperationDivide
-	case lexer.MOD:
-		return ast.OperationMod
-	case lexer.EQUAL:
-		return ast.OperationEqual
-	case lexer.IS:
-		return ast.OperationIs
-	case lexer.NOTEQUAL:
-		return ast.OperationNotEqual
-	case lexer.GREAT:
-		return ast.OperationGreat
-	case lexer.GREATEQUAL:
-		return ast.OperationGreatEqual
-	case lexer.LESS:
-		return ast.OperationLess
-	case lexer.LESSEQUAL:
-		return ast.OperationLessEqual
-	case lexer.AND:
-		return ast.OperationAnd
-	case lexer.OR:
-		return ast.OperationOr
+	case ADD:
+		return OperationAdd
+	case MINUS:
+		return OperationMinus
+	case MUL:
+		return OperationMul
+	case DIVIDE:
+		return OperationDivide
+	case MOD:
+		return OperationMod
+	case EQUAL:
+		return OperationEqual
+	case IS:
+		return OperationIs
+	case NOTEQUAL:
+		return OperationNotEqual
+	case GREAT:
+		return OperationGreat
+	case GREATEQUAL:
+		return OperationGreatEqual
+	case LESS:
+		return OperationLess
+	case LESSEQUAL:
+		return OperationLessEqual
+	case AND:
+		return OperationAnd
+	case OR:
+		return OperationOr
 	// case lexer.OR + 1:
 	//	return ast.OperationISNot
 	// case lexer.DOT:
@@ -79,12 +74,12 @@ func (parser *Parser) LexerOpToExpressionOp(op lexer.TokenType) ast.ExpressionOp
 	}
 }
 
-func (parser *Parser) buildExpressionsTree(ops []ast.ExpressionOp, exprTerms []*ast.ExpressionTerm) *ast.ExpressionStm {
+func (parser *Parser) buildExpressionsTree(ops []ExpressionOp, exprTerms []*ExpressionTerm) *ExpressionStm {
 	if len(ops) == 0 {
-		return &ast.ExpressionStm{LeftExpr: exprTerms[0]}
+		return &ExpressionStm{LeftExpr: exprTerms[0]}
 	}
 	if len(ops) == 1 {
-		return &ast.ExpressionStm{LeftExpr: exprTerms[0], Op: ops[0], RightExpr: exprTerms[1]}
+		return &ExpressionStm{LeftExpr: exprTerms[0], Op: ops[0], RightExpr: exprTerms[1]}
 	}
 	expressionStack := make([]interface{}, 0, len(exprTerms))
 	for _, exprTerm := range exprTerms {
@@ -107,38 +102,38 @@ func (parser *Parser) buildExpressionsTree(ops []ast.ExpressionOp, exprTerms []*
 	return parser.makeNewExpression(expressionStack[0], expressionStack[1], ops[0])
 }
 
-func (parser *Parser) makeNewExpression(leftExpr interface{}, rightExpr interface{}, op ast.ExpressionOp) *ast.ExpressionStm {
-	_, leftIsExpressionTerm := leftExpr.(*ast.ExpressionTerm)
-	_, rightIsExpressionTerm := rightExpr.(*ast.ExpressionTerm)
-	ret := new(ast.ExpressionStm)
+func (parser *Parser) makeNewExpression(leftExpr interface{}, rightExpr interface{}, op ExpressionOp) *ExpressionStm {
+	_, leftIsExpressionTerm := leftExpr.(*ExpressionTerm)
+	_, rightIsExpressionTerm := rightExpr.(*ExpressionTerm)
+	ret := new(ExpressionStm)
 	if leftIsExpressionTerm {
-		ret.LeftExpr = leftExpr.(*ast.ExpressionTerm)
+		ret.LeftExpr = leftExpr.(*ExpressionTerm)
 	} else {
-		ret.LeftExpr = leftExpr.(*ast.ExpressionStm)
+		ret.LeftExpr = leftExpr.(*ExpressionStm)
 	}
 	if rightIsExpressionTerm {
-		ret.RightExpr = rightExpr.(*ast.ExpressionTerm)
+		ret.RightExpr = rightExpr.(*ExpressionTerm)
 	} else {
-		ret.RightExpr = rightExpr.(*ast.ExpressionStm)
+		ret.RightExpr = rightExpr.(*ExpressionStm)
 	}
 	ret.Op = op
 	return ret
 }
 
-func (parser *Parser) parseExpressionTerm() (expr *ast.ExpressionTerm, err error) {
+func (parser *Parser) parseExpressionTerm() (expr *ExpressionTerm, err error) {
 	token, ok := parser.NextToken()
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	switch token.Tp {
-	case lexer.IDENT:
+	case IDENT:
 		// Must be identifier
 		parser.UnReadToken()
 		expr, err = parser.parseIdentifierExpressionTerm()
-	case lexer.WORD:
+	case WORD:
 		// Must be function call or identifier
 		expr, err = parser.parseFunctionCallOrIdentifierStm()
-	case lexer.VALUE:
+	case VALUE:
 		// Must be literal
 		parser.UnReadToken()
 		expr, err = parser.parseLiteralExpressionTerm()
@@ -146,10 +141,10 @@ func (parser *Parser) parseExpressionTerm() (expr *ast.ExpressionTerm, err error
 	//	// Must be not exist subquery
 	//	parser.UnReadToken()
 	//	expr, err = parser.parseExistsSubQueryExpression()
-	case lexer.MINUS:
+	case MINUS:
 		parser.UnReadToken()
 		expr, err = parser.parseUnaryExpressionTerm()
-	case lexer.LEFTBRACKET:
+	case LEFTBRACKET:
 		expr, err = parser.parseSubExpressionTerm()
 	default:
 		return nil, parser.MakeSyntaxError(1, parser.pos)
@@ -157,17 +152,17 @@ func (parser *Parser) parseExpressionTerm() (expr *ast.ExpressionTerm, err error
 	return
 }
 
-func (parser *Parser) parseUnaryExpressionTerm() (expr *ast.ExpressionTerm, err error) {
-	if parser.matchTokenTypes(false, lexer.MINUS) {
+func (parser *Parser) parseUnaryExpressionTerm() (expr *ExpressionTerm, err error) {
+	if parser.matchTokenTypes(false, MINUS) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	exprTerm, err := parser.parseExpressionTerm()
-	exprTerm.UnaryOp = ast.NegativeUnaryOpTp
+	exprTerm.UnaryOp = NegativeUnaryOpTp
 	return
 }
 
-func (parser *Parser) parseFunctionCallOrIdentifierStm() (expr *ast.ExpressionTerm, err error) {
-	if parser.matchTokenTypes(true, lexer.LEFTBRACKET) {
+func (parser *Parser) parseFunctionCallOrIdentifierStm() (expr *ExpressionTerm, err error) {
+	if parser.matchTokenTypes(true, LEFTBRACKET) {
 		// Must be functionCall
 		// Back to functionName position.
 		parser.UnReadToken()
@@ -180,78 +175,78 @@ func (parser *Parser) parseFunctionCallOrIdentifierStm() (expr *ast.ExpressionTe
 	return
 }
 
-func (parser *Parser) parseSubExpressionTerm() (expr *ast.ExpressionTerm, err error) {
+func (parser *Parser) parseSubExpressionTerm() (expr *ExpressionTerm, err error) {
 	exprTerm, err := parser.resolveExpression()
 	if err != nil {
 		return nil, err
 	}
-	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
+	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.ExpressionTerm{
-		Tp:           ast.SubExpressionTermTP,
+	return &ExpressionTerm{
+		Tp:           SubExpressionTermTP,
 		RealExprTerm: exprTerm,
 	}, nil
 }
 
-func isTokenAOpe(token lexer.Token) bool {
+func isTokenAOpe(token Token) bool {
 	switch token.Tp {
-	case lexer.ADD, lexer.MINUS, lexer.MUL, lexer.DIVIDE, lexer.MOD, lexer.EQUAL, lexer.IS,
-		lexer.NOTEQUAL, lexer.GREAT, lexer.GREATEQUAL, lexer.LESS, lexer.LESSEQUAL, lexer.AND,
-		lexer.OR:
+	case ADD, MINUS, MUL, DIVIDE, MOD, EQUAL, IS,
+		NOTEQUAL, GREAT, GREATEQUAL, LESS, LESSEQUAL, AND,
+		OR:
 		return true
 	default:
 		return false
 	}
 }
 
-func (parser *Parser) parseLiteralExpressionTerm() (*ast.ExpressionTerm, error) {
+func (parser *Parser) parseLiteralExpressionTerm() (*ExpressionTerm, error) {
 	value, ok := parser.parseValue(false)
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.ExpressionTerm{
-		Tp:           ast.LiteralExpressionTermTP,
-		RealExprTerm: ast.LiteralExpressionStm(value),
+	return &ExpressionTerm{
+		Tp:           LiteralExpressionTermTP,
+		RealExprTerm: LiteralExpressionStm(value),
 	}, nil
 }
 
-func (parser *Parser) parseIdentifierExpressionTerm() (*ast.ExpressionTerm, error) {
+func (parser *Parser) parseIdentifierExpressionTerm() (*ExpressionTerm, error) {
 	name, ok := parser.parseIdentOrWord(false)
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.ExpressionTerm{
-		Tp:           ast.IdentifierExpressionTermTP,
-		RealExprTerm: ast.IdentifierExpression(name),
+	return &ExpressionTerm{
+		Tp:           IdentifierExpressionTermTP,
+		RealExprTerm: IdentifierExpression(name),
 	}, nil
 }
 
-func (parser *Parser) parseFunctionCallExpression() (*ast.ExpressionTerm, error) {
+func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 	funcName, ok := parser.parseIdentOrWord(false)
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
+	if !parser.matchTokenTypes(false, LEFTBRACKET) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	var params []*ast.ExpressionStm
+	var params []*ExpressionStm
 	for {
 		paramExpression, err := parser.resolveExpression()
 		if err != nil {
 			return nil, err
 		}
 		params = append(params, paramExpression)
-		if !parser.matchTokenTypes(true, lexer.COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}
-	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
+	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.ExpressionTerm{
-		Tp: ast.FuncCallExpressionTermTP,
-		RealExprTerm: ast.FunctionCallExpressionStm{
+	return &ExpressionTerm{
+		Tp: FuncCallExpressionTermTP,
+		RealExprTerm: FunctionCallExpressionStm{
 			FuncName: string(funcName),
 			Params:   params,
 		},

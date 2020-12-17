@@ -1,46 +1,44 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // Update statement is like:
 // * update table_reference set assignments... [WhereStm] [OrderByStm] [LimitStm]
 // * update table_reference... set assignments... [WhereStm]
 
-func (parser *Parser) resolveUpdateStm() (ast.Stm, error) {
-	if !parser.matchTokenTypes(false, lexer.UPDATE) {
+func (parser *Parser) resolveUpdateStm() (Stm, error) {
+	if !parser.matchTokenTypes(false, UPDATE) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	var tableRefs []ast.TableReferenceStm
+	var tableRefs []TableReferenceStm
 	for {
 		tableRef, err := parser.parseTableReferenceStm()
 		if err != nil {
 			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
+		if tableRef.Tp != TableReferenceTableFactorTp || tableRef.TableReference.(TableReferenceTableFactorStm).Tp != TableReferencePureTableNameTp {
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		}
 		tableRefs = append(tableRefs, tableRef)
-		if !parser.matchTokenTypes(false, lexer.COMMA) {
+		if !parser.matchTokenTypes(false, COMMA) {
 			break
 		}
 	}
-	if !parser.matchTokenTypes(false, lexer.SET) {
+	if !parser.matchTokenTypes(false, SET) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 
-	var assignments []ast.AssignmentStm
+	var assignments []AssignmentStm
 	for {
 		assignment, err := parser.parseAssignmentStm()
 		if err != nil {
 			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		assignments = append(assignments, assignment)
-		if !parser.matchTokenTypes(true, lexer.COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}
-	var order *ast.OrderByStm
-	var limit *ast.LimitStm
+	var order *OrderByStm
+	var limit *LimitStm
 	var err error
 	where, _ := parser.resolveWhereStm()
 	if len(tableRefs) > 1 {
@@ -53,10 +51,10 @@ func (parser *Parser) resolveUpdateStm() (ast.Stm, error) {
 			return nil, err
 		}
 	}
-	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.UpdateStm{
+	return &UpdateStm{
 		TableRefs:   tableRefs,
 		Assignments: assignments,
 		Where:       where,

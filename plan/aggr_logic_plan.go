@@ -3,7 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
-	"simpleDb/ast"
+	"simpleDb/parser"
 	"simpleDb/storage"
 )
 
@@ -196,7 +196,7 @@ func (having HavingLogicPlan) Reset() {
 	having.Input.Reset()
 }
 
-func MakeAggreLogicPlan(input LogicPlan, ast *ast.SelectStm) (LogicPlan, error) {
+func MakeAggreLogicPlan(input LogicPlan, ast *parser.SelectStm) (LogicPlan, error) {
 	groupByLogicPlan := makeGroupByLogicPlan(input, ast.Groupby)
 	// Having similar to projections for aggregation, the expr must be either included in the group by expr.
 	// or must be an aggregation function.
@@ -208,21 +208,21 @@ func MakeAggreLogicPlan(input LogicPlan, ast *ast.SelectStm) (LogicPlan, error) 
 	return limitLogicPlan, limitLogicPlan.TypeCheck()
 }
 
-func makeHavingLogicPlan(input GroupByLogicPlan, having ast.HavingStm) HavingLogicPlan {
+func makeHavingLogicPlan(input GroupByLogicPlan, having parser.HavingStm) HavingLogicPlan {
 	return HavingLogicPlan{
 		Input: input,
 		Expr:  ExprStmToLogicExpr(having, input),
 	}
 }
 
-func makeGroupByLogicPlan(input LogicPlan, groupBy *ast.GroupByStm) GroupByLogicPlan {
+func makeGroupByLogicPlan(input LogicPlan, groupBy *parser.GroupByStm) GroupByLogicPlan {
 	return GroupByLogicPlan{
 		Input:       input,
 		GroupByExpr: ExprStmsToLogicExprs(*groupBy, input),
 	}
 }
 
-func ExprStmsToLogicExprs(expressions []*ast.ExpressionStm, input LogicPlan) (ret []LogicExpr) {
+func ExprStmsToLogicExprs(expressions []*parser.ExpressionStm, input LogicPlan) (ret []LogicExpr) {
 	for _, expr := range expressions {
 		ret = append(ret, ExprStmToLogicExpr(expr, input))
 	}

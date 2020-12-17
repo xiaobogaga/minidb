@@ -1,14 +1,9 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // Having WhereStm
 
-func (parser *Parser) parseHavingStm() (ast.HavingStm, error) {
-	if !parser.matchTokenTypes(true, lexer.HAVING) {
+func (parser *Parser) parseHavingStm() (HavingStm, error) {
+	if !parser.matchTokenTypes(true, HAVING) {
 		return nil, nil
 	}
 	whereStm, err := parser.resolveWhereStm()
@@ -18,5 +13,5 @@ func (parser *Parser) parseHavingStm() (ast.HavingStm, error) {
 	if whereStm == nil {
 		return nil, parser.MakeSyntaxError(1, parser.pos)
 	}
-	return ast.HavingStm(whereStm), nil
+	return HavingStm(whereStm), nil
 }

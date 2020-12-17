@@ -1,14 +1,9 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // A where statement is like: Where expressionStm
 
-func (parser *Parser) resolveWhereStm() (ast.WhereStm, error) {
-	if !parser.matchTokenTypes(true, lexer.WHERE) {
+func (parser *Parser) resolveWhereStm() (WhereStm, error) {
+	if !parser.matchTokenTypes(true, WHERE) {
 		return nil, nil
 	}
 	expressionStm, err := parser.resolveExpression()

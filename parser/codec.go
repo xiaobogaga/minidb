@@ -1,15 +1,14 @@
 package parser
 
 import (
-	"simpleDb/lexer"
 	"strconv"
 )
 
-func DecodeValue(data []byte, tp lexer.TokenType) (interface{}, bool) {
+func DecodeValue(data []byte, tp TokenType) (interface{}, bool) {
 	// Todo:
 	// A value to
 	switch tp {
-	case lexer.BOOL:
+	case BOOL:
 		if len(data) == 0 {
 			return false, false
 		}
@@ -17,7 +16,7 @@ func DecodeValue(data []byte, tp lexer.TokenType) (interface{}, bool) {
 		}
 		value, err := strconv.ParseInt(string(data), 10, 64)
 		return value, err == nil
-	case lexer.INT:
+	case INT:
 		if len(data) == 0 {
 			return -1, false
 		}

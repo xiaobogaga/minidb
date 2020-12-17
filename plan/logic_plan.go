@@ -3,7 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
-	"simpleDb/ast"
+	"simpleDb/parser"
 	"simpleDb/storage"
 )
 
@@ -107,7 +107,7 @@ func (tableScan *TableScan) Reset() {
 
 type JoinLogicPlan struct {
 	LeftLogicPlan  LogicPlan
-	JoinType       ast.JoinType
+	JoinType       parser.JoinType
 	RightLogicPlan LogicPlan
 	LeftBatch      *storage.RecordBatch
 	RightBatch     *storage.RecordBatch
@@ -136,13 +136,13 @@ func (join *JoinLogicPlan) TypeCheck() error {
 	return join.RightLogicPlan.TypeCheck()
 }
 
-func joinTypeToString(joinType ast.JoinType) string {
+func joinTypeToString(joinType parser.JoinType) string {
 	switch joinType {
-	case ast.InnerJoin:
+	case parser.InnerJoin:
 		return "innerJoin"
-	case ast.LeftOuterJoin:
+	case parser.LeftOuterJoin:
 		return "leftOuterJoin"
-	case ast.RightOuterJoin:
+	case parser.RightOuterJoin:
 		return "rightOuterJoin"
 	default:
 		return ""
@@ -157,17 +157,17 @@ func (join *JoinLogicPlan) Execute() (ret *storage.RecordBatch) {
 		join.RightBatch = join.RightLogicPlan.Execute()
 	}
 	switch join.JoinType {
-	case ast.LeftOuterJoin:
+	case parser.LeftOuterJoin:
 		if join.LeftBatch == nil {
 			return nil
 		}
 		ret = join.LeftBatch.Join(join.RightBatch)
-	case ast.RightOuterJoin:
+	case parser.RightOuterJoin:
 		if join.RightLogicPlan == nil {
 			return nil
 		}
 		ret = join.LeftBatch.Join(join.RightBatch)
-	case ast.InnerJoin:
+	case parser.InnerJoin:
 		if join.LeftBatch == nil || join.RightBatch == nil {
 			return nil
 		}
@@ -284,7 +284,7 @@ func (sel *SelectionLogicPlan) Reset() {
 // orderBy orderByExpr
 type OrderByLogicPlan struct {
 	Input   LogicPlan
-	OrderBy OrderedLogicExpr
+	OrderBy OrderByLogicExpr
 	IsAggr  bool
 	data    *storage.RecordBatch
 	index   int

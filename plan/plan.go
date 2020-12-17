@@ -2,12 +2,11 @@ package plan
 
 import (
 	"errors"
-	"simpleDb/ast"
-	"simpleDb/lexer"
+	"simpleDb/parser"
 	"strings"
 )
 
-func MakeLogicPlan(ast *ast.SelectStm, currentDB string) (LogicPlan, error) {
+func MakeLogicPlan(ast *parser.SelectStm, currentDB string) (LogicPlan, error) {
 	scanLogicPlans, err := makeScanLogicPlans(ast.TableReferences, currentDB)
 	if err != nil {
 		return nil, err
@@ -27,17 +26,17 @@ func MakeLogicPlan(ast *ast.SelectStm, currentDB string) (LogicPlan, error) {
 	return limitLogicPlan, limitLogicPlan.TypeCheck()
 }
 
-func makeScanLogicPlans(tableRefs []ast.TableReferenceStm, currentDB string) (ret []LogicPlan, err error) {
+func makeScanLogicPlans(tableRefs []parser.TableReferenceStm, currentDB string) (ret []LogicPlan, err error) {
 	for _, tableRef := range tableRefs {
 		switch tableRef.Tp {
-		case ast.TableReferenceTableFactorTp:
-			plan, err := makeScanLogicPlan(tableRef.TableReference.(ast.TableReferenceTableFactorStm), currentDB)
+		case parser.TableReferenceTableFactorTp:
+			plan, err := makeScanLogicPlan(tableRef.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
 			if err != nil {
 				return nil, err
 			}
 			ret = append(ret, plan)
-		case ast.TableReferenceJoinTableTp: // Build scanLogicPlan for the join op.
-			plan, err := makeScanLogicPlanForJoin(tableRef.TableReference.(ast.JoinedTableStm), currentDB)
+		case parser.TableReferenceJoinTableTp: // Build scanLogicPlan for the join op.
+			plan, err := makeScanLogicPlanForJoin(tableRef.TableReference.(parser.JoinedTableStm), currentDB)
 			if err != nil {
 				return nil, err
 			}
@@ -49,10 +48,10 @@ func makeScanLogicPlans(tableRefs []ast.TableReferenceStm, currentDB string) (re
 	return
 }
 
-func makeScanLogicPlan(tableRefTableFactorStm ast.TableReferenceTableFactorStm, currentDB string) (LogicPlan, error) {
+func makeScanLogicPlan(tableRefTableFactorStm parser.TableReferenceTableFactorStm, currentDB string) (LogicPlan, error) {
 	switch tableRefTableFactorStm.Tp {
-	case ast.TableReferencePureTableNameTp:
-		table := tableRefTableFactorStm.TableFactorReference.(ast.TableReferencePureTableRefStm)
+	case parser.TableReferencePureTableNameTp:
+		table := tableRefTableFactorStm.TableFactorReference.(parser.TableReferencePureTableRefStm)
 		schemaName, tableName, err := splitSchemaAndTableName(table.TableName)
 		if err != nil {
 			return nil, err
@@ -69,7 +68,7 @@ func makeScanLogicPlan(tableRefTableFactorStm ast.TableReferenceTableFactorStm, 
 			Alias:      table.Alias,
 			Input:      &TableScan{Name: tableName, SchemaName: schemaName},
 		}, nil
-	case ast.TableReferenceTableSubQueryTp, ast.TableReferenceSubTableReferenceStmTP:
+	case parser.TableReferenceTableSubQueryTp, parser.TableReferenceSubTableReferenceStmTP:
 		panic("doesn't support sub query currently")
 	}
 	return nil, nil
@@ -84,7 +83,7 @@ func splitSchemaAndTableName(schemaTable string) (schema, table string, err erro
 	return splits[0], splits[1], nil
 }
 
-func makeScanLogicPlanForJoin(joinTableStm ast.JoinedTableStm, currentDB string) (LogicPlan, error) {
+func makeScanLogicPlanForJoin(joinTableStm parser.JoinedTableStm, currentDB string) (LogicPlan, error) {
 	// a inorder traversal to build logic plan.
 	leftLogicPlan, err := makeScanLogicPlan(joinTableStm.TableReference, currentDB)
 	if err != nil {
@@ -101,12 +100,12 @@ func makeScanLogicPlanForJoin(joinTableStm ast.JoinedTableStm, currentDB string)
 	}, nil
 }
 
-func buildLogicPlanForTableReferenceStm(tableRef ast.TableReferenceStm, currentDB string) (LogicPlan, error) {
+func buildLogicPlanForTableReferenceStm(tableRef parser.TableReferenceStm, currentDB string) (LogicPlan, error) {
 	switch tableRef.Tp {
-	case ast.TableReferenceTableFactorTp:
-		return makeScanLogicPlan(tableRef.TableReference.(ast.TableReferenceTableFactorStm), currentDB)
-	case ast.TableReferenceJoinTableTp:
-		return makeScanLogicPlanForJoin(tableRef.TableReference.(ast.JoinedTableStm), currentDB)
+	case parser.TableReferenceTableFactorTp:
+		return makeScanLogicPlan(tableRef.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
+	case parser.TableReferenceJoinTableTp:
+		return makeScanLogicPlanForJoin(tableRef.TableReference.(parser.JoinedTableStm), currentDB)
 	default:
 		panic("wrong tableRef type")
 	}
@@ -121,68 +120,68 @@ func makeJoinLogicPlan(input []LogicPlan) LogicPlan {
 		leftLogicPlan = &JoinLogicPlan{
 			LeftLogicPlan:  leftLogicPlan,
 			RightLogicPlan: rightLogicPlan,
-			JoinType:       ast.InnerJoin,
+			JoinType:       parser.InnerJoin,
 		}
 	}
 	return leftLogicPlan
 }
 
-func makeSelectLogicPlan(input LogicPlan, whereStm ast.WhereStm) *SelectionLogicPlan {
+func makeSelectLogicPlan(input LogicPlan, whereStm parser.WhereStm) *SelectionLogicPlan {
 	return &SelectionLogicPlan{
 		Input: input,
 		Expr:  ExprStmToLogicExpr(whereStm, input),
 	}
 }
 
-func ExprStmToLogicExpr(expr *ast.ExpressionStm, input LogicPlan) LogicExpr {
+func ExprStmToLogicExpr(expr *parser.ExpressionStm, input LogicPlan) LogicExpr {
 	var leftLogicExpr, rightLogicExpr LogicExpr
-	_, isLeftExprExprStm := expr.LeftExpr.(*ast.ExpressionStm)
+	_, isLeftExprExprStm := expr.LeftExpr.(*parser.ExpressionStm)
 	if isLeftExprExprStm {
-		leftLogicExpr = ExprStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionStm), input)
+		leftLogicExpr = ExprStmToLogicExpr(expr.LeftExpr.(*parser.ExpressionStm), input)
 	} else {
-		leftLogicExpr = ExprTermStmToLogicExpr(expr.LeftExpr.(*ast.ExpressionTerm), input)
+		leftLogicExpr = ExprTermStmToLogicExpr(expr.LeftExpr.(*parser.ExpressionTerm), input)
 	}
 	if expr.RightExpr == nil {
 		return leftLogicExpr
 	}
-	_, isRightExprExprStm := expr.RightExpr.(*ast.ExpressionStm)
+	_, isRightExprExprStm := expr.RightExpr.(*parser.ExpressionStm)
 	if isRightExprExprStm {
-		rightLogicExpr = ExprStmToLogicExpr(expr.RightExpr.(*ast.ExpressionStm), input)
+		rightLogicExpr = ExprStmToLogicExpr(expr.RightExpr.(*parser.ExpressionStm), input)
 	} else {
-		rightLogicExpr = ExprTermStmToLogicExpr(expr.RightExpr.(*ast.ExpressionTerm), input)
+		rightLogicExpr = ExprTermStmToLogicExpr(expr.RightExpr.(*parser.ExpressionTerm), input)
 	}
 	return buildLogicExprWithOp(leftLogicExpr, rightLogicExpr, expr.Op)
 }
 
-func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op ast.ExpressionOp) LogicExpr {
+func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op parser.ExpressionOp) LogicExpr {
 	switch op.Tp {
-	case lexer.ADD:
+	case parser.ADD:
 		return AddLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.MINUS:
+	case parser.MINUS:
 		return MinusLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.MUL:
+	case parser.MUL:
 		return MulLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.DIVIDE:
+	case parser.DIVIDE:
 		return DivideLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.MOD:
+	case parser.MOD:
 		return ModLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.EQUAL:
+	case parser.EQUAL:
 		return EqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.IS:
+	case parser.IS:
 		return IsLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.NOTEQUAL:
+	case parser.NOTEQUAL:
 		return NotEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.GREAT:
+	case parser.GREAT:
 		return GreatLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.GREATEQUAL:
+	case parser.GREATEQUAL:
 		return GreatEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.LESS:
+	case parser.LESS:
 		return LessLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.LESSEQUAL:
+	case parser.LESSEQUAL:
 		return LessEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.AND:
+	case parser.AND:
 		return AndLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-	case lexer.OR:
+	case parser.OR:
 		return OrLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
 		// case lexer.DOT:
 		// For DotLogicExpr, the leftLogicExpr must be a IdentifierLogicAggrExpr and rightLogicExpt must be
@@ -196,35 +195,35 @@ func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op ast.Expres
 	}
 }
 
-func ExprTermStmToLogicExpr(exprTerm *ast.ExpressionTerm, input LogicPlan) LogicExpr {
+func ExprTermStmToLogicExpr(exprTerm *parser.ExpressionTerm, input LogicPlan) LogicExpr {
 	var logicExpr LogicExpr
 	switch exprTerm.Tp {
-	case ast.LiteralExpressionTermTP:
-		logicExpr = LiteralExprToLiteralLogicExpr(exprTerm.RealExprTerm.(ast.LiteralExpressionStm))
-	case ast.IdentifierExpressionTermTP:
-		logicExpr = IdentifierExprToIdentifierLogicExpr(exprTerm.RealExprTerm.(ast.IdentifierExpression), input)
-	case ast.FuncCallExpressionTermTP:
-		logicExpr = FuncCallExprToLogicExpr(exprTerm.RealExprTerm.(ast.FunctionCallExpressionStm), input)
-	case ast.SubExpressionTermTP:
-		logicExpr = SubExprTermToLogicExpr(exprTerm.RealExprTerm.(ast.SubExpressionTerm), input)
+	case parser.LiteralExpressionTermTP:
+		logicExpr = LiteralExprToLiteralLogicExpr(exprTerm.RealExprTerm.(parser.LiteralExpressionStm))
+	case parser.IdentifierExpressionTermTP:
+		logicExpr = IdentifierExprToIdentifierLogicExpr(exprTerm.RealExprTerm.(parser.IdentifierExpression), input)
+	case parser.FuncCallExpressionTermTP:
+		logicExpr = FuncCallExprToLogicExpr(exprTerm.RealExprTerm.(parser.FunctionCallExpressionStm), input)
+	case parser.SubExpressionTermTP:
+		logicExpr = SubExprTermToLogicExpr(exprTerm.RealExprTerm.(parser.SubExpressionTerm), input)
 	default:
 		panic("unknown expr term type")
 	}
-	if exprTerm.UnaryOp == ast.NegativeUnaryOpTp {
+	if exprTerm.UnaryOp == parser.NegativeUnaryOpTp {
 		return NegativeLogicExpr{Expr: logicExpr}
 	}
 	return logicExpr
 }
 
-func LiteralExprToLiteralLogicExpr(literalExprStm ast.LiteralExpressionStm) LogicExpr {
+func LiteralExprToLiteralLogicExpr(literalExprStm parser.LiteralExpressionStm) LogicExpr {
 	return LiteralLogicExpr{Data: literalExprStm}
 }
 
-func IdentifierExprToIdentifierLogicExpr(identifierExpr ast.IdentifierExpression, input LogicPlan) LogicExpr {
+func IdentifierExprToIdentifierLogicExpr(identifierExpr parser.IdentifierExpression, input LogicPlan) LogicExpr {
 	return IdentifierLogicExpr{Ident: identifierExpr, input: input}
 }
 
-func FuncCallExprToLogicExpr(funcCallExpr ast.FunctionCallExpressionStm, input LogicPlan) LogicExpr {
+func FuncCallExprToLogicExpr(funcCallExpr parser.FunctionCallExpressionStm, input LogicPlan) LogicExpr {
 	params := make([]LogicExpr, len(funcCallExpr.Params))
 	for i, param := range funcCallExpr.Params {
 		params[i] = ExprStmToLogicExpr(param, input)
@@ -233,13 +232,13 @@ func FuncCallExprToLogicExpr(funcCallExpr ast.FunctionCallExpressionStm, input L
 	return funcCallLogicExpr
 }
 
-func SubExprTermToLogicExpr(subExpr ast.SubExpressionTerm, input LogicPlan) LogicExpr {
-	expr := ast.ExpressionTerm(subExpr)
+func SubExprTermToLogicExpr(subExpr parser.SubExpressionTerm, input LogicPlan) LogicExpr {
+	expr := parser.ExpressionTerm(subExpr)
 	return ExprTermStmToLogicExpr(&expr, input)
 }
 
-func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm, input LogicPlan) OrderedLogicExpr {
-	ret := OrderedLogicExpr{}
+func OrderedExpressionToOrderedExprs(orderedExprs []*parser.OrderedExpressionStm, input LogicPlan) OrderByLogicExpr {
+	ret := OrderByLogicExpr{}
 	for _, expr := range orderedExprs {
 		ret.expr = append(ret.expr, ExprStmToLogicExpr(expr.Expression, input))
 		ret.asc = append(ret.asc, expr.Asc)
@@ -247,7 +246,7 @@ func OrderedExpressionToOrderedExprs(orderedExprs []*ast.OrderedExpressionStm, i
 	return ret
 }
 
-func makeOrderByLogicPlan(input LogicPlan, orderBy *ast.OrderByStm, isAggr bool) *OrderByLogicPlan {
+func makeOrderByLogicPlan(input LogicPlan, orderBy *parser.OrderByStm, isAggr bool) *OrderByLogicPlan {
 	return &OrderByLogicPlan{
 		Input:   input,
 		OrderBy: OrderedExpressionToOrderedExprs(orderBy.Expressions, input),
@@ -255,7 +254,7 @@ func makeOrderByLogicPlan(input LogicPlan, orderBy *ast.OrderByStm, isAggr bool)
 	}
 }
 
-func makeLimitLogicPlan(input LogicPlan, limitStm *ast.LimitStm) *LimitLogicPlan {
+func makeLimitLogicPlan(input LogicPlan, limitStm *parser.LimitStm) *LimitLogicPlan {
 	return &LimitLogicPlan{
 		Input:  input,
 		Count:  limitStm.Count,
@@ -263,7 +262,7 @@ func makeLimitLogicPlan(input LogicPlan, limitStm *ast.LimitStm) *LimitLogicPlan
 	}
 }
 
-func SelectExprToAsExprLogicExpr(selectExprs []*ast.SelectExpr, input LogicPlan) []AsLogicExpr {
+func SelectExprToAsExprLogicExpr(selectExprs []*parser.SelectExpr, input LogicPlan) []AsLogicExpr {
 	ret := make([]AsLogicExpr, len(selectExprs))
 	for i := 0; i < len(selectExprs); i++ {
 		as := AsLogicExpr{}
@@ -274,15 +273,15 @@ func SelectExprToAsExprLogicExpr(selectExprs []*ast.SelectExpr, input LogicPlan)
 	return ret
 }
 
-func makeProjectionLogicPlan(input LogicPlan, selectExprStm *ast.SelectExpressionStm) *ProjectionLogicPlan {
+func makeProjectionLogicPlan(input LogicPlan, selectExprStm *parser.SelectExpressionStm) *ProjectionLogicPlan {
 	projectionLogicPlan := &ProjectionLogicPlan{
 		Input: input,
 	}
 	switch selectExprStm.Tp {
-	case ast.StarSelectExpressionTp:
+	case parser.StarSelectExpressionTp:
 		return projectionLogicPlan
-	case ast.ExprSelectExpressionTp:
-		projectionLogicPlan.Exprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*ast.SelectExpr), input)
+	case parser.ExprSelectExpressionTp:
+		projectionLogicPlan.Exprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*parser.SelectExpr), input)
 	}
 	return projectionLogicPlan
 }

@@ -1,30 +1,25 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // order by expressions [asc|desc],...
 
-func (parser *Parser) parseOrderByStm() (*ast.OrderByStm, error) {
-	if !parser.matchTokenTypes(true, lexer.ORDER, lexer.BY) {
+func (parser *Parser) parseOrderByStm() (*OrderByStm, error) {
+	if !parser.matchTokenTypes(true, ORDER, BY) {
 		return nil, nil
 	}
-	var OrderedExpressionStms []*ast.OrderedExpressionStm
+	var OrderedExpressionStms []*OrderedExpressionStm
 	for {
 		expressionStm, err := parser.resolveExpression()
 		if err != nil {
 			return nil, err
 		}
 		asc := parser.parseAscOrDesc()
-		OrderedExpressionStms = append(OrderedExpressionStms, &ast.OrderedExpressionStm{
+		OrderedExpressionStms = append(OrderedExpressionStms, &OrderedExpressionStm{
 			Expression: expressionStm,
 			Asc:        asc,
 		})
-		if !parser.matchTokenTypes(true, lexer.COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}
-	return &ast.OrderByStm{Expressions: OrderedExpressionStms}, nil
+	return &OrderByStm{Expressions: OrderedExpressionStms}, nil
 }

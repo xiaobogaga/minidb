@@ -1,8 +1,4 @@
-package ast
-
-import (
-	"simpleDb/lexer"
-)
+package parser
 
 type Stm interface {
 	// Execute() error
@@ -70,7 +66,7 @@ type ColumnValue []byte
 // Ranges is the column type range, like int(10), 10 is range, float(10, 2), 10 and 2 is
 // the ranges.
 type ColumnType struct {
-	Tp     lexer.TokenType
+	Tp     TokenType
 	Ranges [2]int
 }
 
@@ -313,25 +309,25 @@ const (
 )
 
 type ExpressionOp struct {
-	Tp       lexer.TokenType
+	Tp       TokenType
 	Priority int
 }
 
 var (
-	OperationAdd        ExpressionOp = ExpressionOp{Tp: lexer.ADD, Priority: 1}
-	OperationMinus      ExpressionOp = ExpressionOp{Tp: lexer.MINUS, Priority: 1}
-	OperationMul        ExpressionOp = ExpressionOp{Tp: lexer.MUL, Priority: 2}
-	OperationDivide     ExpressionOp = ExpressionOp{Tp: lexer.DIVIDE, Priority: 2}
-	OperationMod        ExpressionOp = ExpressionOp{Tp: lexer.MOD, Priority: 1}
-	OperationEqual      ExpressionOp = ExpressionOp{Tp: lexer.EQUAL, Priority: 1}
-	OperationIs         ExpressionOp = ExpressionOp{Tp: lexer.IS, Priority: 1}
-	OperationNotEqual   ExpressionOp = ExpressionOp{Tp: lexer.NOTEQUAL, Priority: 1}
-	OperationGreat      ExpressionOp = ExpressionOp{Tp: lexer.GREAT, Priority: 1}
-	OperationGreatEqual ExpressionOp = ExpressionOp{Tp: lexer.GREATEQUAL, Priority: 1}
-	OperationLess       ExpressionOp = ExpressionOp{Tp: lexer.LESS, Priority: 1}
-	OperationLessEqual  ExpressionOp = ExpressionOp{Tp: lexer.LESSEQUAL, Priority: 1}
-	OperationAnd        ExpressionOp = ExpressionOp{Tp: lexer.AND, Priority: 1}
-	OperationOr         ExpressionOp = ExpressionOp{Tp: lexer.OR, Priority: 1}
+	OperationAdd        ExpressionOp = ExpressionOp{Tp: ADD, Priority: 1}
+	OperationMinus      ExpressionOp = ExpressionOp{Tp: MINUS, Priority: 1}
+	OperationMul        ExpressionOp = ExpressionOp{Tp: MUL, Priority: 2}
+	OperationDivide     ExpressionOp = ExpressionOp{Tp: DIVIDE, Priority: 2}
+	OperationMod        ExpressionOp = ExpressionOp{Tp: MOD, Priority: 1}
+	OperationEqual      ExpressionOp = ExpressionOp{Tp: EQUAL, Priority: 1}
+	OperationIs         ExpressionOp = ExpressionOp{Tp: IS, Priority: 1}
+	OperationNotEqual   ExpressionOp = ExpressionOp{Tp: NOTEQUAL, Priority: 1}
+	OperationGreat      ExpressionOp = ExpressionOp{Tp: GREAT, Priority: 1}
+	OperationGreatEqual ExpressionOp = ExpressionOp{Tp: GREATEQUAL, Priority: 1}
+	OperationLess       ExpressionOp = ExpressionOp{Tp: LESS, Priority: 1}
+	OperationLessEqual  ExpressionOp = ExpressionOp{Tp: LESSEQUAL, Priority: 1}
+	OperationAnd        ExpressionOp = ExpressionOp{Tp: AND, Priority: 1}
+	OperationOr         ExpressionOp = ExpressionOp{Tp: OR, Priority: 1}
 	// OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
 	// OperationDot ExpressionOp = ExpressionOp{Tp: lexer.DOT, Priority: 2}
 )

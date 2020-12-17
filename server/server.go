@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"simpleDb/log"
+	"simpleDb/util"
 	"time"
 )
 
 var (
-	serverLog             = log.GetLog("server")
+	serverLog             = util.GetLog("server")
 	ProtolVersion         = 10
 	ServerVersion         = "Hello :), happy today. v1.0"
 	defaultUnixSocketAddr = "/tmp/mysql.sock"
@@ -154,7 +154,7 @@ func (server *SimpleServer) getParser() *ConnectionParser {
 	}
 }
 
-var connectionParserLog = log.GetLog("ConnectionParser")
+var connectionParserLog = util.GetLog("ConnectionParser")
 
 type ConnectionParser struct {
 	Count       int

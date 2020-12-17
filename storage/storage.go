@@ -8,7 +8,7 @@ import (
 )
 
 type Storage struct {
-	Dbs map[string]DbInfo
+	Dbs map[string]*DbInfo
 }
 
 func (storage Storage) HasSchema(schema string) bool {
@@ -16,12 +16,12 @@ func (storage Storage) HasSchema(schema string) bool {
 	return ok
 }
 
-func (storage Storage) GetDbInfo(schema string) DbInfo {
+func (storage Storage) GetDbInfo(schema string) *DbInfo {
 	return storage.Dbs[schema]
 }
 
 func (storage Storage) CreateSchema(name, charset, collate string) {
-	schema := DbInfo{Name: name, Charset: charset, Collate: collate}
+	schema := &DbInfo{Name: name, Charset: charset, Collate: collate}
 	storage.Dbs[schema.Name] = schema
 }
 
@@ -29,7 +29,15 @@ func (storage Storage) RemoveSchema(schema string) {
 	delete(storage.Dbs, schema)
 }
 
-var storage = Storage{}
+func (storage Storage) HasTable(schema, table string) bool {
+	if !storage.HasSchema(schema) {
+		return false
+	}
+	db := storage.GetDbInfo(schema)
+	return db.HasTable(table)
+}
+
+var storage = Storage{Dbs: map[string]*DbInfo{}}
 
 func GetStorage() Storage {
 	return storage
@@ -39,21 +47,32 @@ type DbInfo struct {
 	Name    string
 	Charset string
 	Collate string
-	Tables  map[string]TableInfo
+	Tables  map[string]*TableInfo
 }
 
-func (dbs DbInfo) HasTable(table string) bool {
+func (dbs *DbInfo) HasTable(table string) bool {
 	_, ok := dbs.Tables[table]
 	return ok
 }
 
-func (dbs DbInfo) GetTable(table string) TableInfo {
+func (dbs *DbInfo) GetTable(table string) *TableInfo {
 	return dbs.Tables[table]
 }
 
+func (dbs *DbInfo) AddTable(table *TableInfo) {
+	dbs.Tables[table.Schema.Tables[0].TableName] = table
+}
+
+func (dbs *DbInfo) RemoveTable(tableName string) {
+	delete(dbs.Tables, tableName)
+}
+
 type TableInfo struct {
-	Schema Schema
-	Datas  []ColumnVector
+	Schema  Schema
+	Charset string
+	Collate string
+	Engine  string
+	Datas   []ColumnVector
 }
 
 // This Is for join, a schema might have multiple sub table schemas.
@@ -72,7 +91,7 @@ type SingleTableSchema struct {
 }
 
 // FetchData returns the data starting at row index `rowIndex` And the batchSize Is batchSize.
-func (table TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
+func (table *TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
 	ret := &RecordBatch{
 		Fields:  table.Schema.Tables[0].Columns,
 		Records: make([]ColumnVector, len(table.Schema.Tables[0].Columns)),
@@ -86,6 +105,24 @@ func (table TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
 		}
 	}
 	return ret
+}
+
+func (table *TableInfo) GetColumnInfo(column string) *Field {
+	for _, col := range table.Datas {
+		if col.Field.Name == column {
+			return &col.Field
+		}
+	}
+	return nil
+}
+
+func (table *TableInfo) HasColumn(column string) bool {
+	for _, col := range table.Datas {
+		if col.Field.Name == column {
+			return true
+		}
+	}
+	return false
 }
 
 func (schema Schema) HasSubTable(tableName string) bool {
@@ -155,7 +192,8 @@ func (schema Schema) GetField(columnName string) Field {
 }
 
 func (schema Schema) Merge(right Schema) (Schema, error) {
-	ret := schema // Are we safe here.
+	ret := Schema{} // Are we safe here.
+	ret.Tables = append(ret.Tables, schema.Tables...)
 	ret.Tables = append(ret.Tables, right.Tables...)
 	return ret, nil
 }
@@ -315,10 +353,13 @@ func (recordBatch *RecordBatch) RowKey(row int) (key []byte) {
 
 // For type check.
 type Field struct {
-	TP         FieldTP
-	Name       string
-	TableName  string
-	SchemaName string
+	TP            FieldTP
+	Name          string
+	TableName     string
+	SchemaName    string
+	DefaultValue  []byte
+	AllowNull     bool
+	AutoIncrement bool
 }
 
 func (f Field) IsString() bool {
@@ -389,6 +430,11 @@ func (f Field) CanOp(another Field, opType OpType) (err error) {
 	default:
 		panic("wrong opType")
 	}
+}
+
+func (f Field) CanOp2(another FieldTP, opType OpType) (err error) {
+	f2 := Field{TP: another}
+	return f.CanOp(f2, opType)
 }
 
 type OpType byte

@@ -19,6 +19,7 @@ type LogicExpr interface {
 	AccumulateValue() []byte
 	Clone(cloneAccumulator bool) LogicExpr
 	HasGroupFunc() bool
+	Compute() ([]byte, error) // For insert, update, delete.
 }
 
 // can be a.b.c or a.b or a
@@ -120,6 +121,10 @@ func (ident IdentifierLogicExpr) AccumulateValue() []byte {
 
 func (ident IdentifierLogicExpr) HasGroupFunc() bool { return false }
 
+func (ident IdentifierLogicExpr) Compute() ([]byte, error) {
+	return nil, errors.New("unsupported action")
+}
+
 type LiteralLogicExpr struct {
 	TP storage.FieldTP
 	// Data is a bytes array, which might be a "xxx", or 'xxx' or true, false, or numerical value such as .10100, 01001, 909008
@@ -177,6 +182,10 @@ func (literal LiteralLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 }
 
 func (literal LiteralLogicExpr) HasGroupFunc() bool { return false }
+
+func (literal LiteralLogicExpr) Compute() ([]byte, error) {
+	return literal.Data, nil
+}
 
 type NegativeLogicExpr struct {
 	Expr  LogicExpr
@@ -253,6 +262,14 @@ func (negative NegativeLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 
 func (negative NegativeLogicExpr) HasGroupFunc() bool {
 	return negative.Expr.HasGroupFunc()
+}
+
+func (negative NegativeLogicExpr) Compute() ([]byte, error) {
+	val, err := negative.Expr.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Negative(negative.toField().TP, val), nil
 }
 
 // Math expr
@@ -345,6 +362,18 @@ func (add AddLogicExpr) HasGroupFunc() bool {
 	return add.Left.HasGroupFunc() || add.Right.HasGroupFunc()
 }
 
+func (add AddLogicExpr) Compute() ([]byte, error) {
+	val1, err := add.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := add.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Add(val1, add.Left.toField().TP, val2, add.Right.toField().TP), nil
+}
+
 type MinusLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -425,6 +454,18 @@ func (minus MinusLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 
 func (minus MinusLogicExpr) HasGroupFunc() bool {
 	return minus.Left.HasGroupFunc() || minus.Right.HasGroupFunc()
+}
+
+func (minus MinusLogicExpr) Compute() ([]byte, error) {
+	val1, err := minus.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := minus.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Minus(val1, minus.Left.toField().TP, val2, minus.Right.toField().TP), nil
 }
 
 type MulLogicExpr struct {
@@ -509,6 +550,18 @@ func (mul MulLogicExpr) HasGroupFunc() bool {
 	return mul.Left.HasGroupFunc() || mul.Right.HasGroupFunc()
 }
 
+func (mul MulLogicExpr) Compute() ([]byte, error) {
+	val1, err := mul.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := mul.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Mul(val1, mul.Left.toField().TP, val2, mul.Right.toField().TP), nil
+}
+
 type DivideLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -591,6 +644,18 @@ func (divide DivideLogicExpr) HasGroupFunc() bool {
 	return divide.Left.HasGroupFunc() || divide.Right.HasGroupFunc()
 }
 
+func (divide DivideLogicExpr) Compute() ([]byte, error) {
+	val1, err := divide.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := divide.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Divide(val1, divide.Left.toField().TP, val2, divide.Right.toField().TP), nil
+}
+
 type ModLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -669,6 +734,18 @@ func (mod ModLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 
 func (mod ModLogicExpr) HasGroupFunc() bool {
 	return mod.Left.HasGroupFunc() || mod.Right.HasGroupFunc()
+}
+
+func (mod ModLogicExpr) Compute() ([]byte, error) {
+	val1, err := mod.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := mod.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Mod(val1, mod.Left.toField().TP, val2, mod.Right.toField().TP), nil
 }
 
 type EqualLogicExpr struct {
@@ -751,6 +828,18 @@ func (equal EqualLogicExpr) HasGroupFunc() bool {
 	return equal.Left.HasGroupFunc() || equal.Right.HasGroupFunc()
 }
 
+func (equal EqualLogicExpr) Compute() ([]byte, error) {
+	val1, err := equal.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := equal.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Equal(val1, equal.Left.toField().TP, val2, equal.Right.toField().TP), nil
+}
+
 type IsLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -830,6 +919,18 @@ func (is IsLogicExpr) HasGroupFunc() bool {
 	return is.Left.HasGroupFunc() || is.Right.HasGroupFunc()
 }
 
+func (is IsLogicExpr) Compute() ([]byte, error) {
+	val1, err := is.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := is.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Is(val1, is.Left.toField().TP, val2, is.Right.toField().TP), nil
+}
+
 type NotEqualLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -907,6 +1008,18 @@ func (notEqual NotEqualLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 
 func (notEqual NotEqualLogicExpr) HasGroupFunc() bool {
 	return notEqual.Left.HasGroupFunc() || notEqual.Right.HasGroupFunc()
+}
+
+func (notEqual NotEqualLogicExpr) Compute() ([]byte, error) {
+	val1, err := notEqual.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := notEqual.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.NotEqual(val1, notEqual.Left.toField().TP, val2, notEqual.Right.toField().TP), nil
 }
 
 type GreatLogicExpr struct {
@@ -989,6 +1102,18 @@ func (great GreatLogicExpr) HasGroupFunc() bool {
 	return great.Left.HasGroupFunc() || great.Right.HasGroupFunc()
 }
 
+func (great GreatLogicExpr) Compute() ([]byte, error) {
+	val1, err := great.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := great.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Great(val1, great.Left.toField().TP, val2, great.Right.toField().TP), nil
+}
+
 type GreatEqualLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -1066,6 +1191,18 @@ func (greatEqual GreatEqualLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 
 func (greatEqual GreatEqualLogicExpr) HasGroupFunc() bool {
 	return greatEqual.Left.HasGroupFunc() || greatEqual.Right.HasGroupFunc()
+}
+
+func (greatEqual GreatEqualLogicExpr) Compute() ([]byte, error) {
+	val1, err := greatEqual.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := greatEqual.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.GreatEqual(val1, greatEqual.Left.toField().TP, val2, greatEqual.Right.toField().TP), nil
 }
 
 type LessLogicExpr struct {
@@ -1148,6 +1285,18 @@ func (less LessLogicExpr) HasGroupFunc() bool {
 	return less.Left.HasGroupFunc() || less.Right.HasGroupFunc()
 }
 
+func (less LessLogicExpr) Compute() ([]byte, error) {
+	val1, err := less.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := less.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Less(val1, less.Left.toField().TP, val2, less.Right.toField().TP), nil
+}
+
 type LessEqualLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -1226,6 +1375,18 @@ func (lessEqual LessEqualLogicExpr) HasGroupFunc() bool {
 	return lessEqual.Left.HasGroupFunc() || lessEqual.Right.HasGroupFunc()
 }
 
+func (lessEqual LessEqualLogicExpr) Compute() ([]byte, error) {
+	val1, err := lessEqual.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := lessEqual.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.LessEqual(val1, lessEqual.Left.toField().TP, val2, lessEqual.Right.toField().TP), nil
+}
+
 type AndLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
@@ -1299,6 +1460,18 @@ func (and AndLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 		Right: and.Right.Clone(cloneAccumulator),
 		Name:  and.Name,
 	}
+}
+
+func (and AndLogicExpr) Compute() ([]byte, error) {
+	val1, err := and.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := and.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.And(val1, val2), nil
 }
 
 func (and AndLogicExpr) HasGroupFunc() bool {
@@ -1383,16 +1556,28 @@ func (or OrLogicExpr) HasGroupFunc() bool {
 	return or.Left.HasGroupFunc() || or.Right.HasGroupFunc()
 }
 
-type OrderedLogicExpr struct {
+func (or OrLogicExpr) Compute() ([]byte, error) {
+	val1, err := or.Left.Compute()
+	if err != nil {
+		return nil, err
+	}
+	val2, err := or.Right.Compute()
+	if err != nil {
+		return nil, err
+	}
+	return storage.Or(val1, val2), nil
+}
+
+type OrderByLogicExpr struct {
 	expr []LogicExpr
 	asc  []bool
 }
 
-func (orderBy OrderedLogicExpr) toField(input LogicPlan) storage.Field {
+func (orderBy OrderByLogicExpr) toField(input LogicPlan) storage.Field {
 	return storage.Field{Name: "order", TP: storage.Int}
 }
 
-func (orderBy OrderedLogicExpr) String() string {
+func (orderBy OrderByLogicExpr) String() string {
 	buf := bytes.Buffer{}
 	buf.WriteString("orderBy(")
 	for i, expr := range orderBy.expr {
@@ -1408,7 +1593,7 @@ func (orderBy OrderedLogicExpr) String() string {
 	return buf.String()
 }
 
-func (orderBy OrderedLogicExpr) TypeCheck() error {
+func (orderBy OrderByLogicExpr) TypeCheck() error {
 	// only numerical or string type can be orderBy, aka comparable type.
 	for _, expr := range orderBy.expr {
 		err := expr.TypeCheck()
@@ -1423,7 +1608,7 @@ func (orderBy OrderedLogicExpr) TypeCheck() error {
 	return nil
 }
 
-func (orderBy OrderedLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
+func (orderBy OrderByLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	found := false
 	for _, orderByExpr := range orderBy.expr {
 		if orderByExpr.AggrTypeCheck(groupByExpr) != nil {
@@ -1463,7 +1648,7 @@ func (orderBy OrderedLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 // 09, 2
 // 10, 1
 // 11, 3
-func (orderBy OrderedLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (orderBy OrderByLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
 	ret := storage.ColumnVector{Field: storage.Field{Name: "order", TP: storage.Int}}
 	for i := 0; i < input.RowCount(); i++ {
 		val := storage.EncodeInt(int64(i))
@@ -1477,6 +1662,10 @@ func (orderBy OrderedLogicExpr) Evaluate(input *storage.RecordBatch) storage.Col
 		asc[i] = orderBy.asc[i]
 	}
 	return ret.Sort(sortedVector, asc)
+}
+
+func (orderBy OrderByLogicExpr) Compute() []byte {
+	panic("unsupported method")
 }
 
 // For sql, there are some aggregation function and non aggregation function. We put all non aggregation function
@@ -1600,6 +1789,10 @@ func (call FuncCallLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
 	}
 	ret.Fn = getFunc(call.FuncName, call.Params)
 	return ret
+}
+
+func (call FuncCallLogicExpr) Compute() ([]byte, error) {
+	return nil, errors.New("unsupported method")
 }
 
 func (call FuncCallLogicExpr) HasGroupFunc() bool {

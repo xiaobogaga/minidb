@@ -1,25 +1,20 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // Delete statement is like:
 // * delete from tb_name [whereStm] [OrderByStm] [LimitStm]
 // * delete tb1,... from table_references [WhereStm]
 
-func (parser *Parser) resolveDeleteStm() (stm ast.Stm, err error) {
-	if !parser.matchTokenTypes(false, lexer.DELETE) {
+func (parser *Parser) resolveDeleteStm() (stm Stm, err error) {
+	if !parser.matchTokenTypes(false, DELETE) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	if parser.matchTokenTypes(true, lexer.FROM) {
+	if parser.matchTokenTypes(true, FROM) {
 		return parser.parseDeleteSingleTableStm()
 	}
 	return parser.parseDeleteMultiTableStm()
 }
 
-func (parser *Parser) parseDeleteSingleTableStm() (stm *ast.SingleDeleteStm, err error) {
+func (parser *Parser) parseDeleteSingleTableStm() (stm *SingleDeleteStm, err error) {
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
@@ -36,10 +31,10 @@ func (parser *Parser) parseDeleteSingleTableStm() (stm *ast.SingleDeleteStm, err
 	if err != nil {
 		return nil, err
 	}
-	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.SingleDeleteStm{
+	return &SingleDeleteStm{
 		TableName: string(tableName),
 		Where:     whereStm,
 		OrderBy:   orderByStm,
@@ -47,7 +42,7 @@ func (parser *Parser) parseDeleteSingleTableStm() (stm *ast.SingleDeleteStm, err
 	}, nil
 }
 
-func (parser *Parser) parseDeleteMultiTableStm() (stm *ast.MultiDeleteStm, err error) {
+func (parser *Parser) parseDeleteMultiTableStm() (stm *MultiDeleteStm, err error) {
 	var tableNames []string
 	for {
 		tableName, ok := parser.parseIdentOrWord(false)
@@ -55,21 +50,21 @@ func (parser *Parser) parseDeleteMultiTableStm() (stm *ast.MultiDeleteStm, err e
 			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		tableNames = append(tableNames, string(tableName))
-		if !parser.matchTokenTypes(true, lexer.COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}
-	if !parser.matchTokenTypes(false, lexer.FROM) {
+	if !parser.matchTokenTypes(false, FROM) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	var tableRefs []ast.TableReferenceStm
+	var tableRefs []TableReferenceStm
 	for {
 		tableRef, err := parser.parseTableReferenceStm()
 		if err != nil {
 			return nil, err
 		}
 		tableRefs = append(tableRefs, tableRef)
-		if !parser.matchTokenTypes(true, lexer.COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}
@@ -77,10 +72,10 @@ func (parser *Parser) parseDeleteMultiTableStm() (stm *ast.MultiDeleteStm, err e
 	if err != nil {
 		return nil, err
 	}
-	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.MultiDeleteStm{
+	return &MultiDeleteStm{
 		TableNames:      tableNames,
 		TableReferences: tableRefs,
 		Where:           whereStm,

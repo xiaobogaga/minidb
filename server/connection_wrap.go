@@ -9,7 +9,6 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"simpleDb/log"
 	"simpleDb/util"
 	"time"
 )
@@ -23,7 +22,7 @@ const (
 	scrambleLen_323       = 8
 )
 
-var connectionWrapperLog = log.GetLog("ConnectionWrapper")
+var connectionWrapperLog = util.GetLog("ConnectionWrapper")
 
 type connectionWrapper struct {
 	id            uint32
@@ -38,7 +37,7 @@ type connectionWrapper struct {
 	acl           *ACL
 	message       bytes.Buffer
 	packetCounter byte
-	log           log.SimpleLogWrapper
+	log           util.SimpleLogWrapper
 	ctx           context.Context
 }
 

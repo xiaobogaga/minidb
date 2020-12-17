@@ -1,18 +1,13 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // Insert statement is like:
 // * insert into tb_name [( col_name... )] values (expression...)
 
-func (parser *Parser) resolveInsertStm() (ast.Stm, error) {
-	if !parser.matchTokenTypes(false, lexer.INSERT) {
+func (parser *Parser) resolveInsertStm() (Stm, error) {
+	if !parser.matchTokenTypes(false, INSERT) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	if !parser.matchTokenTypes(false, lexer.INTO) {
+	if !parser.matchTokenTypes(false, INTO) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	tableName, ret := parser.parseIdentOrWord(false)
@@ -21,39 +16,39 @@ func (parser *Parser) resolveInsertStm() (ast.Stm, error) {
 	}
 	// () is optional
 	var colNames []string
-	if parser.matchTokenTypes(true, lexer.LEFTBRACKET) {
+	if parser.matchTokenTypes(true, LEFTBRACKET) {
 		for {
 			colName, ret := parser.parseIdentOrWord(false)
 			if !ret {
 				return nil, parser.MakeSyntaxError(1, parser.pos-1)
 			}
 			colNames = append(colNames, string(colName))
-			if !parser.matchTokenTypes(true, lexer.COMMA) {
+			if !parser.matchTokenTypes(true, COMMA) {
 				break
 			}
 		}
 		// should be a )
-		if !parser.matchTokenTypes(true, lexer.RIGHTBRACKET) {
+		if !parser.matchTokenTypes(true, RIGHTBRACKET) {
 			return nil, parser.MakeSyntaxError(1, parser.pos)
 		}
 	}
 	// should be values (
-	if !parser.matchTokenTypes(false, lexer.VALUES, lexer.LEFTBRACKET) {
+	if !parser.matchTokenTypes(false, VALUES, LEFTBRACKET) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	var valueExpressions []*ast.ExpressionStm
+	var valueExpressions []*ExpressionStm
 	for {
 		valueExpression, err := parser.resolveExpression()
 		if err != nil {
 			return nil, err
 		}
 		valueExpressions = append(valueExpressions, valueExpression)
-		if !parser.matchTokenTypes(true, lexer.COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}
-	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(false, RIGHTBRACKET, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.InsertIntoStm{TableName: string(tableName), Cols: colNames, Values: valueExpressions}, nil
+	return &InsertIntoStm{TableName: string(tableName), Cols: colNames, Values: valueExpressions}, nil
 }

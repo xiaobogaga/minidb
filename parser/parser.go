@@ -2,16 +2,14 @@ package parser
 
 import (
 	"fmt"
-	"simpleDb/ast"
-	"simpleDb/lexer"
-	"simpleDb/log"
+	"simpleDb/util"
 )
 
-var parserLog = log.GetLog("Parser")
+var parserLog = util.GetLog("Parser")
 
 type Parser struct {
 	pos    int
-	Tokens []lexer.Token
+	Tokens []Token
 	Data   []byte
 }
 
@@ -36,8 +34,8 @@ func (parser *Parser) MakeSyntaxError(lineNumber, startPos int) error {
 	}
 }
 
-func (parser *Parser) Parse(data []byte) (stms []ast.Stm, err error) {
-	lex := lexer.NewLexer()
+func (parser *Parser) Parse(data []byte) (stms []Stm, err error) {
+	lex := NewLexer()
 	tokens, err := lex.Lex(data)
 	if err != nil {
 		return nil, err
@@ -45,38 +43,38 @@ func (parser *Parser) Parse(data []byte) (stms []ast.Stm, err error) {
 	parser.Tokens = tokens
 	parser.Data = data
 	parser.pos = -1
-	var stm ast.Stm
+	var stm Stm
 	for {
 		token, ok := parser.NextToken()
 		if !ok {
 			break
 		}
 		switch token.Tp {
-		case lexer.CREATE:
+		case CREATE:
 			parser.UnReadToken()
 			stm, err = parser.resolveCreateStm()
-		case lexer.DROP:
+		case DROP:
 			parser.UnReadToken()
 			stm, err = parser.parseDropStm()
-		case lexer.RENAME:
+		case RENAME:
 			parser.UnReadToken()
 			stm, err = parser.resolveRenameStm()
-		case lexer.ALTER:
+		case ALTER:
 			parser.UnReadToken()
 			stm, err = parser.resolveAlterStm()
-		case lexer.TRUNCATE:
+		case TRUNCATE:
 			parser.UnReadToken()
 			stm, err = parser.resolveTruncate()
-		case lexer.INSERT:
+		case INSERT:
 			parser.UnReadToken()
 			stm, err = parser.resolveInsertStm()
-		case lexer.DELETE:
+		case DELETE:
 			parser.UnReadToken()
 			stm, err = parser.resolveDeleteStm()
-		case lexer.UPDATE:
+		case UPDATE:
 			parser.UnReadToken()
 			stm, err = parser.resolveUpdateStm()
-		case lexer.SELECT:
+		case SELECT:
 			parser.UnReadToken()
 			stm, err = parser.resolveSelectStm(true)
 		default:
@@ -90,21 +88,21 @@ func (parser *Parser) Parse(data []byte) (stms []ast.Stm, err error) {
 	return
 }
 
-func (parser *Parser) NextToken() (lexer.Token, bool) {
+func (parser *Parser) NextToken() (Token, bool) {
 	if parser.pos < len(parser.Tokens) {
 		token := parser.Tokens[parser.pos]
 		parser.pos++
 		return token, true
 	}
 	parser.pos++
-	return lexer.Token{}, false
+	return Token{}, false
 }
 
 func (parser *Parser) UnReadToken() {
 	parser.pos--
 }
 
-func (parser *Parser) matchTokenTypes(ifNotRollback bool, tokenTypes ...lexer.TokenType) bool {
+func (parser *Parser) matchTokenTypes(ifNotRollback bool, tokenTypes ...TokenType) bool {
 	for i, tp := range tokenTypes {
 		t, ok := parser.NextToken()
 		if !ok || t.Tp != tp {
@@ -117,9 +115,9 @@ func (parser *Parser) matchTokenTypes(ifNotRollback bool, tokenTypes ...lexer.To
 	return true
 }
 
-var emptyColumnTp = ast.ColumnType{}
+var emptyColumnTp = ColumnType{}
 
-func (parser *Parser) parseColumnType(ifNotRollback bool) (ast.ColumnType, bool) {
+func (parser *Parser) parseColumnType(ifNotRollback bool) (ColumnType, bool) {
 	t, ok := parser.NextToken()
 	if !ok {
 		if ifNotRollback {
@@ -130,17 +128,17 @@ func (parser *Parser) parseColumnType(ifNotRollback bool) (ast.ColumnType, bool)
 	var ranges [2]int
 	var success bool
 	switch t.Tp {
-	case lexer.INT:
+	case INT:
 		ranges, success = parser.parseTypeRanges(true, 1)
-	case lexer.BIGINT:
+	case BIGINT:
 		ranges, success = parser.parseTypeRanges(true, 1)
-	case lexer.FLOAT:
+	case FLOAT:
 		ranges, success = parser.parseTypeRanges(true, 2)
-	case lexer.CHAR:
+	case CHAR:
 		ranges, success = parser.parseTypeRanges(true, 1)
-	case lexer.VARCHAR:
+	case VARCHAR:
 		ranges, success = parser.parseTypeRanges(true, 1)
-	case lexer.BOOL, lexer.DATETIME, lexer.BLOB, lexer.MEDIUMBLOB, lexer.TEXT, lexer.MEDIUMTEXT:
+	case BOOL, DATETIME, BLOB, MEDIUMBLOB, TEXT, MEDIUMTEXT:
 	default:
 	}
 	if !success {
@@ -149,12 +147,12 @@ func (parser *Parser) parseColumnType(ifNotRollback bool) (ast.ColumnType, bool)
 		}
 		return emptyColumnTp, false
 	}
-	return ast.ColumnType{Tp: t.Tp, Ranges: ranges}, true
+	return ColumnType{Tp: t.Tp, Ranges: ranges}, true
 }
 
 // parseTypeRanges try to parse a range from a type def, such as (5) of int(5), (10, 2) of float(10, 2).
 func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2]int, success bool) {
-	if !parser.matchTokenTypes(true, lexer.LEFTBRACKET) {
+	if !parser.matchTokenTypes(true, LEFTBRACKET) {
 		return
 	}
 	for i := 0; i < rangeSize; i++ {
@@ -165,7 +163,7 @@ func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2
 			}
 			return
 		}
-		r, success := DecodeValue(value, lexer.INT)
+		r, success := DecodeValue(value, INT)
 		if !success {
 			if ifNotRollback {
 				parser.pos -= i + 2
@@ -174,7 +172,7 @@ func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2
 		}
 		ret[i] = r.(int)
 	}
-	if !parser.matchTokenTypes(true, lexer.RIGHTBRACKET) {
+	if !parser.matchTokenTypes(true, RIGHTBRACKET) {
 		parser.pos -= rangeSize + 1
 		return
 	}
@@ -183,13 +181,13 @@ func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2
 
 func (parser *Parser) parseIdentOrWord(ifNotRollback bool) (s []byte, ret bool) {
 	t, ok := parser.NextToken()
-	if !ok || (t.Tp != lexer.IDENT && t.Tp != lexer.WORD) {
+	if !ok || (t.Tp != IDENT && t.Tp != WORD) {
 		if ifNotRollback {
 			parser.UnReadToken()
 		}
 		return nil, false
 	}
-	if t.Tp == lexer.IDENT {
+	if t.Tp == IDENT {
 		return parser.Data[t.StartPos+1 : t.EndPos-1], true
 	} else {
 		return parser.Data[t.StartPos:t.EndPos], true
@@ -198,7 +196,7 @@ func (parser *Parser) parseIdentOrWord(ifNotRollback bool) (s []byte, ret bool) 
 
 func (parser *Parser) parseValue(ifNotRollback bool) ([]byte, bool) {
 	t, ok := parser.NextToken()
-	if !ok || t.Tp != lexer.VALUE {
+	if !ok || t.Tp != VALUE {
 		if ifNotRollback {
 			parser.UnReadToken()
 		}

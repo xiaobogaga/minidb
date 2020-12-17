@@ -1,10 +1,5 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // Alter statement can be alter table statement or alter database statement.
 // Alter table statement is like:
 // * alter [table] tb_name [
@@ -28,14 +23,14 @@ import (
 // Diff with mysql:
 // Too many, doesn't show here.
 
-func (parser *Parser) resolveAlterStm() (stm ast.Stm, err error) {
-	if !parser.matchTokenTypes(false, lexer.ALTER) {
+func (parser *Parser) resolveAlterStm() (stm Stm, err error) {
+	if !parser.matchTokenTypes(false, ALTER) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	if parser.matchTokenTypes(true, lexer.DATABASE) || parser.matchTokenTypes(true, lexer.SCHEMA) {
+	if parser.matchTokenTypes(true, DATABASE) || parser.matchTokenTypes(true, SCHEMA) {
 		return parser.parseAlterDatabaseStm()
 	}
-	parser.matchTokenTypes(true, lexer.TABLE)
+	parser.matchTokenTypes(true, TABLE)
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
@@ -45,14 +40,14 @@ func (parser *Parser) resolveAlterStm() (stm ast.Stm, err error) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	switch t.Tp {
-	case lexer.ENGINE:
+	case ENGINE:
 		stm, err = parser.parseAlterEngineStm(string(tableName))
-	case lexer.DEFAULT, lexer.CHARACTER, lexer.COLLATE:
+	case DEFAULT, CHARACTER, COLLATE:
 		stm, err = parser.parseAlterCharsetCollateStm(string(tableName))
 	default:
 		stm, err = parser.parseAlterColumnOrIndexConstraintStm(t.Tp, string(tableName))
 	}
-	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return
@@ -60,7 +55,7 @@ func (parser *Parser) resolveAlterStm() (stm ast.Stm, err error) {
 
 // Alter database statement can be:
 // * alter {database | schema} db_name [[Default | character set = value] | [Default | collate = value]]
-func (parser *Parser) parseAlterDatabaseStm() (ast.Stm, error) {
+func (parser *Parser) parseAlterDatabaseStm() (Stm, error) {
 	dbName, ok := parser.parseIdentOrWord(false)
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
@@ -69,7 +64,7 @@ func (parser *Parser) parseAlterDatabaseStm() (ast.Stm, error) {
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.AlterDatabaseStm{DatabaseName: string(dbName), Charset: charset, Collate: collate}, nil
+	return &AlterDatabaseStm{DatabaseName: string(dbName), Charset: charset, Collate: collate}, nil
 }
 
 // * alter [table] tb_name [
@@ -84,13 +79,13 @@ func (parser *Parser) parseAlterDatabaseStm() (ast.Stm, error) {
 // drop {index|key} index_name |
 // drop primary key |
 // drop foreign key key_name
-func (parser *Parser) parseAlterColumnOrIndexConstraintStm(alterTp lexer.TokenType, tableName string) (ast.Stm, error) {
+func (parser *Parser) parseAlterColumnOrIndexConstraintStm(alterTp TokenType, tableName string) (Stm, error) {
 	token, ok := parser.NextToken()
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	switch token.Tp {
-	case lexer.INDEX, lexer.KEY, lexer.PRIMARY, lexer.UNIQUE, lexer.FOREIGN, lexer.CONSTRAINT:
+	case INDEX, KEY, PRIMARY, UNIQUE, FOREIGN, CONSTRAINT:
 		return parser.parseAlterIndexOrConstraintStm(alterTp, token.Tp, tableName)
 	default:
 		parser.UnReadToken()
@@ -105,74 +100,74 @@ func (parser *Parser) parseAlterColumnOrIndexConstraintStm(alterTp lexer.TokenTy
 // drop {index|key} index_name |
 // drop primary key |
 // drop foreign key key_name
-func (parser *Parser) parseAlterIndexOrConstraintStm(alterTp, indexOrConstraintTp lexer.TokenType,
-	tableName string) (ast.Stm, error) {
+func (parser *Parser) parseAlterIndexOrConstraintStm(alterTp, indexOrConstraintTp TokenType,
+	tableName string) (Stm, error) {
 	switch alterTp {
-	case lexer.ADD:
+	case ADD:
 		switch indexOrConstraintTp {
-		case lexer.INDEX, lexer.KEY:
+		case INDEX, KEY:
 			return parser.parseAlterTableAddIndexDefStm(tableName)
 		default:
 			parser.UnReadToken()
 			return parser.parseAlterTableAddConstraintStm(tableName)
 		}
-	case lexer.DROP:
+	case DROP:
 		switch indexOrConstraintTp {
-		case lexer.INDEX, lexer.KEY:
+		case INDEX, KEY:
 			return parser.parseAlterTableDropIndexStm(tableName)
-		case lexer.PRIMARY:
+		case PRIMARY:
 			return parser.parseAlterTableDropPrimaryKeyStm(tableName)
-		case lexer.FOREIGN:
+		case FOREIGN:
 			return parser.parseAlterTableDropForeignKeyStm(tableName)
 		}
 	}
 	return nil, parser.MakeSyntaxError(1, parser.pos)
 }
 
-func (parser *Parser) parseAlterTableAddIndexDefStm(tableName string) (*ast.AlterTableAddIndexOrConstraintStm, error) {
+func (parser *Parser) parseAlterTableAddIndexDefStm(tableName string) (*AlterTableAddIndexOrConstraintStm, error) {
 	parser.UnReadToken()
 	indexDef, err := parser.parseIndexDef()
 	if err != nil {
 		return nil, err
 	}
-	return &ast.AlterTableAddIndexOrConstraintStm{Tp: ast.IsIndexTp, TableName: tableName, IndexOrConstraint: indexDef}, nil
+	return &AlterTableAddIndexOrConstraintStm{Tp: IsIndexTp, TableName: tableName, IndexOrConstraint: indexDef}, nil
 }
 
-func (parser *Parser) parseAlterTableAddConstraintStm(tableName string) (*ast.AlterTableAddIndexOrConstraintStm, error) {
+func (parser *Parser) parseAlterTableAddConstraintStm(tableName string) (*AlterTableAddIndexOrConstraintStm, error) {
 	constraintDef, err := parser.parseConstraintDef()
 	if err != nil {
 		return nil, err
 	}
-	return &ast.AlterTableAddIndexOrConstraintStm{Tp: ast.IsConstraintTp, TableName: tableName, IndexOrConstraint: constraintDef}, nil
+	return &AlterTableAddIndexOrConstraintStm{Tp: IsConstraintTp, TableName: tableName, IndexOrConstraint: constraintDef}, nil
 }
 
 // drop {index|key} index_name |
-func (parser *Parser) parseAlterTableDropForeignKeyStm(tableName string) (*ast.AlterTableDropIndexOrConstraintStm, error) {
+func (parser *Parser) parseAlterTableDropForeignKeyStm(tableName string) (*AlterTableDropIndexOrConstraintStm, error) {
 	indexName, ok := parser.parseIdentOrWord(false)
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.AlterTableDropIndexOrConstraintStm{Tp: ast.IndexTp, TableName: tableName, IndexOrKeyName: string(indexName)}, nil
+	return &AlterTableDropIndexOrConstraintStm{Tp: IndexTp, TableName: tableName, IndexOrKeyName: string(indexName)}, nil
 }
 
 // drop primary key
-func (parser *Parser) parseAlterTableDropPrimaryKeyStm(tableName string) (*ast.AlterTableDropIndexOrConstraintStm, error) {
-	if !parser.matchTokenTypes(false, lexer.KEY) {
+func (parser *Parser) parseAlterTableDropPrimaryKeyStm(tableName string) (*AlterTableDropIndexOrConstraintStm, error) {
+	if !parser.matchTokenTypes(false, KEY) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.AlterTableDropIndexOrConstraintStm{Tp: ast.PrimaryKeyTp, TableName: tableName}, nil
+	return &AlterTableDropIndexOrConstraintStm{Tp: PrimaryKeyTp, TableName: tableName}, nil
 }
 
 // drop foreign key key_name
-func (parser *Parser) parseAlterTableDropIndexStm(tableName string) (*ast.AlterTableDropIndexOrConstraintStm, error) {
-	if !parser.matchTokenTypes(false, lexer.KEY) {
+func (parser *Parser) parseAlterTableDropIndexStm(tableName string) (*AlterTableDropIndexOrConstraintStm, error) {
+	if !parser.matchTokenTypes(false, KEY) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	keyName, ok := parser.parseIdentOrWord(false)
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.AlterTableDropIndexOrConstraintStm{Tp: ast.ForeignKeyTp, TableName: tableName, IndexOrKeyName: string(keyName)}, nil
+	return &AlterTableDropIndexOrConstraintStm{Tp: ForeignKeyTp, TableName: tableName, IndexOrKeyName: string(keyName)}, nil
 }
 
 // * alter [table] tb_name [
@@ -180,27 +175,27 @@ func (parser *Parser) parseAlterTableDropIndexStm(tableName string) (*ast.AlterT
 // drop   [column] col_name |
 // modify [column] col_def |
 // change [column] old_col_name col_def
-func (parser *Parser) parseAlterColumnStm(alterTp lexer.TokenType, tableName string) (*ast.AlterTableAlterColumnStm, error) {
-	parser.matchTokenTypes(true, lexer.COLUMN)
-	alterColumnTp := ast.AddColumnTp
-	colDef := &ast.ColumnDefStm{}
+func (parser *Parser) parseAlterColumnStm(alterTp TokenType, tableName string) (*AlterTableAlterColumnStm, error) {
+	parser.matchTokenTypes(true, COLUMN)
+	alterColumnTp := AddColumnTp
+	colDef := &ColumnDefStm{}
 	var err error
 	var colName []byte
 	ok := false
 	switch alterTp {
-	case lexer.ADD:
+	case ADD:
 		colDef, err = parser.parseColumnDef()
-	case lexer.DROP:
-		alterColumnTp = ast.DropColumnTp
+	case DROP:
+		alterColumnTp = DropColumnTp
 		colName, ok = parser.parseIdentOrWord(false)
 		if !ok {
 			err = parser.MakeSyntaxError(1, parser.pos-1)
 		}
-	case lexer.MODIFY:
-		alterColumnTp = ast.ModifyColumnTp
+	case MODIFY:
+		alterColumnTp = ModifyColumnTp
 		colDef, err = parser.parseColumnDef()
-	case lexer.CHANGE:
-		alterColumnTp = ast.ChangeColumnTp
+	case CHANGE:
+		alterColumnTp = ChangeColumnTp
 		colName, ok = parser.parseIdentOrWord(false)
 		if !ok {
 			err = parser.MakeSyntaxError(1, parser.pos-1)
@@ -214,7 +209,7 @@ func (parser *Parser) parseAlterColumnStm(alterTp lexer.TokenType, tableName str
 	if err != nil {
 		return nil, err
 	}
-	return &ast.AlterTableAlterColumnStm{
+	return &AlterTableAlterColumnStm{
 		TableName: tableName,
 		Tp:        alterColumnTp,
 		ColName:   string(colName),
@@ -223,20 +218,20 @@ func (parser *Parser) parseAlterColumnStm(alterTp lexer.TokenType, tableName str
 }
 
 // engine=value
-func (parser *Parser) parseAlterEngineStm(tableName string) (*ast.AlterTableAlterEngineStm, error) {
+func (parser *Parser) parseAlterEngineStm(tableName string) (*AlterTableAlterEngineStm, error) {
 	engine, ok := parser.parseIdentOrWord(false)
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.AlterTableAlterEngineStm{TableName: tableName, Engine: string(engine)}, nil
+	return &AlterTableAlterEngineStm{TableName: tableName, Engine: string(engine)}, nil
 }
 
 // [[default] | character set = value] |
 // [[default] | collate = value]
-func (parser *Parser) parseAlterCharsetCollateStm(tableName string) (*ast.AlterTableCharsetCollateStm, error) {
+func (parser *Parser) parseAlterCharsetCollateStm(tableName string) (*AlterTableCharsetCollateStm, error) {
 	charset, collate, ok := parser.parseCharsetAndCollate()
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.AlterTableCharsetCollateStm{TableName: tableName, Charset: charset, Collate: collate}, nil
+	return &AlterTableCharsetCollateStm{TableName: tableName, Charset: charset, Collate: collate}, nil
 }

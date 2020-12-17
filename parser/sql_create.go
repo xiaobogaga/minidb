@@ -1,10 +1,5 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // Create Statement can be create table statement or create database statement.
 // For create table statement, it supports:
 // * create table [if not exist] tb_name like orig_tab_name;
@@ -25,8 +20,8 @@ import (
 //   * doesn't support column format, collate, storage.
 //   * doesn't support reference.
 
-func (parser *Parser) resolveCreateStm() (stm ast.Stm, err error) {
-	if !parser.matchTokenTypes(false, lexer.CREATE) {
+func (parser *Parser) resolveCreateStm() (stm Stm, err error) {
+	if !parser.matchTokenTypes(false, CREATE) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	token, ok := parser.NextToken()
@@ -34,9 +29,9 @@ func (parser *Parser) resolveCreateStm() (stm ast.Stm, err error) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	switch token.Tp {
-	case lexer.TABLE:
+	case TABLE:
 		stm, err = parser.parseCreateTableStm()
-	case lexer.DATABASE, lexer.SCHEMA:
+	case DATABASE, SCHEMA:
 		stm, err = parser.parseCreateDatabaseStm()
 	default:
 		err = parser.MakeSyntaxError(1, parser.pos)
@@ -44,7 +39,7 @@ func (parser *Parser) resolveCreateStm() (stm ast.Stm, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if !parser.matchTokenTypes(true, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(true, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos)
 	}
 	return stm, nil
@@ -53,8 +48,8 @@ func (parser *Parser) resolveCreateStm() (stm ast.Stm, err error) {
 // * create table [if not exist] tb_name like orig_tab_name;
 // * create table [if not exist] tb_name2 (Column_Def..., Index_Def..., Constraint_Def...) [engine=value] [[Default | character set = value] | [Default | collate = value]];
 // * create table [if not exist] as selectStatement;
-func (parser *Parser) parseCreateTableStm() (stm ast.Stm, err error) {
-	ifNotExist := parser.matchTokenTypes(true, lexer.IF, lexer.NOT, lexer.EXIST)
+func (parser *Parser) parseCreateTableStm() (stm Stm, err error) {
+	ifNotExist := parser.matchTokenTypes(true, IF, NOT, EXIST)
 	tableName, ret := parser.parseIdentOrWord(true)
 	if !ret || isTableNameEmpty(tableName) {
 		return nil, parser.MakeSyntaxError(1, parser.pos)
@@ -64,16 +59,16 @@ func (parser *Parser) parseCreateTableStm() (stm ast.Stm, err error) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	switch token.Tp {
-	case lexer.LIKE:
+	case LIKE:
 		stm, err = parser.parseCreateTableLikeStm(ifNotExist, tableName)
-	case lexer.AS:
+	case AS:
 		stm, err = parser.parseCreateTableAsStm(ifNotExist, tableName)
-	case lexer.LEFTBRACKET:
+	case LEFTBRACKET:
 		stm, err = parser.parseClassicCreateTableStm(ifNotExist, tableName)
 	default:
 		return nil, parser.MakeSyntaxError(1, parser.pos)
 	}
-	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return stm, err
@@ -84,12 +79,12 @@ func isTableNameEmpty(tableName []byte) bool {
 }
 
 // * create table [if not exist] tb_name like orig_tab_name;
-func (parser *Parser) parseCreateTableLikeStm(ifNotExist bool, tableName []byte) (*ast.CreateTableLikeStm, error) {
+func (parser *Parser) parseCreateTableLikeStm(ifNotExist bool, tableName []byte) (*CreateTableLikeStm, error) {
 	origTableName, ret := parser.parseIdentOrWord(false)
 	if !ret || isTableNameEmpty(origTableName) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.CreateTableLikeStm{
+	return &CreateTableLikeStm{
 		TableName:      string(tableName),
 		IfNotExist:     ifNotExist,
 		LikedTableName: string(origTableName),
@@ -97,16 +92,16 @@ func (parser *Parser) parseCreateTableLikeStm(ifNotExist bool, tableName []byte)
 }
 
 // * create table [if not exist] tb_name2 (Column_Def..., Index_Def..., Constraint_Def...) [engine=value] [[Default | character set = value] | [Default | collate = value]];
-func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []byte) (*ast.CreateTableStm, error) {
-	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
+func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []byte) (*CreateTableStm, error) {
+	if !parser.matchTokenTypes(false, LEFTBRACKET) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	var constraints []ast.ConstraintDefStm
-	var columns []*ast.ColumnDefStm
-	var indexes []ast.IndexDefStm
-	var col *ast.ColumnDefStm
-	var index ast.IndexDefStm
-	var constraint ast.ConstraintDefStm
+	var constraints []ConstraintDefStm
+	var columns []*ColumnDefStm
+	var indexes []IndexDefStm
+	var col *ColumnDefStm
+	var index IndexDefStm
+	var constraint ConstraintDefStm
 	var err error
 	for {
 		token, ok := parser.NextToken()
@@ -114,13 +109,13 @@ func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []by
 			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		switch token.Tp {
-		case lexer.WORD, lexer.IDENT:
+		case WORD, IDENT:
 			parser.UnReadToken()
 			col, err = parser.parseColumnDef()
-		case lexer.INDEX, lexer.KEY:
+		case INDEX, KEY:
 			parser.UnReadToken()
 			index, err = parser.parseIndexDef()
-		case lexer.CONSTRAINT, lexer.FOREIGN:
+		case CONSTRAINT, FOREIGN:
 			parser.UnReadToken()
 			constraint, err = parser.parseConstraintDef()
 		default:
@@ -132,15 +127,15 @@ func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []by
 		constraints = append(constraints, constraint)
 		columns = append(columns, col)
 		indexes = append(indexes, index)
-		if !parser.matchTokenTypes(true, lexer.COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}
-	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
+	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	var engine []byte
-	if parser.matchTokenTypes(true, lexer.ENGINE, lexer.EQUAL) {
+	if parser.matchTokenTypes(true, ENGINE, EQUAL) {
 		ret, ok := parser.parseValue(false)
 		if !ok {
 			return nil, parser.MakeSyntaxError(1, parser.pos-1)
@@ -151,7 +146,7 @@ func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []by
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.CreateTableStm{
+	return &CreateTableStm{
 		TableName:   string(tableName),
 		IfNotExist:  ifNotExist,
 		Cols:        columns,
@@ -164,22 +159,22 @@ func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []by
 }
 
 // * create table [if not exist] as selectStatement;
-func (parser *Parser) parseCreateTableAsStm(ifNotExist bool, tableName []byte) (*ast.CreateTableAsSelectStm, error) {
+func (parser *Parser) parseCreateTableAsStm(ifNotExist bool, tableName []byte) (*CreateTableAsSelectStm, error) {
 	selectStm, err := parser.resolveSelectStm(false)
 	if err != nil {
 		return nil, err
 	}
-	return &ast.CreateTableAsSelectStm{
+	return &CreateTableAsSelectStm{
 		TableName:  string(tableName),
 		IfNotExist: ifNotExist,
-		Select:     selectStm.(*ast.SelectStm),
+		Select:     selectStm.(*SelectStm),
 	}, nil
 }
 
 // For create database statement, if supports:
 // * create {database|schema} [if not exist] database_name [[Default | character set = value] | [Default | collate = value]];
-func (parser *Parser) parseCreateDatabaseStm() (*ast.CreateDatabaseStm, error) {
-	ifNotExist := parser.matchTokenTypes(true, lexer.IF, lexer.NOT, lexer.EXIST)
+func (parser *Parser) parseCreateDatabaseStm() (*CreateDatabaseStm, error) {
+	ifNotExist := parser.matchTokenTypes(true, IF, NOT, EXIST)
 	databaseName, ret := parser.parseIdentOrWord(false)
 	if !ret || isTableNameEmpty(databaseName) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
@@ -188,7 +183,7 @@ func (parser *Parser) parseCreateDatabaseStm() (*ast.CreateDatabaseStm, error) {
 	if !ok {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.CreateDatabaseStm{
+	return &CreateDatabaseStm{
 		DatabaseName: string(databaseName),
 		IfNotExist:   ifNotExist,
 		Charset:      charset,
@@ -197,18 +192,18 @@ func (parser *Parser) parseCreateDatabaseStm() (*ast.CreateDatabaseStm, error) {
 }
 
 func (parser *Parser) parseCharsetAndCollate() (charset, collate string, ok bool) {
-	if parser.matchTokenTypes(true, lexer.DEFAULT) {
+	if parser.matchTokenTypes(true, DEFAULT) {
 		charset = "default"
-	} else if parser.matchTokenTypes(true, lexer.CHARACTER, lexer.SET, lexer.EQUAL) {
+	} else if parser.matchTokenTypes(true, CHARACTER, SET, EQUAL) {
 		value, ret := parser.parseValue(false)
 		if !ret {
 			return
 		}
 		charset = string(value)
 	}
-	if parser.matchTokenTypes(true, lexer.DEFAULT) {
+	if parser.matchTokenTypes(true, DEFAULT) {
 		collate = "default"
-	} else if parser.matchTokenTypes(true, lexer.COLLATE, lexer.EQUAL) {
+	} else if parser.matchTokenTypes(true, COLLATE, EQUAL) {
 		value, ret := parser.parseValue(false)
 		if !ret {
 			return

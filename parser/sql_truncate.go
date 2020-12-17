@@ -1,24 +1,19 @@
 package parser
 
-import (
-	"simpleDb/ast"
-	"simpleDb/lexer"
-)
-
 // Truncate table statement is like:
 // * truncate [table] tb_name
 
-func (parser *Parser) resolveTruncate() (ast.Stm, error) {
-	if !parser.matchTokenTypes(false, lexer.TRUNCATE) {
+func (parser *Parser) resolveTruncate() (Stm, error) {
+	if !parser.matchTokenTypes(false, TRUNCATE) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	parser.matchTokenTypes(true, lexer.TABLE)
+	parser.matchTokenTypes(true, TABLE)
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	if !parser.matchTokenTypes(false, lexer.SEMICOLON) {
+	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return &ast.TruncateStm{TableName: string(tableName)}, nil
+	return &TruncateStm{TableName: string(tableName)}, nil
 }
