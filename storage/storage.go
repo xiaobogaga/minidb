@@ -81,8 +81,13 @@ type Schema struct {
 	// Name   string // Because this can support join tables. do we need name?
 }
 
-// A SingleTableSchema Is a list of Fields representing a temporal table format.
-// It can has multiple columns, each column has a DatabaseName, TableName, ColumnName to allow
+// A table format looks like this.
+// | rowIndex | cols ... | DefaultPrimaryKey (if cols doesn't have primary key column |
+// the rowIndex column has no content by default. But when the fetch data is called.
+// We will feed the row index value to the rowIndex column.
+
+// A SingleTableSchema is a list of Fields representing a temporal table format.
+// It can has multiple columns, each column has a DatabaseName, TableRef, ColumnName to allow
 // multiple columns coexist with same columnName but are from different database.
 type SingleTableSchema struct {
 	Columns    []Field
@@ -90,17 +95,29 @@ type SingleTableSchema struct {
 	SchemaName string
 }
 
+func (schema SingleTableSchema) AppendColumn(field Field) {
+	schema.Columns = append(schema.Columns, field)
+}
+
 // FetchData returns the data starting at row index `rowIndex` And the batchSize Is batchSize.
 func (table *TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
+	// The records in the last column is the row index if needRowIndex is true.
 	ret := &RecordBatch{
 		Fields:  table.Schema.Tables[0].Columns,
 		Records: make([]ColumnVector, len(table.Schema.Tables[0].Columns)),
 	}
+	ret.Fields = append(ret.Fields, RowIndexField)
+	ret.Records = append(ret.Records, ColumnVector{Field: RowIndexField})
 	if len(table.Datas) == 0 {
 		return ret
 	}
 	for i := rowIndex; i < batchSize && i < table.Datas[0].Size(); i++ {
 		for j, col := range table.Datas {
+			if j == 0 {
+				// The first row is the row index.
+				ret.Records[0].Append(EncodeInt(int64(rowIndex)))
+				continue
+			}
 			ret.Records[j].Append(col.Values[i])
 		}
 	}
@@ -125,6 +142,42 @@ func (table *TableInfo) HasColumn(column string) bool {
 	return false
 }
 
+func DefaultPrimaryKeyColumn() Field {
+	return Field{Name: "_id", TP: Int, PrimaryKey: true, AutoIncrement: true, AllowNull: false}
+}
+
+// update tableInfo col to new value `value` at row index row.
+func (table *TableInfo) UpdateData(colName string, row int, value []byte) {
+	for _, col := range table.Datas {
+		if col.Field.Name == colName {
+			// update this column.
+			col.Values[row] = value
+		}
+	}
+}
+
+func (table *TableInfo) DeleteRow(row int) {
+	for i := 0; i < len(table.Datas); i++ {
+		table.Datas[i].Values = append(table.Datas[i].Values[:i], table.Datas[i].Values[i+1:]...)
+	}
+}
+
+func (table TableInfo) Truncate() {
+	for i := 0; i < len(table.Datas); i++ {
+		table.Datas[i].Values = nil
+	}
+}
+
+func (table TableInfo) InsertData(cols []string, values [][]byte) {
+	for i, col := range cols {
+		for _, tableCol := range table.Datas {
+			if tableCol.Field.Name == col {
+				tableCol.Append(values[i])
+			}
+		}
+	}
+}
+
 func (schema Schema) HasSubTable(tableName string) bool {
 	for _, table := range schema.Tables {
 		if table.TableName == tableName {
@@ -132,6 +185,23 @@ func (schema Schema) HasSubTable(tableName string) bool {
 		}
 	}
 	return false
+}
+
+func (schema Schema) GetSubTableFromColumn(schemaName, tableName, col string) (SingleTableSchema, error) {
+	for _, table := range schema.Tables {
+		// Schema can be empty
+		if schemaName == "" && table.TableName == tableName && schema.TableHasColumn(table.Columns, col) {
+			return table, nil
+		}
+		if schemaName == "" && tableName == "" && schema.TableHasColumn(table.Columns, col) {
+			return table, nil
+		}
+		if schemaName != "" && (schemaName == table.SchemaName) && table.TableName == tableName &&
+			schema.TableHasColumn(table.Columns, col) {
+			return table, nil
+		}
+	}
+	return SingleTableSchema{}, errors.New("cannot find such table")
 }
 
 // HasColumn returns whether this schema has such schema, table And column.
@@ -351,6 +421,16 @@ func (recordBatch *RecordBatch) RowKey(row int) (key []byte) {
 	return
 }
 
+// Return the rowIndex in the row-th data.
+func (recordBatch *RecordBatch) RowIndex(tableName string, row int) (int, error) {
+	for i := 0; i < recordBatch.ColumnCount(); i++ {
+		if recordBatch.Fields[i].TableName == tableName {
+			return int(DecodeInt(recordBatch.Records[i].Values[row])), nil
+		}
+	}
+	return 0, errors.New("unable found such table")
+}
+
 // For type check.
 type Field struct {
 	TP            FieldTP
@@ -360,6 +440,7 @@ type Field struct {
 	DefaultValue  []byte
 	AllowNull     bool
 	AutoIncrement bool
+	PrimaryKey    bool
 }
 
 func (f Field) IsString() bool {
@@ -436,6 +517,10 @@ func (f Field) CanOp2(another FieldTP, opType OpType) (err error) {
 	f2 := Field{TP: another}
 	return f.CanOp(f2, opType)
 }
+
+const rowIndexName = "_rowid"
+
+var RowIndexField = Field{Name: rowIndexName, TP: Int, AllowNull: true, AutoIncrement: false, PrimaryKey: false}
 
 type OpType byte
 

@@ -33,6 +33,10 @@ func int4ToBytes(input uint32) []byte {
 	return ret
 }
 
+func decodeInt4Bytes(data []byte) uint32 {
+	return binary.LittleEndian.Uint32(data)
+}
+
 func int8ToBytes(input uint64) []byte {
 	ret := make([]byte, 8)
 	binary.LittleEndian.PutUint32(ret[:4], uint32(input))

@@ -31,12 +31,13 @@ func (scan *ScanLogicPlan) Schema() storage.Schema {
 		SchemaName: scan.SchemaName,
 	}
 	for _, column := range originalSchema.Tables[0].Columns {
-		tableSchema.Columns = append(tableSchema.Columns, storage.Field{
+		field := storage.Field{
 			SchemaName: scan.SchemaName,
 			TableName:  scan.Alias,
 			Name:       column.Name,
 			TP:         column.TP,
-		})
+		}
+		tableSchema.AppendColumn(field)
 	}
 	return storage.Schema{Tables: []storage.SingleTableSchema{tableSchema}}
 }
@@ -406,6 +407,8 @@ func (proj *ProjectionLogicPlan) Execute() *storage.RecordBatch {
 		colVector := expr.Evaluate(records)
 		ret.SetColumnValue(i, colVector)
 	}
+	// Now we copy the row index.
+	ret.Records[0].Appends(records.Records[0].Values)
 	return ret
 }
 

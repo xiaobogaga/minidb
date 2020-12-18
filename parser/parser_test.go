@@ -35,7 +35,7 @@ package parser
 //				"age char default 'z'" +
 //				");",
 //			&ast.CreateTableStm{
-//				TableName:  "tb_1",
+//				TableRef:  "tb_1",
 //				IfNotExist: true,
 //				Cols: []*ast.ColumnDefStm{
 //					{ColName: "id", ColumnType: ast.ColumnType{Tp: lexer.INT}, PrimaryKey: true, ColDefaultValue: ast.ColumnValue{Value: 0, ValueType: lexer.INTVALUE}},
@@ -57,7 +57,7 @@ package parser
 //				"sex bool default true" +
 //				");",
 //			&ast.CreateTableStm{
-//				TableName:  "tb_1",
+//				TableRef:  "tb_1",
 //				IfNotExist: false,
 //				Cols: []*ast.ColumnDefStm{
 //					{ColName: "id", ColumnType: ast.ColumnType{Tp: lexer.INT}, PrimaryKey: true, ColDefaultValue: ast.ColumnValue{Value: 0, ValueType: lexer.INTVALUE}},
@@ -104,12 +104,12 @@ package parser
 //	sqls := []testEntity{
 //		{
 //			"delete from tb_1 where age==10 AND sex==true;",
-//			&ast.DeleteStm{TableName: "tb_1", WhereStm: &ast.WhereStm{ExpressionStms: &whereExpre}},
+//			&ast.DeleteStm{TableRef: "tb_1", WhereStm: &ast.WhereStm{ExpressionStms: &whereExpre}},
 //		},
 //		{
 //			"delete from tb_1 where id == 1 order by sex, age limit 5;",
 //			&ast.DeleteStm{
-//				TableName:  "tb_1",
+//				TableRef:  "tb_1",
 //				WhereStm:   &ast.WhereStm{ExpressionStms: &ast.ExpressionStm{Params: []ast.Stm{&id, &equalOp, &ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 1}}}},
 //				LimitStm:   &ast.LimitStm{Count: 5},
 //				OrderByStm: &ast.OrderByStm{Cols: []string{"sex", "age"}}},
@@ -145,7 +145,7 @@ package parser
 //	sqls := []testEntity{
 //		{
 //			"insert into tb_1 values (1 + 100 + sqrt(10.0), 20.5, 'z', \"hello\", true);",
-//			&ast.InsertIntoStm{TableName: "tb_1",
+//			&ast.InsertIntoStm{TableRef: "tb_1",
 //				ValueExpressions: []ast.Stm{
 //					&ast.ExpressionStm{
 //						Params: []ast.Stm{
@@ -163,7 +163,7 @@ package parser
 //		},
 //		{
 //			"insert into tb_1(name1, `col2`) values(1, \"hello\");",
-//			&ast.InsertIntoStm{TableName: "tb_1", Cols: []string{"name1", "col2"},
+//			&ast.InsertIntoStm{TableRef: "tb_1", Cols: []string{"name1", "col2"},
 //				ValueExpressions: []ast.Stm{
 //					&ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 1},
 //					&ast.ColumnValue{ValueType: lexer.STRINGVALUE, Value: "hello"},
@@ -201,7 +201,7 @@ package parser
 //		{
 //			"select * from tb_1;",
 //			&ast.SelectStm{
-//				TableName:  "tb_1",
+//				TableRef:  "tb_1",
 //				WhereStm:   nilWhereStm,
 //				OrderByStm: nilOrderbyStm,
 //				LimitStm:   nilLimitStm,
@@ -210,7 +210,7 @@ package parser
 //		{
 //			"select * from tb_1 where id == 1 order by name limit 10;",
 //			&ast.SelectStm{
-//				TableName:  "tb_1",
+//				TableRef:  "tb_1",
 //				WhereStm:   &ast.WhereStm{ExpressionStms: &ast.ExpressionStm{Params: []ast.Stm{&id, &equalOp, &ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 1}}}},
 //				OrderByStm: &ast.OrderByStm{Cols: []string{"name"}},
 //				LimitStm:   &ast.LimitStm{Count: 10},
@@ -224,7 +224,7 @@ package parser
 //					&ast.ExpressionStm{Params: []ast.Stm{&age, &addOp, &ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 4}}},
 //					&count,
 //				},
-//				TableName:  "tb_1",
+//				TableRef:  "tb_1",
 //				WhereStm:   &ast.WhereStm{ExpressionStms: &ast.ExpressionStm{Params: []ast.Stm{&id, &equalOp, &ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 1}}}},
 //				OrderByStm: &ast.OrderByStm{Cols: []string{"name"}},
 //				LimitStm:   &ast.LimitStm{Count: 1},
@@ -238,11 +238,11 @@ package parser
 //	sqls := []testEntity{
 //		{
 //			"truncate table tb_1;",
-//			&ast.TruncateStm{TableName: "tb_1"},
+//			&ast.TruncateStm{TableRef: "tb_1"},
 //		},
 //		{
 //			"truncate `tb_1`;",
-//			&ast.TruncateStm{TableName: "tb_1"},
+//			&ast.TruncateStm{TableRef: "tb_1"},
 //		},
 //	}
 //	testSqls(t, sqls)
@@ -262,7 +262,7 @@ package parser
 //		{
 //			"update tb_1 set id=1, name=\"hello\", c='x', b=false, f=10.5;",
 //			&ast.UpdateStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Expressions: []ast.Stm{
 //					&ast.ExpressionStm{Params: []ast.Stm{&id, &equalOp, &ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 1}}},
 //					&ast.ExpressionStm{Params: []ast.Stm{&name, &equalOp, &ast.ColumnValue{ValueType: lexer.STRINGVALUE, Value: "hello"}}},
@@ -275,7 +275,7 @@ package parser
 //		{
 //			"update tb_1 set id=1 where age==10 and id==1;",
 //			&ast.UpdateStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Expressions: []ast.Stm{
 //					&ast.ExpressionStm{Params: []ast.Stm{&id, &equalOp, &ast.ColumnValue{ValueType: lexer.INTVALUE, Value: 1}}},
 //				},
@@ -303,7 +303,7 @@ package parser
 //		{
 //			"alter table tb_1 drop column col1;",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.DROP,
 //				ColDef: &ast.ColumnDefStm{
 //					OldColName: "",
@@ -314,7 +314,7 @@ package parser
 //		{
 //			"alter table tb_2 drop col2		;",
 //			&ast.AlterStm{
-//				TableName: "tb_2",
+//				TableRef: "tb_2",
 //				Tp:        lexer.DROP,
 //				ColDef: &ast.ColumnDefStm{
 //					OldColName: "",
@@ -325,7 +325,7 @@ package parser
 //		{
 //			"alter table tb_1 add column id int primary key;",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.COLADD,
 //				ColDef: &ast.ColumnDefStm{
 //					ColName:    "id",
@@ -337,7 +337,7 @@ package parser
 //		{
 //			"alter table tb_1 add column id varchar(10) default \"hello\";",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.COLADD,
 //				ColDef: &ast.ColumnDefStm{
 //					ColName:         "id",
@@ -349,7 +349,7 @@ package parser
 //		{
 //			"alter table tb_1 add column id float(10, 2) default 10.5;",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.COLADD,
 //				ColDef: &ast.ColumnDefStm{
 //					ColName:         "id",
@@ -361,7 +361,7 @@ package parser
 //		{
 //			"alter table tb_1 add column id2 float default 10.5;",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.COLADD,
 //				ColDef: &ast.ColumnDefStm{
 //					ColName:         "id2",
@@ -373,7 +373,7 @@ package parser
 //		{
 //			"alter table tb_1 add column id3 char default 'z' primary key ;",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.COLADD,
 //				ColDef: &ast.ColumnDefStm{
 //					ColName:         "id3",
@@ -386,7 +386,7 @@ package parser
 //		{
 //			"alter table tb_1 alter column col3 char default 'z' primary key  ;",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.ALTER,
 //				ColDef: &ast.ColumnDefStm{
 //					ColName:         "col3",
@@ -399,7 +399,7 @@ package parser
 //		{
 //			"alter table tb_1 change column col_o col_3 float default 10.5 Primary key;",
 //			&ast.AlterStm{
-//				TableName: "tb_1",
+//				TableRef: "tb_1",
 //				Tp:        lexer.CHANGE,
 //				ColDef: &ast.ColumnDefStm{
 //					OldColName:      "col_o",

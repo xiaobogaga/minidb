@@ -2,6 +2,7 @@ package server
 
 import (
 	"simpleDb/parser"
+	"simpleDb/plan"
 	"simpleDb/util"
 )
 
@@ -13,29 +14,31 @@ type Command struct {
 	arg     []byte
 }
 
-func decodeCommand(packet []byte) (Command, *CommandErr) {
+var okMsg = ErrMsg{errCode: ErrorOk}
+
+func decodeCommand(packet []byte) (Command, ErrMsg) {
 	switch CommandType(packet[0]) {
 	case TpComQuery:
-		return Command{Tp: TpComQuery, arg: packet, Command:}, nil
+		return Command{Tp: TpComQuery, arg: packet, Command: ComQuery("query")}, okMsg
 	case TpComQuit:
-		return Command{Tp: TpComQuit, Command:}, nil
+		return Command{Tp: TpComQuit, Command: ComQuit("quit")}, okMsg
 	case TpComInitDB:
-		return Command{Tp: TpComInitDB, arg: packet, Command:}, nil
+		return Command{Tp: TpComInitDB, arg: packet, Command: ComInitDb("use db")}, okMsg
 	case TpComPing:
-		return Command{Tp: TpComPing, Command:}, nil
+		return Command{Tp: TpComPing, Command: ComPing("ping")}, okMsg
 	default:
-		return Command{}, &CommandErr{ErrCode: ER_UNKNOWN_COM_ERROR}
+		return Command{}, ErrMsg{errCode: ErrUnknownCommand}
 	}
 }
 
-func (c Command) Do() (bool, OkMsg, *CommandErr) {
-	return c.Command.Do(c.arg)
+func (c Command) Do(con *connectionWrapper) (exit bool, msg ErrMsg) {
+	return c.Command.Do(con, c.arg)
 }
 
 type CommandInterface interface {
 	// Do is used to do command and return an bool flag to indicate whether close
 	// this connection and an errCode.
-	Do(packet []byte) (bool, OkMsg, *CommandErr)
+	Do(con *connectionWrapper, packet []byte) (bool, ErrMsg)
 	// Encode returns the encoded bytes of this command which would be sent to the other side..
 	Encode() []byte
 }
@@ -44,40 +47,18 @@ type CommandType byte
 
 // For now, we only consider a limited command.
 const (
-	// Text Protocol
-	TpComQuery CommandType = 0x03
-	// Utility Commands
-	TpComQuit            CommandType = 0x01
-	TpComInitDB          CommandType = 0x02
-	TpComFieldList       CommandType = 0x04
-	TpComRefresh         CommandType = 0x07
-	TpComStatistics      CommandType = 0x08
-	TpComProcessInfo     CommandType = 0x0A
-	TpComProcessKill     CommandType = 0x0C
-	TpComDebug           CommandType = 0x0D
-	TpComPing            CommandType = 0x0E
-	TpComChangeUser      CommandType = 0x11
-	TpComResetConnection CommandType = 0x1F
-	TpComSetOption       CommandType = 0x1B
-	// Prepared Statements
-	TpComStmtPrepare      CommandType = 0x16
-	TpComStmtExecute      CommandType = 0x17
-	TpComStmtFetch        CommandType = 0x1C
-	TpComStmtClose        CommandType = 0x19
-	TpComStmtReset        CommandType = 0x1A
-	TpComStmtSendLongData CommandType = 0x18
-	// Stored Programs
-	// Todo: need supporting stored programs.
+	TpComQuery CommandType = iota
+	TpComQuit
+	TpComInitDB
+	TpComPing
 )
 
-var emptyOkMsg = OkMsg{}
-
-type ComQuit struct{}
+type ComQuit string
 
 // ComQuit just return true to indicate exit.
-func (c ComQuit) Do(_ []byte) (bool, OkMsg, *CommandErr) {
+func (c ComQuit) Do(_ *connectionWrapper, _ []byte) (bool, ErrMsg) {
 	commandLog.InfoF("ComQuit: exiting.")
-	return true, emptyOkMsg, nil
+	return true, okMsg
 }
 
 func (c ComQuit) Encode() []byte {
@@ -88,10 +69,11 @@ type ComInitDb string
 
 // ComInitDb is used to init a database by sql `use database xxx`.
 // Where arg is the database name. return ok if exist and err otherwise.
-func (c ComInitDb) Do(arg []byte) (bool, OkMsg, *CommandErr) {
+func (c ComInitDb) Do(con *connectionWrapper, arg []byte) (bool, ErrMsg) {
 	dataBaseName := string(arg)
+	con.session.CurrentDB = dataBaseName
 	commandLog.InfoF("ComInitDb: init another database %s", dataBaseName)
-	return true, emptyOkMsg, nil
+	return false, okMsg
 }
 
 func (c ComInitDb) Encode() []byte {
@@ -100,9 +82,9 @@ func (c ComInitDb) Encode() []byte {
 
 type ComPing string
 
-func (c ComPing) Do(_ []byte) (bool, OkMsg, *CommandErr) {
+func (c ComPing) Do(_ *connectionWrapper, _ []byte) (bool, ErrMsg) {
 	commandLog.InfoF("ComPing: we are alive.")
-	return false, emptyOkMsg, nil
+	return false, okMsg
 }
 
 func (c ComPing) Encode() []byte {
@@ -111,22 +93,29 @@ func (c ComPing) Encode() []byte {
 
 type ComQuery string
 
-func (c ComQuery) Do(arg []byte, db string) (bool, OkMsg, *CommandErr) {
+func (c ComQuery) Do(con *connectionWrapper, packet []byte) (bool, ErrMsg) {
 	// Parse a query and execute it.
-	query := string(arg)
+	query := string(packet)
 	commandLog.InfoF("ComQuery: try to do a query: %s", query)
 	parser := parser.NewParser()
-	stms, err := parser.Parse(arg)
+	stms, err := parser.Parse(packet)
 	if err != nil {
-		return false, emptyOkMsg, &CommandErr{
-			ErrCode: 0,
-			Params:  nil,
-		}
+		return false, makeErrMsg(ErrSyntax, err.Error())
 	}
 	for _, stm := range stms {
-		stm.Execute(db)
+		err := plan.Exec(stm, con.session.CurrentDB)
+		if err != nil {
+			return false, makeErrMsg(ErrQuery, err.Error())
+		}
 	}
-	return false, -1, nil
+	return false, okMsg
+}
+
+func makeErrMsg(errType ErrCodeType, errMsg string) ErrMsg {
+	return ErrMsg{
+		errCode: errType,
+		Params:  []interface{}{errMsg},
+	}
 }
 
 func (c ComQuery) Encode() []byte {

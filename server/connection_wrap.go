@@ -4,22 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"simpleDb/util"
 	"time"
-)
-
-const (
-	// For simplify we don't use native_password plugin yet.
-	defaultAuthPlugin = oldPasswordPluginName
-	// nativePasswordPluginName = "mysql_native_password"
-	oldPasswordPluginName = "mysql_old_password"
-	scrambleLen           = 20
-	scrambleLen_323       = 8
 )
 
 var connectionWrapperLog = util.GetLog("ConnectionWrapper")
@@ -27,245 +16,149 @@ var connectionWrapperLog = util.GetLog("ConnectionWrapper")
 type connectionWrapper struct {
 	id            uint32
 	conn          net.Conn
-	scramble      []byte
-	rand          *rand.Rand
-	serverStatus  uint16
 	readTimeout   time.Duration
 	writeTimeout  time.Duration
 	writeBuf      bytes.Buffer
 	reader        *bufio.Reader
-	acl           *ACL
 	message       bytes.Buffer
 	packetCounter byte
 	log           util.SimpleLogWrapper
 	ctx           context.Context
+	session       Session
 }
 
 func NewConnectionWrapper(readTimeout, writeTimeout time.Duration, ctx context.Context) *connectionWrapper {
 	return &connectionWrapper{
-		scramble:     make([]byte, scrambleLen),
-		rand:         rand.New(rand.NewSource(time.Now().Unix())),
 		readTimeout:  readTimeout,
 		writeTimeout: writeTimeout,
-		serverStatus: util.ServerStatusAutoCommit,
-		acl:          &ACL{},
 		ctx:          ctx,
 	}
 }
 
-// Port of mysql
-// See sql_acl.cc for more detail.
-func (wrap *connectionWrapper) aclAuthenticate() ErrCodeType {
-	return wrap.doAuthOnce()
-}
+type ErrCodeType byte
 
-var unKnownAuthPlugin = errors.New("unknown auth plugin err")
+const (
+	ErrorOk                  = 0
+	ErrorNetWriteInterrupted = 1
+	ErrorNetErrorOnWrite     = 2
+	ErrorNetReadInterrupted  = 3
+	ErrorNetReadError        = 4
+	ErrorNetPacketOutOfOrder = 5
+	ErrUnknownCommand        = 6
+	ErrSyntax                = 7
+	ErrQuery                 = 8
+)
 
-// Perform the first authentication attempt, with the default plugin.
-// This sends the server handshake packet, reads the client reply
-// with a user name, and performs the authentication. Now only oldPasswordPlugin are supported.
-func (wrap *connectionWrapper) doAuthOnce() ErrCodeType {
-	errCode := wrap.sendServerHandshakePacket()
-	if errCode >= 0 {
-		wrap.sendErr(&CommandErr{ErrCode: errCode})
-		return errCode
-	}
-	err := wrap.readClientHandShakeResponsePacket()
-	if err != nil {
-		wrap.sendErr(err)
-		return err.ErrCode
-	}
-	return wrap.sendOk(0, 0, []byte{0})
-}
-
-var TenZeroBytes = make([]byte, 10)
-
-// Write handshake packet data:
-//    1           protocol version (always 10)
-//    n           server version string, \0-terminated
-//    4           thread id
-//    8           first 8 bytes of the plugin provided data (scramble)
-//    1           \0 byte, terminating the first part of a scramble
-//    2           server capabilities (two lower bytes)
-//    1           server character set
-//    2           server status
-//    2           server capabilities (two upper bytes)
-//    1           length of the scramble
-//    10          reserved, always 0
-//    n           rest of the plugin provided data (at least 12 bytes)
-//    n           plugin name, \0 terminate
-//    1           \0 byte, terminating the second part of a scramble
-func (wrap *connectionWrapper) sendServerHandshakePacket() ErrCodeType {
-	wrap.writeBuf.WriteByte(util.ProtocolVersion)
-	wrap.acl.clientCapabilities = util.ClientBasicFlags
-	wrap.writeBuf.WriteString(ServerVersion)
-	wrap.writeBuf.WriteByte(util.StringEnd)
-	wrap.writeBuf.Write(int4ToBytes(wrap.id))
-	wrap.writeBuf.Write(wrap.scramble[:scrambleLen_323])
-	wrap.writeBuf.WriteByte(util.StringEnd)
-	wrap.writeBuf.Write(int2ToBytes(wrap.acl.clientCapabilities))
-	wrap.writeBuf.WriteByte(byte(util.DefaultCharsetNumber))
-	wrap.writeBuf.Write(int2ToBytes(uint32(util.ServerStatusClearSet)))
-	wrap.writeBuf.Write(int2ToBytes(wrap.acl.clientCapabilities >> 16))
-	wrap.writeBuf.WriteByte(scrambleLen)
-	wrap.writeBuf.Write(TenZeroBytes)
-	wrap.writeBuf.Write(wrap.scramble[scrambleLen_323:])
-	wrap.writeBuf.WriteString(defaultAuthPlugin)
-	wrap.writeBuf.WriteByte(util.StringEnd)
-	wrap.log.InfoF("write server handshake packet.")
-	return wrap.writePacket(wrap.writeBuf)
-}
-
-// Return username, usePassword, errCode
-func (wrap *connectionWrapper) readClientHandShakeResponsePacket() *CommandErr {
-	packet, errCode := wrap.readPacket()
-	if errCode >= 0 {
-		return &CommandErr{ErrCode: errCode}
-	}
-	if len(packet) < 5 {
-		return &CommandErr{ErrCode: ER_NET_READ_ERROR}
-	}
-	reader := bufio.NewReader(bytes.NewBuffer(packet[5:]))
-	flags := bytes2ToInt(packet[:2])
-	userNameBytes, err := reader.ReadBytes(byte(0))
-	if err != nil && err != io.EOF {
-		return &CommandErr{ErrCode: ER_NET_READ_ERROR}
-	}
-	var authResponse []byte
-	var dataBaseName []byte
-	userName := string(userNameBytes[:len(userNameBytes)-1])
-	if (flags & util.ClientConnectWithDB) > 0 {
-		authResponse, err = reader.ReadBytes(0)
-		authResponse = authResponse[:len(authResponse)-1]
-		if err != nil {
-			return &CommandErr{ErrCode: ER_NET_READ_ERROR}
-		}
-		dataBaseName, err = reader.ReadBytes(0)
-		if err != nil {
-			return &CommandErr{ErrCode: ER_NET_READ_ERROR}
-		}
-	} else {
-		authResponse = packet[5+len(userNameBytes):]
-	}
-	user, found := findUser(userName)
-	if !found {
-		return &CommandErr{ErrCode: ER_ACCESS_DENIED_ERROR, Params: []interface{}{userName, len(authResponse) >= 1}}
-	}
-	if len(authResponse) == 0 && len(user.userSalt) != 0 {
-		// No password
-		return &CommandErr{ErrCode: ER_ACCESS_DENIED_ERROR, Params: []interface{}{userName, false}}
-	}
-	if len(authResponse) == scrambleLen_323 && !checkScramble323(authResponse, wrap.scramble, user.userSalt) {
-		return &CommandErr{ErrCode: ER_ACCESS_DENIED_ERROR, Params: []interface{}{userName, true}}
-	}
-	wrap.acl.user = user
-	wrap.acl.databaseName = string(dataBaseName)
-	return nil
-}
-
-// Fill data with random printable character
-func (wrap *connectionWrapper) generateRandomString(data []byte, start, len int) {
-	i := start
-	for ; i < (start + len); i++ {
-		data[i] = wrap.randomCharacter()
-	}
-	data[i] = 0
-}
-
-func (wrap *connectionWrapper) randomCharacter() byte {
-	return byte(wrap.rand.Float32()*94) + 33
-}
-
+// The package will send to client. The format look like this:
+// +-------------+-----------------+---------+
+// + package len + package counter + package +
+// +-------------+-----------------+---------+
 func (wrap *connectionWrapper) writePacket(packet bytes.Buffer) ErrCodeType {
 	err := wrap.conn.SetWriteDeadline(time.Now().Add(wrap.writeTimeout))
 	if err != nil {
-		return ER_NET_WRITE_INTERRUPTED
+		return ErrorNetWriteInterrupted
 	}
 	packetLen := packet.Len()
-	bs := int3ToBytes(uint32(packetLen))
+	bs := int4ToBytes(uint32(packetLen))
 	bs = append(bs, wrap.packetCounter)
 	wrap.packetCounter++
 	buf := bytes.NewBuffer(bs)
+	buf.Write(packet.Bytes())
 	_, err = buf.WriteTo(wrap.conn)
 	if err != nil {
-		return ER_NET_ERROR_ON_WRITE
-	}
-	_, err = packet.WriteTo(wrap.conn)
-	if err != nil {
-		return ER_NET_ERROR_ON_WRITE
+		return ErrorNetErrorOnWrite
 	}
 	return -1
 }
 
+// The client package looks like:
+// +-------------+------------------+------------+
+// + package len +  package counter +  packet    +
+// +-------------+------------------+------------+
 func (wrap *connectionWrapper) readPacket() ([]byte, ErrCodeType) {
 	err := wrap.conn.SetReadDeadline(time.Now().Add(wrap.readTimeout))
 	if err != nil {
-		return nil, ER_NET_READ_INTERRUPTED
+		return nil, ErrorNetReadInterrupted
 	}
-	bs := [4]byte{}
+	bs := [5]byte{}
 	_, err = io.ReadFull(wrap.reader, bs[:])
 	if err != nil && err != io.EOF {
-		return nil, ER_NET_READ_ERROR
+		return nil, ErrorNetReadError
 	}
-	packetLen := decodeInt3Bytes(bs[:3])
-	clientPacketCounter := bs[3]
+
+	packetLen := decodeInt4Bytes(bs[:4])
+	clientPacketCounter := bs[4]
 	if clientPacketCounter != wrap.packetCounter {
-		return nil, ER_NET_PACKETS_OUT_OF_ORDER
+		return nil, ErrorNetPacketOutOfOrder
 	}
 	wrap.packetCounter++
 	packet := make([]byte, packetLen)
 	_, err = io.ReadFull(wrap.reader, packet)
 	if (err != nil && err != io.EOF) || uint32(len(packet)) != packetLen {
-		return nil, ER_NET_READ_ERROR
+		return nil, ErrorNetReadError
 	}
 	return packet, -1
 }
 
-// See OK_Packet Format for more detail.
-func (wrap *connectionWrapper) sendOk(okMsg OkMsg) ErrCodeType {
+// There are several different packet types, before list the packet type,
+// The packet encoding looks like this:
+// +-------------+-------+
+// + packet type +  msg  +
+// +-------------+-------+
+// So each message has its own specific msg format.
+
+// Send OK_Packet
+// +-------------+------------+--------+
+// + packet type + msg len    +  msg   +
+// +-------------+------------+--------+
+// +      0      +
+// +-------------+
+func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) ErrCodeType {
 	wrap.writeBuf.Reset()
 	wrap.writeBuf.WriteByte(0)
-	wrap.writeBuf.Write(lengthEncodedInt(okMsg.affectRows))
-	wrap.writeBuf.Write(lengthEncodedInt(okMsg.lastInsertId))
-	wrap.writeBuf.Write(int2ToBytes(uint32(wrap.serverStatus)))
-	wrap.writeBuf.Write(okMsg.message)
+	message := ErrCodeMsgMap[okMsg.errCode]
+	wrap.writeBuf.Write(int4ToBytes(uint32(len(message))))
+	wrap.writeBuf.Write([]byte(message))
 	wrap.log.InfoF("send ok packet.")
 	return wrap.writePacket(wrap.writeBuf)
 }
 
-func (wrap *connectionWrapper) sendErr(err *CommandErr) ErrCodeType {
-	errFormat := ErrorCodeMsgMap[err.ErrCode]
+// Send Err_Packet.
+// +-------------+-----------+-----------+
+// + packet type +  err_code + pack len  +
+// +-------------+-----------+-----------+
+// +      1      +
+// +-------------+
+func (wrap *connectionWrapper) sendErr(err ErrMsg) ErrCodeType {
+	errFormat := ErrCodeMsgMap[err.errCode]
 	wrap.writeBuf.Reset()
-	wrap.writeBuf.WriteByte(byte(0xff))
-	wrap.writeBuf.Write(int2ToBytes(errFormat.errorCode))
-	errMsg := fmt.Sprintf(errFormat.errorMsg, err.Params...)
+	wrap.writeBuf.WriteByte(byte(0x1))
+	wrap.writeBuf.WriteByte(byte(err.errCode))
+	errMsg := fmt.Sprintf(errFormat, err.Params...)
 	wrap.writeBuf.Write([]byte(errMsg))
-	wrap.writeBuf.WriteByte(util.StringEnd)
 	wrap.log.InfoF("send err packet. err: %+v, msg: %s", err, errMsg)
 	return wrap.writePacket(wrap.writeBuf)
 }
 
-func (wrap *connectionWrapper) writeCommand(command Command) ErrCodeType {
-	// The command Length is: 1 + command.Len()
-	wrap.writeBuf.Reset()
-	wrap.writeBuf.WriteByte(byte(command.Tp))
-	wrap.writeBuf.Write(command.Command.Encode())
-	return wrap.writePacket(wrap.writeBuf)
+var ErrCodeMsgMap = map[ErrCodeType]string{
+	ErrorOk:                  "Ok",
+	ErrorNetWriteInterrupted: "server send data to client failed because of timeout",
+	ErrorNetErrorOnWrite:     "server send data to client failed",
+	ErrorNetReadInterrupted:  "server read client data failed because of timeout",
+	ErrorNetReadError:        "server read client data error",
+	ErrorNetPacketOutOfOrder: "server read an unexpected order packet",
+	ErrUnknownCommand:        "server reads an unknown command",
+	ErrSyntax:                "parser: %s",
+	ErrQuery:                 "query: %s",
 }
 
 func (wrap *connectionWrapper) setConnection(id uint32, conn net.Conn, fromUnixSocket bool) {
 	wrap.packetCounter = 0
 	wrap.id, wrap.conn = id, conn
-	if wrap.scramble[scrambleLen-1] != 0 {
-		wrap.generateRandomString(wrap.scramble, 0, scrambleLen-1)
-	}
 	wrap.writeBuf.Reset()
 	wrap.message.Reset()
 	wrap.reader = bufio.NewReader(conn)
-	wrap.acl.host = conn.RemoteAddr().String()
-	if fromUnixSocket {
-		wrap.acl.host = "localhost"
-	}
+	wrap.session = Session{CurrentDB: "", sessionID: uint64(time.Now().Unix())}
 }
 
 // Parsing sql commands until exit.
@@ -279,15 +172,14 @@ func (wrap *connectionWrapper) parseCommand() {
 		default:
 		}
 		command, err := wrap.readCommand()
-		if err != nil {
+		if !err.IsOk() {
 			// Todo, maybe we need send err parameters.
 			wrap.sendErr(err)
 			return
 		}
-		exit, okMsg, err := command.Do()
-		if err == nil {
-			// Todo: need to send affectRows and messages.
-			wrap.sendOk(okMsg)
+		exit, err := command.Do(wrap)
+		if err.IsOk() {
+			wrap.sendOk(err)
 		} else {
 			wrap.sendErr(err)
 		}
@@ -299,25 +191,35 @@ func (wrap *connectionWrapper) parseCommand() {
 
 var emptyCommand = Command{}
 
-func (wrap *connectionWrapper) readCommand() (Command, *CommandErr) {
+func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
 	packet, errCode := wrap.readPacket()
 	if errCode >= 0 {
-		return emptyCommand, &CommandErr{ErrCode: errCode}
+		return emptyCommand, ErrMsg{errCode: errCode}
 	}
 	if len(packet) <= 0 {
-		return emptyCommand, &CommandErr{ErrCode: ER_NET_READ_ERROR}
+		return emptyCommand, ErrMsg{errCode: ErrorNetReadError}
 	}
 	return decodeCommand(packet)
 }
 
-// See find_mpvio_user method
-func findUser(userName string) (User, bool) {
-	// todo, currently just a placeholder.
-	return User{}, false
+func (wrap *connectionWrapper) writeCommand(command Command) ErrCodeType {
+	// The command Length is: 1 + command.Len()
+	wrap.writeBuf.Reset()
+	wrap.writeBuf.WriteByte(byte(command.Tp))
+	wrap.writeBuf.Write(command.Command.Encode())
+	return wrap.writePacket(wrap.writeBuf)
 }
 
-type OkMsg struct {
-	affectRows   uint64
-	lastInsertId uint64
-	message      []byte
+type ErrMsg struct {
+	errCode ErrCodeType
+	Params  []interface{}
+}
+
+func (msg ErrMsg) IsOk() bool {
+	return msg.errCode == ErrorOk
+}
+
+type Session struct {
+	sessionID uint64
+	CurrentDB string
 }

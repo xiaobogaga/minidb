@@ -460,7 +460,7 @@ func (l *Lexer) readWord() error {
 	l.pos += len(word)
 	keyWord, ok := keyWords[strings.ToUpper(word)]
 	if !ok {
-		// Should be a word like TableName, ColumnName etc.
+		// Should be a word like TableRef, ColumnName etc.
 		err := l.matchDotPattern(word)
 		if err != nil {
 			return err

@@ -37,28 +37,41 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 			break
 		}
 	}
-	var order *OrderByStm
-	var limit *LimitStm
-	var err error
+	if len(tableRefs) > 1 {
+		return parser.resolveMultiUpdateStm(tableRefs, assignments)
+	}
 	where, _ := parser.resolveWhereStm()
 	if len(tableRefs) > 1 {
-		order, err = parser.parseOrderByStm()
-		if err != nil {
-			return nil, err
-		}
-		limit, err = parser.parseLimit()
-		if err != nil {
-			return nil, err
-		}
+		return parser.resolveMultiUpdateStm(tableRefs, assignments)
+	}
+	order, err := parser.parseOrderByStm()
+	if err != nil {
+		return nil, err
+	}
+	limit, err := parser.parseLimit()
+	if err != nil {
+		return nil, err
 	}
 	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return &UpdateStm{
-		TableRefs:   tableRefs,
+		TableRefs:   tableRefs[0],
 		Assignments: assignments,
 		Where:       where,
 		OrderBy:     order,
 		Limit:       limit,
+	}, nil
+}
+
+func (parser *Parser) resolveMultiUpdateStm(tableRefs []TableReferenceStm, assignments []AssignmentStm) (Stm, error) {
+	where, _ := parser.resolveWhereStm()
+	if !parser.matchTokenTypes(false, SEMICOLON) {
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	}
+	return MultiUpdateStm{
+		TableRefs:   tableRefs,
+		Assignments: assignments,
+		Where:       where,
 	}, nil
 }

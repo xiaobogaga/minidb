@@ -179,18 +179,7 @@ func (parser *ConnectionParser) parseConnection(connection net.Conn, fromUnixSoc
 	// Todo, check whether use parser.Count as id is ok.
 	// Now, don't bother to do this.
 	parser.connWrapper.setConnection(uint32(parser.Count), connection, fromUnixSocket)
-	// First authenticate.
-	err := parser.connWrapper.aclAuthenticate()
-	if err >= 0 {
-		// Close connection.
-		// Note: err returned here is ignored.
-		connectionParserLog.InfoF("close connection.")
-		parser.connWrapper.conn.Close()
-		parser.reuseCh <- parser
-		return
-	}
 	// Parsing command until exit.
-	connectionParserLog.InfoF("authenticate success. start to parse command")
 	parser.connWrapper.parseCommand()
 	parser.reuseCh <- parser
 }

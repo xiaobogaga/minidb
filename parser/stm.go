@@ -372,11 +372,17 @@ type SubQueryStm *SelectStm
 // * update table_reference set assignments... [WhereStm] [OrderByStm] [LimitStm]
 // * update table_reference... set assignments... [WhereStm]
 type UpdateStm struct {
-	TableRefs   []TableReferenceStm
+	TableRefs   TableReferenceStm
 	Assignments []AssignmentStm
 	Where       WhereStm
 	OrderBy     *OrderByStm
 	Limit       *LimitStm
+}
+
+type MultiUpdateStm struct {
+	TableRefs   []TableReferenceStm
+	Assignments []AssignmentStm
+	Where       WhereStm
 }
 
 // A table reference statement is like:
@@ -485,10 +491,10 @@ type LimitStm struct {
 // * delete from tb_name [whereStm] [OrderByStm] [LimitStm]
 // * delete tb1,... from table_references [WhereStm]
 type SingleDeleteStm struct {
-	TableName string
-	Where     WhereStm
-	OrderBy   *OrderByStm
-	Limit     *LimitStm
+	TableRef TableReferenceStm
+	Where    WhereStm
+	OrderBy  *OrderByStm
+	Limit    *LimitStm
 }
 
 // * delete tb1,... from table_references [WhereStm]

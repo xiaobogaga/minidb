@@ -35,10 +35,16 @@ func (parser *Parser) parseDeleteSingleTableStm() (stm *SingleDeleteStm, err err
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return &SingleDeleteStm{
-		TableName: string(tableName),
-		Where:     whereStm,
-		OrderBy:   orderByStm,
-		Limit:     limitStm,
+		TableRef: TableReferenceStm{
+			Tp: TableReferenceTableFactorTp,
+			TableReference: TableReferenceTableFactorStm{
+				Tp:                   TableReferencePureTableNameTp,
+				TableFactorReference: string(tableName),
+			},
+		},
+		Where:   whereStm,
+		OrderBy: orderByStm,
+		Limit:   limitStm,
 	}, nil
 }
 

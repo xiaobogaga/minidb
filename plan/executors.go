@@ -21,12 +21,16 @@ func Exec(stm parser.Stm, currentDB string) error {
 		return ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
 	case parser.UpdateStm:
 		return ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
+	case parser.MultiUpdateStm:
+		return ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
 	case parser.SingleDeleteStm:
 		return ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
 	case parser.MultiDeleteStm:
 		return ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
 	case parser.TruncateStm:
-		return ExecuteTruncateStm(stm.(*parser.TruncateStm))
+		return ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
+	case parser.SelectStm:
+		return ExecuteSelectStm(stm.(*parser.SelectStm), currentDB)
 	default:
 		return errors.New("unsupported statement")
 	}
@@ -117,24 +121,39 @@ func columnDefToStorageColumn(col *parser.ColumnDefStm, tableName, schemaName st
 		SchemaName:    schemaName,
 		AllowNull:     col.AllowNULL,
 		AutoIncrement: col.AutoIncrement,
+		PrimaryKey:    col.PrimaryKey,
 	}
 	return ret
 }
 
-func getSchema(stm *parser.CreateTableStm, dbInfo *storage.DbInfo) storage.Schema {
+func getSchema(stm *parser.CreateTableStm, dbInfo *storage.DbInfo) (storage.Schema, error) {
 	schemaName, tableName, _ := getSchemaTableName(stm.TableName, dbInfo.Name)
 	ret := storage.Schema{
 		Tables: make([]storage.SingleTableSchema, 1),
 	}
 	ret.Tables[0] = storage.SingleTableSchema{
-		Columns:    make([]storage.Field, len(stm.Cols)),
+		Columns:    make([]storage.Field, len(stm.Cols)+1),
 		TableName:  tableName,
 		SchemaName: schemaName,
 	}
+	// Add row index field.
+	ret.Tables[0].Columns[0] = storage.RowIndexField
+	hasPrimaryColumn := false
 	for i, col := range stm.Cols {
-		ret.Tables[0].Columns[i] = columnDefToStorageColumn(col, tableName, schemaName)
+		col := columnDefToStorageColumn(col, tableName, schemaName)
+		if hasPrimaryColumn && col.PrimaryKey {
+			return ret, errors.New("multi primary key defined")
+		}
+		hasPrimaryColumn = hasPrimaryColumn || col.PrimaryKey
+		ret.Tables[0].Columns[i+1] = col
 	}
-	return ret
+	if !hasPrimaryColumn {
+		// Add the default primary key column to the table.
+		primaryKeyCol := storage.DefaultPrimaryKeyColumn()
+		primaryKeyCol.TableName, primaryKeyCol.SchemaName = tableName, schemaName
+		ret.Tables[0].Columns = append([]storage.Field{primaryKeyCol}, ret.Tables[0].Columns...)
+	}
+	return ret, nil
 }
 
 func ExecuteCreateTableStm(stm *parser.CreateTableStm, currentDB string) error {
@@ -146,8 +165,12 @@ func ExecuteCreateTableStm(stm *parser.CreateTableStm, currentDB string) error {
 		return nil
 	}
 	dbInfo := storage.GetStorage().GetDbInfo(schemaName)
+	tableSchema, err := getSchema(stm, dbInfo)
+	if err != nil {
+		return err
+	}
 	table := &storage.TableInfo{
-		Schema:  getSchema(stm, dbInfo),
+		Schema:  tableSchema,
 		Charset: stm.Charset,
 		Collate: stm.Collate,
 		Engine:  stm.Engine,
@@ -169,12 +192,8 @@ func ExecuteDropTableStm(stm *parser.DropTableStm, currentDB string) error {
 }
 
 func ExecuteInsertStm(stm *parser.InsertIntoStm, currentDB string) error {
-	schemaName, tableName, err := getSchemaTableName(stm.TableName, currentDB)
-	if err != nil {
-		return err
-	}
-	plan := MakeInsertPlan(tableName, schemaName, stm.Cols, stm.Values)
-	err = plan.TypeCheck()
+	plan := MakeInsertPlan(stm, currentDB)
+	err := plan.TypeCheck()
 	if err != nil {
 		return err
 	}
@@ -182,27 +201,55 @@ func ExecuteInsertStm(stm *parser.InsertIntoStm, currentDB string) error {
 }
 
 func ExecuteUpdateStm(stm *parser.UpdateStm, currentDB string) error {
-	if len(stm.TableRefs) > 1 {
-		return ExecuteMultiUpdateStm(stm, currentDB)
-	}
-	tableRef := stm.TableRefs[0].TableReference.(parser.TableReferenceTableFactorStm).TableFactorReference.(parser.TableReferencePureTableRefStm)
-	schemaName, tableName, err := getSchemaTableName(tableRef.TableName, currentDB)
+	plan := MakeUpdatePlan(stm, currentDB)
+	err := plan.TypeCheck()
 	if err != nil {
 		return err
 	}
-	MakeUpdatePlan(schemaName, tableName)
+	return plan.Execute()
 }
 
-func ExecuteMultiUpdateStm(stm *parser.UpdateStm, currentDB string) error {
+// For multi update statement, doesn't have orderBy, limit.
+func ExecuteMultiUpdateStm(stm *parser.MultiUpdateStm, currentDB string) error {
+	update := MakeMultiUpdatePlan(stm, currentDB)
+	err := update.TypeCheck()
+	if err != nil {
+		return err
+	}
+	return update.Execute()
 }
 
 func ExecuteDeleteStm(stm *parser.SingleDeleteStm, currentDB string) error {
-
+	plan := MakeDeletePlan(stm, currentDB)
+	err := plan.TypeCheck()
+	if err != nil {
+		return err
+	}
+	return plan.Execute()
 }
 
-func ExecuteMultiDeleteStm(stm *parser.MultiDeleteStm, currentDB string) error {}
+// For multi delete, there is no orderBy, no limit.
+func ExecuteMultiDeleteStm(stm *parser.MultiDeleteStm, currentDB string) error {
+	delete := MakeMultiDeletePlan(stm, currentDB)
+	err := delete.TypeCheck()
+	if err != nil {
+		return err
+	}
+	return delete.Execute()
+}
 
-func ExecuteTruncateStm(stm *parser.TruncateStm) error {}
+func ExecuteTruncateStm(stm *parser.TruncateStm, currentDB string) error {
+	schemaName, tableName, err := getSchemaTableName(stm.TableName, currentDB)
+	if err != nil {
+		return err
+	}
+	if !storage.GetStorage().HasTable(schemaName, tableName) {
+		return errors.New("table doesn't found")
+	}
+	dbInfo := storage.GetStorage().GetDbInfo(schemaName)
+	dbInfo.GetTable(tableName).Truncate()
+	return nil
+}
 
 func ExecuteAlterStm(stm interface{}) error {
 	return errors.New("unsupported statement")
