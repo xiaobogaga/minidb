@@ -232,7 +232,6 @@ func (wrap *connectionWrapper) SendQueryResult(data *storage.RecordBatch) (ErrCo
 func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeout time.Duration) (ErrCodeType, error) {
 	buf := bytes.Buffer{}
 	buf.WriteByte(byte(command.Tp))
-	buf.WriteByte(byte(command.Tp))
 	buf.Write(command.Command.Encode())
 	return WritePacket(conn, packetCounter, buf, writeTimeout)
 }

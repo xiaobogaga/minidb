@@ -131,5 +131,12 @@ func (c ComQuery) Encode() []byte {
 
 func StrToCommand(input string) (Command, error) {
 	trimed := strings.TrimSpace(input)
-	slices := strings.Split()
+	switch trimed {
+	case "ping":
+		return Command{Tp: TpComPing, Command: ComPing("ping")}, nil
+	case "quit":
+		return Command{Tp: TpComQuit, Command: ComQuit("quit")}, nil
+	default:
+		return Command{Tp: TpComQuery, Command: ComQuery(input)}, nil
+	}
 }
