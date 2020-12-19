@@ -331,3 +331,7 @@ func DecodeInt(value []byte) int64 {
 // func DecodeText(value []byte) {}
 
 // func DecodeMediumText(value []byte) {}
+
+func FieldLen(field Field, value []byte) int {
+
+}
