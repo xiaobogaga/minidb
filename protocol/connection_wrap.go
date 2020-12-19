@@ -1,9 +1,9 @@
-package server
+package protocol
 
 import (
-	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,10 +19,7 @@ type connectionWrapper struct {
 	readTimeout   time.Duration
 	writeTimeout  time.Duration
 	writeBuf      bytes.Buffer
-	reader        *bufio.Reader
-	message       bytes.Buffer
 	packetCounter byte
-	log           util.SimpleLogWrapper
 	ctx           context.Context
 	session       Session
 }
@@ -53,52 +50,57 @@ const (
 // +-------------+-----------------+---------+
 // + package len + package counter + package +
 // +-------------+-----------------+---------+
-func (wrap *connectionWrapper) writePacket(packet bytes.Buffer) ErrCodeType {
-	err := wrap.conn.SetWriteDeadline(time.Now().Add(wrap.writeTimeout))
+func WritePacket(conn net.Conn, packetCounter byte, packet bytes.Buffer, writeTimeout time.Duration) (ErrCodeType, error) {
+	err := conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	if err != nil {
-		return ErrorNetWriteInterrupted
+		return ErrorNetWriteInterrupted, err
 	}
 	packetLen := packet.Len()
 	bs := int4ToBytes(uint32(packetLen))
-	bs = append(bs, wrap.packetCounter)
-	wrap.packetCounter++
+	bs = append(bs, packetCounter)
 	buf := bytes.NewBuffer(bs)
 	buf.Write(packet.Bytes())
-	_, err = buf.WriteTo(wrap.conn)
+	_, err = buf.WriteTo(conn)
 	if err != nil {
-		return ErrorNetErrorOnWrite
+		return ErrorNetErrorOnWrite, err
 	}
-	return -1
+	return ErrorOk, nil
 }
 
 // The client package looks like:
 // +-------------+------------------+------------+
 // + package len +  package counter +  packet    +
 // +-------------+------------------+------------+
-func (wrap *connectionWrapper) readPacket() ([]byte, ErrCodeType) {
-	err := wrap.conn.SetReadDeadline(time.Now().Add(wrap.readTimeout))
+func ReadPacket(conn net.Conn, packetCounter byte, readTimeout time.Duration) ([]byte, ErrCodeType, error) {
+	err := conn.SetReadDeadline(time.Now().Add(readTimeout))
 	if err != nil {
-		return nil, ErrorNetReadInterrupted
+		return nil, ErrorNetReadInterrupted, err
 	}
 	bs := [5]byte{}
-	_, err = io.ReadFull(wrap.reader, bs[:])
+	_, err = io.ReadFull(conn, bs[:])
 	if err != nil && err != io.EOF {
-		return nil, ErrorNetReadError
+		return nil, ErrorNetReadError, err
 	}
 
 	packetLen := decodeInt4Bytes(bs[:4])
 	clientPacketCounter := bs[4]
-	if clientPacketCounter != wrap.packetCounter {
-		return nil, ErrorNetPacketOutOfOrder
+	if clientPacketCounter != packetCounter {
+		return nil, ErrorNetPacketOutOfOrder, err
 	}
-	wrap.packetCounter++
 	packet := make([]byte, packetLen)
-	_, err = io.ReadFull(wrap.reader, packet)
+	_, err = io.ReadFull(conn, packet)
 	if (err != nil && err != io.EOF) || uint32(len(packet)) != packetLen {
-		return nil, ErrorNetReadError
+		return nil, ErrorNetReadError, err
 	}
-	return packet, -1
+	return packet, ErrorOk, nil
 }
+
+type MsgType byte
+
+const (
+	OkMsgType = iota
+	ErrMsgType
+)
 
 // There are several different packet types, before list the packet type,
 // The packet encoding looks like this:
@@ -113,14 +115,14 @@ func (wrap *connectionWrapper) readPacket() ([]byte, ErrCodeType) {
 // +-------------+------------+--------+
 // +      0      +
 // +-------------+
-func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) ErrCodeType {
+func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) (ErrCodeType, error) {
 	wrap.writeBuf.Reset()
-	wrap.writeBuf.WriteByte(0)
+	wrap.writeBuf.WriteByte(OkMsgType)
 	message := ErrCodeMsgMap[okMsg.errCode]
 	wrap.writeBuf.Write(int4ToBytes(uint32(len(message))))
 	wrap.writeBuf.Write([]byte(message))
-	wrap.log.InfoF("send ok packet.")
-	return wrap.writePacket(wrap.writeBuf)
+	connectionWrapperLog.InfoF("send ok packet.")
+	return WritePacket(wrap.conn, wrap.packetCounter, wrap.writeBuf, wrap.writeTimeout)
 }
 
 // Send Err_Packet.
@@ -129,25 +131,25 @@ func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) ErrCodeType {
 // +-------------+-----------+-----------+
 // +      1      +
 // +-------------+
-func (wrap *connectionWrapper) sendErr(err ErrMsg) ErrCodeType {
+func (wrap *connectionWrapper) sendErr(err ErrMsg) (ErrCodeType, error) {
 	errFormat := ErrCodeMsgMap[err.errCode]
 	wrap.writeBuf.Reset()
-	wrap.writeBuf.WriteByte(byte(0x1))
+	wrap.writeBuf.WriteByte(ErrMsgType)
 	wrap.writeBuf.WriteByte(byte(err.errCode))
 	errMsg := fmt.Sprintf(errFormat, err.Params...)
 	wrap.writeBuf.Write([]byte(errMsg))
-	wrap.log.InfoF("send err packet. err: %+v, msg: %s", err, errMsg)
-	return wrap.writePacket(wrap.writeBuf)
+	connectionWrapperLog.InfoF("send err packet. err: %+v, msg: %s", err, errMsg)
+	return WritePacket(wrap.conn, wrap.packetCounter, wrap.writeBuf, wrap.writeTimeout)
 }
 
 var ErrCodeMsgMap = map[ErrCodeType]string{
 	ErrorOk:                  "Ok",
-	ErrorNetWriteInterrupted: "server send data to client failed because of timeout",
-	ErrorNetErrorOnWrite:     "server send data to client failed",
-	ErrorNetReadInterrupted:  "server read client data failed because of timeout",
-	ErrorNetReadError:        "server read client data error",
-	ErrorNetPacketOutOfOrder: "server read an unexpected order packet",
-	ErrUnknownCommand:        "server reads an unknown command",
+	ErrorNetWriteInterrupted: "protocol send data to client failed because of timeout",
+	ErrorNetErrorOnWrite:     "protocol send data to client failed",
+	ErrorNetReadInterrupted:  "protocol read client data failed because of timeout",
+	ErrorNetReadError:        "protocol read client data error",
+	ErrorNetPacketOutOfOrder: "protocol read an unexpected order packet",
+	ErrUnknownCommand:        "protocol reads an unknown command",
 	ErrSyntax:                "parser: %s",
 	ErrQuery:                 "query: %s",
 }
@@ -156,8 +158,6 @@ func (wrap *connectionWrapper) setConnection(id uint32, conn net.Conn, fromUnixS
 	wrap.packetCounter = 0
 	wrap.id, wrap.conn = id, conn
 	wrap.writeBuf.Reset()
-	wrap.message.Reset()
-	wrap.reader = bufio.NewReader(conn)
 	wrap.session = Session{CurrentDB: "", sessionID: uint64(time.Now().Unix())}
 }
 
@@ -178,11 +178,13 @@ func (wrap *connectionWrapper) parseCommand() {
 			return
 		}
 		exit, err := command.Do(wrap)
+		// Todo: maybe we need to check sendOk and sendErr status.
 		if err.IsOk() {
 			wrap.sendOk(err)
 		} else {
 			wrap.sendErr(err)
 		}
+		wrap.packetCounter++
 		if exit {
 			return
 		}
@@ -192,7 +194,10 @@ func (wrap *connectionWrapper) parseCommand() {
 var emptyCommand = Command{}
 
 func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
-	packet, errCode := wrap.readPacket()
+	packet, errCode, err := ReadPacket(wrap.conn, wrap.packetCounter, wrap.readTimeout)
+	if err != nil {
+		connectionWrapperLog.WarnF("read packet failed: err: %v", err)
+	}
 	if errCode >= 0 {
 		return emptyCommand, ErrMsg{errCode: errCode}
 	}
@@ -202,12 +207,41 @@ func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
 	return decodeCommand(packet)
 }
 
-func (wrap *connectionWrapper) writeCommand(command Command) ErrCodeType {
-	// The command Length is: 1 + command.Len()
-	wrap.writeBuf.Reset()
-	wrap.writeBuf.WriteByte(byte(command.Tp))
-	wrap.writeBuf.Write(command.Command.Encode())
-	return wrap.writePacket(wrap.writeBuf)
+// For client.
+func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeout time.Duration) (ErrCodeType, error) {
+	buf := bytes.Buffer{}
+	buf.WriteByte(byte(command.Tp))
+	buf.WriteByte(byte(command.Tp))
+	buf.Write(command.Command.Encode())
+	return WritePacket(conn, packetCounter, buf, writeTimeout)
+}
+
+var emptyErrMsg = ErrMsg{}
+
+func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) (ErrMsg, error) {
+	packet, _, err := ReadPacket(conn, packetCounter, readTimeout)
+	if err != nil {
+		return emptyErrMsg, err
+	}
+	if len(packet) < 0 {
+		return emptyErrMsg, errors.New("wrong packet format")
+	}
+	switch packet[0] {
+	case OkMsgType:
+		return decodeOkMsg(packet)
+	case ErrMsgType:
+		return decodeErrMsg(packet)
+	default:
+		return emptyErrMsg, errors.New("wrong packet type")
+	}
+}
+
+func decodeOkMsg(packet []byte) (ErrMsg, error) {
+
+}
+
+func decodeErrMsg(packet []byte) (ErrMsg, error) {
+
 }
 
 type ErrMsg struct {

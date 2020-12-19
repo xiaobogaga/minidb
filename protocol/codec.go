@@ -1,4 +1,4 @@
-package server
+package protocol
 
 import "encoding/binary"
 

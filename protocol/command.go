@@ -1,4 +1,4 @@
-package server
+package protocol
 
 import (
 	"simpleDb/parser"
@@ -19,13 +19,13 @@ var okMsg = ErrMsg{errCode: ErrorOk}
 func decodeCommand(packet []byte) (Command, ErrMsg) {
 	switch CommandType(packet[0]) {
 	case TpComQuery:
-		return Command{Tp: TpComQuery, arg: packet, Command: ComQuery("query")}, okMsg
+		return Command{Tp: TpComQuery, arg: packet[1:], Command: ComQuery(packet[1:])}, okMsg
 	case TpComQuit:
-		return Command{Tp: TpComQuit, Command: ComQuit("quit")}, okMsg
+		return Command{Tp: TpComQuit, Command: ComQuit("")}, okMsg
 	case TpComInitDB:
-		return Command{Tp: TpComInitDB, arg: packet, Command: ComInitDb("use db")}, okMsg
+		return Command{Tp: TpComInitDB, arg: packet[1:], Command: ComInitDb(packet[1:])}, okMsg
 	case TpComPing:
-		return Command{Tp: TpComPing, Command: ComPing("ping")}, okMsg
+		return Command{Tp: TpComPing, Command: ComPing("")}, okMsg
 	default:
 		return Command{}, ErrMsg{errCode: ErrUnknownCommand}
 	}
@@ -77,7 +77,7 @@ func (c ComInitDb) Do(con *connectionWrapper, arg []byte) (bool, ErrMsg) {
 }
 
 func (c ComInitDb) Encode() []byte {
-	return nil
+	return []byte(c)
 }
 
 type ComPing string
@@ -119,5 +119,9 @@ func makeErrMsg(errType ErrCodeType, errMsg string) ErrMsg {
 }
 
 func (c ComQuery) Encode() []byte {
-	return nil
+	return []byte(string(c))
+}
+
+func StrToCommand(input string) (Command, error) {
+
 }

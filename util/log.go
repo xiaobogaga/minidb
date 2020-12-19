@@ -3,7 +3,6 @@ package util
 import (
 	"bytes"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -30,7 +29,6 @@ const (
 )
 
 var (
-	verbose      = flag.Bool("verbose", true, "indicate whether print log on console")
 	logLevelMaps = map[int]string{
 		INFO:  "INFO",
 		DEBUG: "DEBUG",
@@ -77,28 +75,29 @@ func CloseLog() error {
 	return fileLog.closeLogger()
 }
 
-func InitLogger(savePath string, bufSize int, flushTime time.Duration) error {
+func InitLogger(savePath string, bufSize int, flushTime time.Duration, toConsole bool) error {
 	globalLogLock.Lock()
 	defer globalLogLock.Unlock()
-	if fileLog == nil {
-		logCh := make(chan *bytes.Buffer, logBufChCapacity)
-		flusher, err := newLogFlusher(savePath, logCh)
-		if err != nil {
-			return err
-		}
-		fileLog = &SimpleLog{
-			SavePath:      savePath,
-			BufferSize:    bufSize,
-			flushTime:     flushTime,
-			lastFlushTime: time.Now(),
-			Buf:           new(bytes.Buffer),
-			lock:          sync.Mutex{},
-			logFlusher:    flusher,
-			logCh:         logCh,
-			console:       *verbose,
-		}
-		go flusher.flushLog()
+	if fileLog != nil {
+		return nil
 	}
+	logCh := make(chan *bytes.Buffer, logBufChCapacity)
+	flusher, err := newLogFlusher(savePath, logCh)
+	if err != nil {
+		return err
+	}
+	fileLog = &SimpleLog{
+		SavePath:      savePath,
+		BufferSize:    bufSize,
+		flushTime:     flushTime,
+		lastFlushTime: time.Now(),
+		Buf:           new(bytes.Buffer),
+		lock:          sync.Mutex{},
+		logFlusher:    flusher,
+		logCh:         logCh,
+		console:       toConsole,
+	}
+	go flusher.flushLog()
 	return nil
 }
 
@@ -141,15 +140,14 @@ func (log *SimpleLog) printLog(header string, level int, format string, a ...int
 	defer log.lock.Unlock()
 	l := fmt.Sprintf("%s [%s] [%s]: ", time.Now().Format("2006/06/12 00:00:00.000000"), header, logLevelMaps[level])
 	l = fmt.Sprintf(l+format, a...)
+	l += "\n"
 	if log.console {
 		println(l)
+	}
+	if log.SavePath == "" {
 		return
 	}
-	if *verbose {
-		println(l)
-	}
 	log.Buf.WriteString(l)
-	log.Buf.WriteByte('\n')
 	log.doFlushIfNeed(false)
 }
 

@@ -1,4 +1,4 @@
-package server
+package protocol
 
 import (
 	"context"
@@ -10,12 +10,11 @@ import (
 )
 
 var (
-	serverLog             = util.GetLog("server")
-	ProtolVersion         = 10
-	ServerVersion         = "Hello :), happy today. v1.0"
-	defaultUnixSocketAddr = "/tmp/mysql.sock"
-	defaultPoolSize       = 16
-	defaultTimeout        = 1000
+	serverLog         = util.GetLog("protocol")
+	DefaultUnixSocket = "/tmp/minidb.sock"
+	defaultPoolSize   = 16
+	DefaultTimeout    = 1000
+	DefaultPort       = 19840
 )
 
 // A Simple Tcp Server supports mysql protocol
@@ -39,10 +38,10 @@ func NewServer(port, connectionParserPoolSize int) *SimpleServer {
 	return &SimpleServer{
 		Port:               port,
 		Pool:               connectionParserPoolSize,
-		ReadTimeout:        time.Second * time.Duration(defaultTimeout),
-		WriteTimeout:       time.Second * time.Duration(defaultTimeout),
+		ReadTimeout:        time.Second * time.Duration(DefaultTimeout),
+		WriteTimeout:       time.Second * time.Duration(DefaultTimeout),
 		ctx:                ctx,
-		unixSocketAddr:     defaultUnixSocketAddr,
+		unixSocketAddr:     DefaultUnixSocket,
 		cancel:             cancel,
 		connectionParserCh: make(chan *ConnectionParser, connectionParserPoolSize),
 	}
@@ -72,22 +71,22 @@ func (server *SimpleServer) Start() error {
 		return err
 	}
 	// TODO: we might need to remove this method call. Before mysql would error
-	err = os.RemoveAll(defaultUnixSocketAddr)
+	err = os.RemoveAll(DefaultUnixSocket)
 	if err != nil {
 		serverLog.WarnF("remove % path to init unix socket err: %v", err)
 	}
-	server.unixListener, err = net.Listen("unix", defaultUnixSocketAddr)
+	server.unixListener, err = net.Listen("unix", DefaultUnixSocket)
 	if err != nil {
 		return err
 	}
 	go server.WaitConnection()
 	go server.WaitUnixSocketConnection()
-	serverLog.InfoF("server started.")
+	serverLog.InfoF("protocol started.")
 	return nil
 }
 
 func (server *SimpleServer) Close() {
-	serverLog.InfoF("close server")
+	serverLog.InfoF("close protocol")
 	server.Listener.Close()
 	server.unixListener.Close()
 	server.cancel()
