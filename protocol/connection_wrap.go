@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,7 +20,6 @@ type connectionWrapper struct {
 	conn          net.Conn
 	readTimeout   time.Duration
 	writeTimeout  time.Duration
-	writeBuf      bytes.Buffer
 	packetCounter byte
 	ctx           context.Context
 	session       Session
@@ -84,7 +84,7 @@ func ReadPacket(conn net.Conn, packetCounter byte, readTimeout time.Duration) ([
 		return nil, ErrorNetReadError, err
 	}
 
-	packetLen := decodeInt4Bytes(bs[:4])
+	packetLen := BytesToInt4(bs[:4])
 	clientPacketCounter := bs[4]
 	if clientPacketCounter != packetCounter {
 		return nil, ErrorNetPacketOutOfOrder, err
@@ -119,13 +119,13 @@ const (
 // +      0      +
 // +-------------+
 func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) (ErrCodeType, error) {
-	wrap.writeBuf.Reset()
-	wrap.writeBuf.WriteByte(OkMsgType)
+	buf := bytes.Buffer{}
+	buf.WriteByte(OkMsgType)
 	message := ErrCodeMsgMap[okMsg.errCode]
-	wrap.writeBuf.Write(int4ToBytes(uint32(len(message))))
-	wrap.writeBuf.Write([]byte(message))
+	buf.Write(int4ToBytes(uint32(len(message))))
+	buf.Write([]byte(message))
 	connectionWrapperLog.InfoF("send ok packet.")
-	return WritePacket(wrap.conn, wrap.packetCounter, wrap.writeBuf, wrap.writeTimeout)
+	return WritePacket(wrap.conn, wrap.packetCounter, buf, wrap.writeTimeout)
 }
 
 // Send Err_Packet.
@@ -135,14 +135,13 @@ func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) (ErrCodeType, error) {
 // +      1      +
 // +-------------+
 func (wrap *connectionWrapper) sendErr(err ErrMsg) (ErrCodeType, error) {
-	errFormat := ErrCodeMsgMap[err.errCode]
-	wrap.writeBuf.Reset()
-	wrap.writeBuf.WriteByte(ErrMsgType)
-	wrap.writeBuf.WriteByte(byte(err.errCode))
-	errMsg := fmt.Sprintf(errFormat, err.Params...)
-	wrap.writeBuf.Write([]byte(errMsg))
-	connectionWrapperLog.InfoF("send err packet. err: %+v, msg: %s", err, errMsg)
-	return WritePacket(wrap.conn, wrap.packetCounter, wrap.writeBuf, wrap.writeTimeout)
+	buf := bytes.Buffer{}
+	buf.WriteByte(ErrMsgType)
+	buf.WriteByte(byte(err.errCode))
+	buf.Write(int4ToBytes(uint32(len(err.Msg))))
+	buf.Write([]byte(err.Msg))
+	connectionWrapperLog.InfoF("send err packet. err: %+v, msg: %s", err, err.Msg)
+	return WritePacket(wrap.conn, wrap.packetCounter, buf, wrap.writeTimeout)
 }
 
 var ErrCodeMsgMap = map[ErrCodeType]string{
@@ -161,7 +160,6 @@ var ErrCodeMsgMap = map[ErrCodeType]string{
 func (wrap *connectionWrapper) setConnection(id uint32, conn net.Conn, fromUnixSocket bool) {
 	wrap.packetCounter = 0
 	wrap.id, wrap.conn = id, conn
-	wrap.writeBuf.Reset()
 	wrap.session = Session{CurrentDB: "", sessionID: uint64(time.Now().Unix())}
 }
 
@@ -182,14 +180,14 @@ func (wrap *connectionWrapper) parseCommand() {
 			return
 		}
 		exit, err := command.Do(wrap)
-		wrap.SendMsg(err)
+		wrap.SendErrMsg(err)
 		if exit {
 			return
 		}
 	}
 }
 
-func (wrap *connectionWrapper) SendMsg(msg ErrMsg) {
+func (wrap *connectionWrapper) SendErrMsg(msg ErrMsg) {
 	// Todo: maybe we need to check sendOk and sendErr status.
 	if msg.IsOk() {
 		wrap.sendOk(msg)
@@ -207,10 +205,10 @@ func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
 		connectionWrapperLog.WarnF("read packet failed: err: %v", err)
 	}
 	if errCode >= 0 {
-		return emptyCommand, ErrMsg{errCode: errCode}
+		return emptyCommand, ErrMsg{errCode: errCode, Msg: fmt.Sprintf(ErrCodeMsgMap[errCode])}
 	}
 	if len(packet) <= 0 {
-		return emptyCommand, ErrMsg{errCode: ErrorNetReadError}
+		return emptyCommand, ErrMsg{errCode: ErrorNetReadError, Msg: fmt.Sprintf(ErrCodeMsgMap[errCode])}
 	}
 	return decodeCommand(packet)
 }
@@ -221,8 +219,13 @@ func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
 // +-------------+-----------+-----------+
 // +      2      +
 // +-------------+
-func (wrap *connectionWrapper) SendQueryResult(data *storage.RecordBatch) error {
-
+func (wrap *connectionWrapper) SendQueryResult(data *storage.RecordBatch) (ErrCodeType, error) {
+	bs, _ := json.Marshal(data)
+	buf := bytes.Buffer{}
+	buf.WriteByte(DataMsgType)
+	buf.Write(int4ToBytes(uint32(len(bs))))
+	buf.Write(bs)
+	return WritePacket(wrap.conn, wrap.packetCounter, buf, wrap.writeTimeout)
 }
 
 // For client.
@@ -252,28 +255,64 @@ func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) (Msg
 		errMsg, err := decodeErrMsg(packet)
 		return Msg{TP: ErrMsgType, Msg: errMsg}, err
 	case DataMsgType:
-		msg, err := decodeQueryMessage()
+		msg, err := decodeQueryMessage(packet)
 		return Msg{TP: DataMsgType, Msg: msg}, err
 	default:
 		return emptyMsg, errors.New("wrong packet type")
 	}
 }
 
-func decodeOkMsg(packet []byte) (ErrMsg, error) {
+var emptyErrMsg = ErrMsg{}
 
+var (
+	okMsgMinLength   = 5
+	errMsgMinLength  = 6
+	dataMsgMinLength = 5
+)
+
+func decodeOkMsg(packet []byte) (ErrMsg, error) {
+	if len(packet) <= okMsgMinLength {
+		return emptyErrMsg, errors.New("wrong ok msg format")
+	}
+	messageLen := BytesToInt4(packet[1:5])
+	message := packet[5 : 5+messageLen]
+	ret := ErrMsg{
+		errCode: ErrorOk,
+		Msg:     string(message),
+	}
+	return ret, nil
 }
 
 func decodeErrMsg(packet []byte) (ErrMsg, error) {
-
+	if len(packet) <= errMsgMinLength {
+		return emptyErrMsg, errors.New("wrong err msg format")
+	}
+	errCode := packet[1]
+	messageLen := BytesToInt4(packet[2:6])
+	ret := ErrMsg{
+		errCode: ErrCodeType(errCode),
+		Msg:     string(packet[7 : 7+messageLen]),
+	}
+	return ret, nil
 }
 
-func decodeQueryMessage() (*storage.RecordBatch, error) {
-
+func decodeQueryMessage(packet []byte) (*storage.RecordBatch, error) {
+	if len(packet) <= dataMsgMinLength {
+		return nil, errors.New("wrong data msg format")
+	}
+	messageLen := BytesToInt4(packet[1:5])
+	data := packet[5 : 5+messageLen]
+	ret := &storage.RecordBatch{}
+	err := json.Unmarshal(data, ret)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
 
 type ErrMsg struct {
 	errCode ErrCodeType
-	Params  []interface{}
+	Msg     string
 }
 
 func (msg ErrMsg) IsOk() bool {
@@ -286,6 +325,7 @@ type Session struct {
 }
 
 type Msg struct {
-	TP  MsgType
-	Msg interface{}
+	TP            MsgType
+	Msg           interface{}
+	PacketCounter byte
 }

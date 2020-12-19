@@ -1,9 +1,11 @@
 package protocol
 
 import (
+	"fmt"
 	"simpleDb/parser"
 	"simpleDb/plan"
 	"simpleDb/util"
+	"strings"
 )
 
 var commandLog = util.GetLog("Command")
@@ -22,8 +24,6 @@ func decodeCommand(packet []byte) (Command, ErrMsg) {
 		return Command{Tp: TpComQuery, arg: packet[1:], Command: ComQuery(packet[1:])}, okMsg
 	case TpComQuit:
 		return Command{Tp: TpComQuit, Command: ComQuit("")}, okMsg
-	case TpComInitDB:
-		return Command{Tp: TpComInitDB, arg: packet[1:], Command: ComInitDb(packet[1:])}, okMsg
 	case TpComPing:
 		return Command{Tp: TpComPing, Command: ComPing("")}, okMsg
 	default:
@@ -49,7 +49,6 @@ type CommandType byte
 const (
 	TpComQuery CommandType = iota
 	TpComQuit
-	TpComInitDB
 	TpComPing
 )
 
@@ -63,21 +62,6 @@ func (c ComQuit) Do(_ *connectionWrapper, _ []byte) (bool, ErrMsg) {
 
 func (c ComQuit) Encode() []byte {
 	return nil
-}
-
-type ComInitDb string
-
-// ComInitDb is used to init a database by sql `use database xxx`.
-// Where arg is the database name. return ok if exist and err otherwise.
-func (c ComInitDb) Do(con *connectionWrapper, arg []byte) (bool, ErrMsg) {
-	dataBaseName := string(arg)
-	con.session.CurrentDB = dataBaseName
-	commandLog.InfoF("ComInitDb: init another database %s", dataBaseName)
-	return false, okMsg
-}
-
-func (c ComInitDb) Encode() []byte {
-	return []byte(c)
 }
 
 type ComPing string
@@ -110,21 +94,24 @@ func (c ComQuery) Do(conn *connectionWrapper, packet []byte) (bool, ErrMsg) {
 			break
 		}
 		// Todo: do we need to check msg status.
-		conn.SendMsg(msg)
+		conn.SendErrMsg(msg)
 	}
 	return false, msg
 }
 
 func (c ComQuery) HandleOneStm(stm parser.Stm, conn *connectionWrapper) ErrMsg {
 	for {
-		data, err := plan.Exec(stm, conn.session.CurrentDB)
+		data, newUsingDB, err := plan.Exec(stm, conn.session.CurrentDB)
 		if err != nil {
 			return makeErrMsg(ErrQuery, err.Error())
+		}
+		if newUsingDB != "" {
+			conn.session.CurrentDB = newUsingDB
 		}
 		if data == nil {
 			return okMsg
 		}
-		err = conn.SendQueryResult(data)
+		_, err = conn.SendQueryResult(data)
 		if err != nil {
 			return makeErrMsg(ErrSendQueryResult, err.Error())
 		}
@@ -134,7 +121,7 @@ func (c ComQuery) HandleOneStm(stm parser.Stm, conn *connectionWrapper) ErrMsg {
 func makeErrMsg(errType ErrCodeType, errMsg string) ErrMsg {
 	return ErrMsg{
 		errCode: errType,
-		Params:  []interface{}{errMsg},
+		Msg:     fmt.Sprintf(ErrCodeMsgMap[errType], errMsg),
 	}
 }
 
@@ -143,5 +130,6 @@ func (c ComQuery) Encode() []byte {
 }
 
 func StrToCommand(input string) (Command, error) {
-
+	trimed := strings.TrimSpace(input)
+	slices := strings.Split()
 }
