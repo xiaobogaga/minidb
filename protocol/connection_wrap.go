@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"simpleDb/storage"
 	"simpleDb/util"
 	"time"
 )
@@ -44,6 +45,7 @@ const (
 	ErrUnknownCommand        = 6
 	ErrSyntax                = 7
 	ErrQuery                 = 8
+	ErrSendQueryResult       = 9
 )
 
 // The package will send to client. The format look like this:
@@ -100,6 +102,7 @@ type MsgType byte
 const (
 	OkMsgType = iota
 	ErrMsgType
+	DataMsgType
 )
 
 // There are several different packet types, before list the packet type,
@@ -152,6 +155,7 @@ var ErrCodeMsgMap = map[ErrCodeType]string{
 	ErrUnknownCommand:        "protocol reads an unknown command",
 	ErrSyntax:                "parser: %s",
 	ErrQuery:                 "query: %s",
+	ErrSendQueryResult:       "server send query result failed: %s",
 }
 
 func (wrap *connectionWrapper) setConnection(id uint32, conn net.Conn, fromUnixSocket bool) {
@@ -178,17 +182,21 @@ func (wrap *connectionWrapper) parseCommand() {
 			return
 		}
 		exit, err := command.Do(wrap)
-		// Todo: maybe we need to check sendOk and sendErr status.
-		if err.IsOk() {
-			wrap.sendOk(err)
-		} else {
-			wrap.sendErr(err)
-		}
-		wrap.packetCounter++
+		wrap.SendMsg(err)
 		if exit {
 			return
 		}
 	}
+}
+
+func (wrap *connectionWrapper) SendMsg(msg ErrMsg) {
+	// Todo: maybe we need to check sendOk and sendErr status.
+	if msg.IsOk() {
+		wrap.sendOk(msg)
+	} else {
+		wrap.sendErr(msg)
+	}
+	wrap.packetCounter++
 }
 
 var emptyCommand = Command{}
@@ -207,6 +215,16 @@ func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
 	return decodeCommand(packet)
 }
 
+// Will send a data message to client.
+// +-------------+-----------+-----------+
+// + packet type + pack len  +   packet  +
+// +-------------+-----------+-----------+
+// +      2      +
+// +-------------+
+func (wrap *connectionWrapper) SendQueryResult(data *storage.RecordBatch) error {
+
+}
+
 // For client.
 func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeout time.Duration) (ErrCodeType, error) {
 	buf := bytes.Buffer{}
@@ -216,23 +234,28 @@ func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeo
 	return WritePacket(conn, packetCounter, buf, writeTimeout)
 }
 
-var emptyErrMsg = ErrMsg{}
+var emptyMsg = Msg{}
 
-func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) (ErrMsg, error) {
+func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) (Msg, error) {
 	packet, _, err := ReadPacket(conn, packetCounter, readTimeout)
 	if err != nil {
-		return emptyErrMsg, err
+		return emptyMsg, err
 	}
 	if len(packet) < 0 {
-		return emptyErrMsg, errors.New("wrong packet format")
+		return emptyMsg, errors.New("wrong packet format")
 	}
 	switch packet[0] {
 	case OkMsgType:
-		return decodeOkMsg(packet)
+		okMsg, err := decodeOkMsg(packet)
+		return Msg{TP: OkMsgType, Msg: okMsg}, err
 	case ErrMsgType:
-		return decodeErrMsg(packet)
+		errMsg, err := decodeErrMsg(packet)
+		return Msg{TP: ErrMsgType, Msg: errMsg}, err
+	case DataMsgType:
+		msg, err := decodeQueryMessage()
+		return Msg{TP: DataMsgType, Msg: msg}, err
 	default:
-		return emptyErrMsg, errors.New("wrong packet type")
+		return emptyMsg, errors.New("wrong packet type")
 	}
 }
 
@@ -241,6 +264,10 @@ func decodeOkMsg(packet []byte) (ErrMsg, error) {
 }
 
 func decodeErrMsg(packet []byte) (ErrMsg, error) {
+
+}
+
+func decodeQueryMessage() (*storage.RecordBatch, error) {
 
 }
 
@@ -256,4 +283,9 @@ func (msg ErrMsg) IsOk() bool {
 type Session struct {
 	sessionID uint64
 	CurrentDB string
+}
+
+type Msg struct {
+	TP  MsgType
+	Msg interface{}
 }

@@ -93,7 +93,7 @@ func (c ComPing) Encode() []byte {
 
 type ComQuery string
 
-func (c ComQuery) Do(con *connectionWrapper, packet []byte) (bool, ErrMsg) {
+func (c ComQuery) Do(conn *connectionWrapper, packet []byte) (bool, ErrMsg) {
 	// Parse a query and execute it.
 	query := string(packet)
 	commandLog.InfoF("ComQuery: try to do a query: %s", query)
@@ -102,13 +102,33 @@ func (c ComQuery) Do(con *connectionWrapper, packet []byte) (bool, ErrMsg) {
 	if err != nil {
 		return false, makeErrMsg(ErrSyntax, err.Error())
 	}
-	for _, stm := range stms {
-		err := plan.Exec(stm, con.session.CurrentDB)
+	var msg ErrMsg
+	for i, stm := range stms {
+		msg = c.HandleOneStm(stm, conn)
+		if i == len(stms)-1 {
+			// stm is the last stm.
+			break
+		}
+		// Todo: do we need to check msg status.
+		conn.SendMsg(msg)
+	}
+	return false, msg
+}
+
+func (c ComQuery) HandleOneStm(stm parser.Stm, conn *connectionWrapper) ErrMsg {
+	for {
+		data, err := plan.Exec(stm, conn.session.CurrentDB)
 		if err != nil {
-			return false, makeErrMsg(ErrQuery, err.Error())
+			return makeErrMsg(ErrQuery, err.Error())
+		}
+		if data == nil {
+			return okMsg
+		}
+		err = conn.SendQueryResult(data)
+		if err != nil {
+			return makeErrMsg(ErrSendQueryResult, err.Error())
 		}
 	}
-	return false, okMsg
 }
 
 func makeErrMsg(errType ErrCodeType, errMsg string) ErrMsg {

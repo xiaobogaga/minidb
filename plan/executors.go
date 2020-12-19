@@ -7,51 +7,42 @@ import (
 	"strings"
 )
 
-func Exec(stm parser.Stm, currentDB string) error {
+func Exec(stm parser.Stm, currentDB string) (*storage.RecordBatch, error) {
 	switch stm.(type) {
 	case parser.CreateDatabaseStm:
-		return ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
+		return nil, ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
 	case parser.DropDatabaseStm:
-		return ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
+		return nil, ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
 	case parser.CreateTableStm:
-		return ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
+		return nil, ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
 	case parser.DropTableStm:
-		return ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
+		return nil, ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
 	case parser.InsertIntoStm:
-		return ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
+		return nil, ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
 	case parser.UpdateStm:
-		return ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
+		return nil, ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
 	case parser.MultiUpdateStm:
-		return ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
+		return nil, ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
 	case parser.SingleDeleteStm:
-		return ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
+		return nil, ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
 	case parser.MultiDeleteStm:
-		return ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
+		return nil, ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
 	case parser.TruncateStm:
-		return ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
+		return nil, ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
 	case parser.SelectStm:
 		return ExecuteSelectStm(stm.(*parser.SelectStm), currentDB)
 	default:
-		return errors.New("unsupported statement")
+		return nil, errors.New("unsupported statement")
 	}
 }
 
-func ExecuteSelectStm(stm *parser.SelectStm, currentDB string) error {
+func ExecuteSelectStm(stm *parser.SelectStm, currentDB string) (*storage.RecordBatch, error) {
 	// we need to generate a logic plan for this selectStm.
-	logicPlan, err := MakeLogicPlan(stm, currentDB)
+	plan, err := MakeLogicPlan(stm, currentDB)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// physicalPlan := plan.MakePhysicalPlan(logicPlan)
-	for {
-		data := logicPlan.Execute()
-		if data == nil {
-			// means we have all data
-			return nil
-		}
-		// Todo: send data to client.
-	}
-	return nil
+	return plan.Execute(), nil
 }
 
 func ExecuteCreateDatabaseStm(stm *parser.CreateDatabaseStm) error {

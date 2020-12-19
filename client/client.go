@@ -27,13 +27,16 @@ func showPrompt() {
 	fmt.Print(prompt)
 }
 
-func printMsg(msg protocol.ErrMsg) {
-	if msg.IsOk() {
-
-	} else {
-		// Must be an error msg.
-
+func printMsg(msg protocol.Msg) {
+	switch msg.TP {
+	case protocol.OkMsgType:
+	case protocol.ErrMsgType:
+	case protocol.DataMsgType:
 	}
+}
+
+func handleResp() {
+
 }
 
 func interact(log util.SimpleLogWrapper, conn net.Conn) {

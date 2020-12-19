@@ -269,8 +269,8 @@ func (schema Schema) Merge(right Schema) (Schema, error) {
 }
 
 type RecordBatch struct {
-	Fields  []Field
-	Records []ColumnVector
+	Fields  []Field        `json:"fields"`
+	Records []ColumnVector `json:"records"`
 }
 
 func (recordBatch *RecordBatch) RowCount() int {
@@ -625,7 +625,7 @@ func (f Field) InferenceType(another Field, op OpType) FieldTP {
 	if op.Logic() {
 		return Bool
 	}
-	key := fmt.Sprintf("%s %s %s", f, another, op)
+	key := fmt.Sprintf("%s %s %s", f.TP, another.TP, op)
 	return typeOpMap[key]
 }
 
