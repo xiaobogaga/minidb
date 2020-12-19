@@ -7,32 +7,42 @@ import (
 	"strings"
 )
 
-func Exec(stm parser.Stm, currentDB string) (*storage.RecordBatch, error) {
+func Exec(stm parser.Stm, currentDB string) (data *storage.RecordBatch, newUsingDB string, err error) {
 	switch stm.(type) {
 	case parser.CreateDatabaseStm:
-		return nil, ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
+		return nil, "", ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
 	case parser.DropDatabaseStm:
-		return nil, ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
+		return nil, "", ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
 	case parser.CreateTableStm:
-		return nil, ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
+		return nil, "", ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
 	case parser.DropTableStm:
-		return nil, ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
+		return nil, "", ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
 	case parser.InsertIntoStm:
-		return nil, ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
+		return nil, "", ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
 	case parser.UpdateStm:
-		return nil, ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
+		return nil, "", ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
 	case parser.MultiUpdateStm:
-		return nil, ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
+		return nil, "", ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
 	case parser.SingleDeleteStm:
-		return nil, ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
+		return nil, "", ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
 	case parser.MultiDeleteStm:
-		return nil, ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
+		return nil, "", ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
 	case parser.TruncateStm:
-		return nil, ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
+		return nil, "", ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
 	case parser.SelectStm:
-		return ExecuteSelectStm(stm.(*parser.SelectStm), currentDB)
+		data, err = ExecuteSelectStm(stm.(*parser.SelectStm), currentDB)
+		return
+	case parser.ShowStm:
+		data, err = ExecuteShowStm(currentDB, stm.(*parser.ShowStm))
+		return
+	case parser.UseDatabaseStm:
+		err = ExecuteUseStm(stm.(*parser.UseDatabaseStm))
+		if err == nil {
+			newUsingDB = stm.(*parser.UseDatabaseStm).DatabaseName
+		}
+		return
 	default:
-		return nil, errors.New("unsupported statement")
+		return nil, "", errors.New("unsupported statement")
 	}
 }
 
@@ -244,4 +254,54 @@ func ExecuteTruncateStm(stm *parser.TruncateStm, currentDB string) error {
 
 func ExecuteAlterStm(stm interface{}) error {
 	return errors.New("unsupported statement")
+}
+
+func ExecuteUseStm(stm *parser.UseDatabaseStm) error {
+	if storage.GetStorage().GetDbInfo(stm.DatabaseName) != nil {
+		return nil
+	}
+	return errors.New("schema doesn't found")
+}
+
+func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch, error) {
+	switch stm.TP {
+	case parser.ShowTableTP:
+		if currentDB == "" {
+			return nil, errors.New("please select db first")
+		}
+		ret := &storage.RecordBatch{
+			Fields:  make([]storage.Field, 2),
+			Records: make([]storage.ColumnVector, 2),
+		}
+		f1 := storage.RowIndexField
+		f2 := storage.Field{TP: storage.Text, Name: "tables"}
+		ret.Fields[0], ret.Fields[1] = f1, f2
+		ret.Records[0].Field, ret.Records[1].Field = f1, f2
+		dbInfo := storage.GetStorage().GetDbInfo(currentDB)
+		i := 0
+		for table := range dbInfo.Tables {
+			ret.Records[0].Append(storage.EncodeInt(int64(i)))
+			ret.Records[1].Append([]byte(table))
+			i++
+		}
+		return ret, nil
+	case parser.ShowDatabaseTP:
+		ret := &storage.RecordBatch{
+			Fields:  make([]storage.Field, 2),
+			Records: make([]storage.ColumnVector, 2),
+		}
+		f1 := storage.RowIndexField
+		f2 := storage.Field{TP: storage.Text, Name: "databases"}
+		ret.Fields[0], ret.Fields[1] = f1, f2
+		ret.Records[0].Field, ret.Records[1].Field = f1, f2
+		i := 0
+		for db := range storage.GetStorage().Dbs {
+			ret.Records[0].Append(storage.EncodeInt(int64(i)))
+			ret.Records[1].Append([]byte(db))
+			i++
+		}
+		return ret, nil
+	default:
+		panic("unknown show tp")
+	}
 }

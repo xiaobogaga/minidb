@@ -558,3 +558,18 @@ const (
 	LockInShareModeTp
 	NoneLockTp
 )
+
+type UseDatabaseStm struct {
+	DatabaseName string
+}
+
+type ShowStmTp byte
+
+const (
+	ShowTableTP ShowStmTp = iota
+	ShowDatabaseTP
+)
+
+type ShowStm struct {
+	TP ShowStmTp
+}

@@ -181,6 +181,12 @@ const (
 	SHARE
 	MODE
 
+	// use database
+	USE
+
+	// show tables, show databases.
+	SHOW
+
 	// a specific value
 	// It can be either a numerical value such as an integer or a float (start with a number or a .), true or false.
 	// Or a value with 'xxx', or "xxx", which can interpreted to other type according to the format of the column.
@@ -327,6 +333,8 @@ var (
 		"VALUE":          VALUE,
 		"AND":            AND,
 		"OR":             OR,
+		"USE":            USE,
+		"SHOW":           SHOW,
 	}
 )
 

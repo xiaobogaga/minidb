@@ -77,6 +77,12 @@ func (parser *Parser) Parse(data []byte) (stms []Stm, err error) {
 		case SELECT:
 			parser.UnReadToken()
 			stm, err = parser.resolveSelectStm(true)
+		case USE:
+			parser.UnReadToken()
+			stm, err = parser.resolveUseStm()
+		case SHOW:
+			parser.UnReadToken()
+			stm, err = parser.resolveShowStm()
 		default:
 			err = parser.MakeSyntaxError(1, parser.pos)
 		}
