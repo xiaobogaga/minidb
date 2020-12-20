@@ -33,20 +33,6 @@ type SimpleServer struct {
 	cancel             context.CancelFunc
 }
 
-func NewServer(port, connectionParserPoolSize int) *SimpleServer {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &SimpleServer{
-		Port:               port,
-		Pool:               connectionParserPoolSize,
-		ReadTimeout:        time.Second * time.Duration(DefaultTimeout),
-		WriteTimeout:       time.Second * time.Duration(DefaultTimeout),
-		ctx:                ctx,
-		unixSocketAddr:     DefaultUnixSocket,
-		cancel:             cancel,
-		connectionParserCh: make(chan *ConnectionParser, connectionParserPoolSize),
-	}
-}
-
 func NewServerWithTimeout(port int, readTimeout, writeTimeout time.Duration, unixSocketAddr string) *SimpleServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SimpleServer{

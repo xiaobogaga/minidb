@@ -5,7 +5,6 @@ import (
 )
 
 func TestInitConsoleLog(t *testing.T) {
-
 }
 
 func TestInitFileLogger(t *testing.T) {

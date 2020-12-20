@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -144,12 +145,20 @@ func (log *SimpleLog) closeLogger() error {
 	return ErrClosedLog
 }
 
+func extractFName(f string) string {
+	index := strings.LastIndex(f, "/")
+	return f[index+1:]
+}
+
 // PrintLog print a log with format like:
 // 2006/06/12 00:00:00.000000 [INFO] some thing happened.
 func (log *SimpleLog) printLog(header string, level int, format string, a ...interface{}) {
 	log.lock.Lock()
 	defer log.lock.Unlock()
-	l := fmt.Sprintf("%s [%s] [%s]: ", time.Now().Format("2006/06/12 00:00:00.000000"), header, logLevelMaps[level])
+	_, fName, line, _ := runtime.Caller(2)
+	fName = extractFName(fName)
+	l := fmt.Sprintf("%s [%s:%d] [%s] [%s]: ", time.Now().Format("2006/06/12 00:00:00.000000"),
+		fName, line, header, logLevelMaps[level])
 	l = fmt.Sprintf(l+format, a...)
 	l += "\n"
 	if log.console {
