@@ -45,11 +45,13 @@ const (
 	ErrSyntax
 	ErrQuery
 	ErrSendQueryResult
+	ErrMsgFormat
+	ErrPacketType
 )
 
 func wrapNetErrToErrMsg(err error) ErrMsg {
 	if err == nil {
-		return okMsg
+		return OkMsg
 	}
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		return ErrMsg{errCode: ErrorNetTimeout, Msg: err.Error()}
@@ -65,7 +67,7 @@ func packetCounterErrMsg(packetCounter byte, expectedPacketCounter byte) ErrMsg 
 	if packetCounter != expectedPacketCounter {
 		return ErrMsg{errCode: ErrorNetPacketOutOfOrder, Msg: ErrCodeMsgMap[ErrorNetPacketOutOfOrder]}
 	}
-	return okMsg
+	return OkMsg
 }
 
 // The package will send to client. The format look like this:
@@ -188,12 +190,13 @@ func (wrap *connectionWrapper) parseCommand() {
 		}
 		command, err := wrap.readCommand()
 		if !err.IsOk() {
-			connectionWrapperLog.WarnF("err when read command: %s. close connection!", err.Msg)
+			connectionWrapperLog.WarnF("err when read command: %s. close connection: %s!", err.Msg, wrap.conn.RemoteAddr())
 			return
 		}
 		exit, err := command.Do(wrap)
 		wrap.SendErrMsg(err)
 		if exit {
+			connectionWrapperLog.InfoF("client quit, close connection: %s!", wrap.conn.RemoteAddr())
 			return
 		}
 	}
@@ -217,7 +220,7 @@ func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
 	for {
 		packet, errMsg = ReadPacket(wrap.conn, wrap.packetCounter, wrap.readTimeout)
 		if errMsg.IsTimeout() {
-			connectionWrapperLog.WarnF("read packet failed: err: %v", errMsg)
+			// connectionWrapperLog.WarnF("read packet failed: err: %v", errMsg)
 			continue
 		}
 		break
@@ -253,7 +256,7 @@ func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeo
 
 var emptyMsg = Msg{}
 
-func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) (Msg, error) {
+func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) Msg {
 	var packet []byte
 	var errMsg ErrMsg
 	for {
@@ -264,20 +267,19 @@ func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) (Msg
 		break
 	}
 	if !errMsg.IsOk() {
-		return emptyMsg, errors.New(errMsg.Msg)
+		return Msg{TP: ErrMsgType, Msg: errMsg}
 	}
 	switch packet[0] {
 	case OkMsgType:
-		okMsg, err := decodeOkMsg(packet)
-		return Msg{TP: OkMsgType, Msg: okMsg}, err
+		msg := decodeOkMsg(packet)
+		return Msg{TP: ErrMsgType, Msg: msg}
 	case ErrMsgType:
-		errMsg, err := decodeErrMsg(packet)
-		return Msg{TP: ErrMsgType, Msg: errMsg}, err
+		msg := decodeErrMsg(packet)
+		return Msg{TP: ErrMsgType, Msg: msg}
 	case DataMsgType:
-		msg, err := decodeQueryMessage(packet)
-		return Msg{TP: DataMsgType, Msg: msg}, err
+		return decodeQueryMessage(packet)
 	default:
-		return emptyMsg, errors.New("wrong packet type")
+		return Msg{TP: ErrMsgType, Msg: ErrMsg{errCode: ErrPacketType, Msg: "unknown message"}}
 	}
 }
 
@@ -289,9 +291,9 @@ var (
 	dataMsgMinLength = 5
 )
 
-func decodeOkMsg(packet []byte) (ErrMsg, error) {
+func decodeOkMsg(packet []byte) ErrMsg {
 	if len(packet) <= okMsgMinLength {
-		return emptyErrMsg, errors.New("wrong ok msg format")
+		return ErrMsg{errCode: ErrMsgFormat, Msg: "wrong ok message format"}
 	}
 	messageLen := BytesToInt4(packet[1:5])
 	message := packet[5 : 5+messageLen]
@@ -299,12 +301,12 @@ func decodeOkMsg(packet []byte) (ErrMsg, error) {
 		errCode: ErrorOk,
 		Msg:     string(message),
 	}
-	return ret, nil
+	return ret
 }
 
-func decodeErrMsg(packet []byte) (ErrMsg, error) {
+func decodeErrMsg(packet []byte) ErrMsg {
 	if len(packet) <= errMsgMinLength {
-		return emptyErrMsg, errors.New("wrong err msg format")
+		return ErrMsg{errCode: ErrMsgFormat, Msg: "wrong err message format"}
 	}
 	errCode := packet[1]
 	messageLen := BytesToInt4(packet[2:6])
@@ -312,21 +314,18 @@ func decodeErrMsg(packet []byte) (ErrMsg, error) {
 		errCode: ErrCodeType(errCode),
 		Msg:     string(packet[7 : 7+messageLen]),
 	}
-	return ret, nil
+	return ret
 }
 
-func decodeQueryMessage(packet []byte) (*storage.RecordBatch, error) {
+func decodeQueryMessage(packet []byte) Msg {
 	if len(packet) <= dataMsgMinLength {
-		return nil, errors.New("wrong data msg format")
+		return Msg{TP: ErrMsgType, Msg: ErrMsg{errCode: ErrMsgFormat, Msg: "wrong data message format"}}
 	}
 	messageLen := BytesToInt4(packet[1:5])
 	data := packet[5 : 5+messageLen]
 	ret := &storage.RecordBatch{}
-	err := json.Unmarshal(data, ret)
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
+	json.Unmarshal(data, ret)
+	return Msg{TP: DataMsgType, Msg: ret}
 }
 
 type ErrMsg struct {
@@ -351,4 +350,21 @@ type Msg struct {
 	TP            MsgType
 	Msg           interface{}
 	PacketCounter byte
+}
+
+func (msg Msg) IsErrMsg() bool {
+	return msg.TP == ErrMsgType
+}
+
+func (msg Msg) IsFatal() bool {
+	if !msg.IsErrMsg() || msg.Msg.(ErrMsg).IsOk() {
+		return false
+	}
+	errMsg := msg.Msg.(ErrMsg)
+	switch errMsg.errCode {
+	case ErrorOk, ErrorNetTimeout, ErrorNetPacketOutOfOrder, ErrMsgFormat, ErrPacketType:
+		return false
+	default:
+		return true
+	}
 }

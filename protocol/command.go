@@ -16,16 +16,16 @@ type Command struct {
 	arg     []byte
 }
 
-var okMsg = ErrMsg{errCode: ErrorOk}
+var OkMsg = ErrMsg{errCode: ErrorOk}
 
 func decodeCommand(packet []byte) (Command, ErrMsg) {
 	switch CommandType(packet[0]) {
 	case TpComQuery:
-		return Command{Tp: TpComQuery, arg: packet[1:], Command: ComQuery(packet[1:])}, okMsg
+		return Command{Tp: TpComQuery, arg: packet[1:], Command: ComQuery(packet[1:])}, OkMsg
 	case TpComQuit:
-		return Command{Tp: TpComQuit, Command: ComQuit("")}, okMsg
+		return Command{Tp: TpComQuit, Command: ComQuit("")}, OkMsg
 	case TpComPing:
-		return Command{Tp: TpComPing, Command: ComPing("")}, okMsg
+		return Command{Tp: TpComPing, Command: ComPing("")}, OkMsg
 	default:
 		return Command{}, ErrMsg{errCode: ErrUnknownCommand}
 	}
@@ -57,7 +57,7 @@ type ComQuit string
 // ComQuit just return true to indicate exit.
 func (c ComQuit) Do(_ *connectionWrapper, _ []byte) (bool, ErrMsg) {
 	commandLog.InfoF("ComQuit: exiting.")
-	return true, okMsg
+	return true, OkMsg
 }
 
 func (c ComQuit) Encode() []byte {
@@ -68,7 +68,7 @@ type ComPing string
 
 func (c ComPing) Do(_ *connectionWrapper, _ []byte) (bool, ErrMsg) {
 	commandLog.InfoF("ComPing: we are alive.")
-	return false, okMsg
+	return false, OkMsg
 }
 
 func (c ComPing) Encode() []byte {
@@ -109,7 +109,7 @@ func (c ComQuery) HandleOneStm(stm parser.Stm, conn *connectionWrapper) ErrMsg {
 			conn.session.CurrentDB = newUsingDB
 		}
 		if data == nil {
-			return okMsg
+			return OkMsg
 		}
 		errMsg := conn.SendQueryResult(data)
 		if !errMsg.IsOk() {
@@ -132,9 +132,9 @@ func (c ComQuery) Encode() []byte {
 func StrToCommand(input string) (Command, error) {
 	trimed := strings.TrimSpace(input)
 	switch trimed {
-	case "ping":
+	case "ping", "ping;":
 		return Command{Tp: TpComPing, Command: ComPing("ping")}, nil
-	case "quit":
+	case "quit", "quit;":
 		return Command{Tp: TpComQuit, Command: ComQuit("quit")}, nil
 	default:
 		return Command{Tp: TpComQuery, Command: ComQuery(input)}, nil

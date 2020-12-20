@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -66,7 +69,7 @@ func nHyphen(n int) string {
 // Print table columns with col names.
 // +------+------+
 // +   id +  id2 +
-func printHeader(record *storage.RecordBatch, log util.SimpleLogWrapper, columnWidths []int) {
+func printHeader(record *storage.RecordBatch, columnWidths []int) {
 	// +-width-+
 	buf := bytes.Buffer{}
 	for i := 0; i < record.ColumnCount(); i++ {
@@ -82,10 +85,10 @@ func printHeader(record *storage.RecordBatch, log util.SimpleLogWrapper, columnW
 		buf.WriteString(" ")
 	}
 	buf.WriteString("+\n")
-	log.InfoF(buf.String())
+	print(buf.String())
 }
 
-func printTail(record *storage.RecordBatch, log util.SimpleLogWrapper, columnWidths []int) {
+func printTail(record *storage.RecordBatch, columnWidths []int) {
 	buf := bytes.Buffer{}
 	for i := 0; i < record.ColumnCount(); i++ {
 		width := columnWidths[i]
@@ -94,10 +97,10 @@ func printTail(record *storage.RecordBatch, log util.SimpleLogWrapper, columnWid
 		buf.WriteString("-")
 	}
 	buf.WriteString("+\n")
-	log.InfoF(buf.String())
+	print(buf.String())
 }
 
-func printRow(record *storage.RecordBatch, row int, log util.SimpleLogWrapper, columnWidths []int) {
+func printRow(record *storage.RecordBatch, row int, columnWidths []int) {
 	buf := bytes.Buffer{}
 	for i := 0; i < record.ColumnCount(); i++ {
 		buf.WriteString("+ ")
@@ -105,7 +108,7 @@ func printRow(record *storage.RecordBatch, row int, log util.SimpleLogWrapper, c
 		buf.WriteString(" ")
 	}
 	buf.WriteString("+\n")
-	log.InfoF(buf.String())
+	print(buf.String())
 }
 
 // For the first time, we will print table header.
@@ -116,47 +119,46 @@ func printRow(record *storage.RecordBatch, row int, log util.SimpleLogWrapper, c
 // +------+--------+
 // + 1    + hello  +
 // +------+--------+
-func printRecord(record *storage.RecordBatch, log util.SimpleLogWrapper, needPrintHeader bool, columnWidths []int) {
+func printRecord(record *storage.RecordBatch, needPrintHeader bool, columnWidths []int) {
 	if record == nil {
 		return
 	}
 	if needPrintHeader {
-		printHeader(record, log, columnWidths)
+		printHeader(record, columnWidths)
 	}
 	for i := 0; i < record.ColumnCount(); i++ {
-		printTail(record, log, columnWidths)
-		printRow(record, i, log, columnWidths)
+		printTail(record, columnWidths)
+		printRow(record, i, columnWidths)
 	}
-	printTail(record, log, columnWidths)
+	printTail(record, columnWidths)
 }
 
-func printMsg(msg protocol.Msg, log util.SimpleLogWrapper, printHeader bool, columnWidths []int) {
+func printMsg(msg protocol.Msg, printHeader bool, columnWidths []int) {
 	switch msg.TP {
 	case protocol.OkMsgType:
-		log.InfoF("result: ok")
+		println("server: ok")
 	case protocol.ErrMsgType:
-		log.InfoF("result: failed. err: %v", msg.Msg.(protocol.ErrMsg).Msg)
+		println("server: err: %v", msg.Msg.(protocol.ErrMsg).Msg)
 	case protocol.DataMsgType:
-		printRecord(msg.Msg.(*storage.RecordBatch), log, printHeader, columnWidths)
+		printRecord(msg.Msg.(*storage.RecordBatch), printHeader, columnWidths)
 	default:
 		panic("unknown message type")
 	}
 }
 
-func handleResp(packetCounter *byte, conn net.Conn, log util.SimpleLogWrapper) error {
+func handleResp(packetCounter byte, conn net.Conn) error {
 	i := 0
 	var columnWidths []int
 	for {
-		*packetCounter++
-		msg, err := protocol.ReadResp(conn, *packetCounter, time.Millisecond*time.Duration(*readTimeout))
-		if err != nil {
-			return err
+		msg := protocol.ReadResp(conn, packetCounter, time.Millisecond*time.Duration(*readTimeout))
+		if msg.IsFatal() {
+			return errors.New(msg.Msg.(protocol.ErrMsg).Msg)
 		}
 		if i == 0 && msg.TP == protocol.DataMsgType {
 			columnWidths = columnsWidth(msg.Msg.(*storage.RecordBatch))
 		}
 		// Only print header for dataMsg once.
-		printMsg(msg, log, i == 0, columnWidths)
+		printMsg(msg, i == 0, columnWidths)
 		if msg.TP != protocol.DataMsgType {
 			return nil
 		}
@@ -167,17 +169,14 @@ func handleResp(packetCounter *byte, conn net.Conn, log util.SimpleLogWrapper) e
 	}
 }
 
-func interact(log util.SimpleLogWrapper, conn net.Conn) {
-	var input string
+func interact(cancel context.CancelFunc, log util.SimpleLogWrapper, conn net.Conn) {
+	defer cancel()
 	var packetCounter byte = 0
+	reader := bufio.NewReader(os.Stdin)
 	for {
 		showPrompt()
-		_, err := fmt.Scanln(&input)
-		if err != nil {
-			log.ErrorF("input error: %v", err)
-			return
-		}
-		command, err := protocol.StrToCommand(input)
+		input, _, _ := reader.ReadLine()
+		command, err := protocol.StrToCommand(string(input))
 		if err != nil {
 			log.ErrorF("parse command error: %v", err)
 			continue
@@ -188,31 +187,44 @@ func interact(log util.SimpleLogWrapper, conn net.Conn) {
 			log.ErrorF("failed to send command: err: %v", err)
 			continue
 		}
+		if command.Tp == protocol.TpComQuit {
+			return
+		}
 		// Now can wait for server response.
-		err = handleResp(&packetCounter, conn, log)
+		err = handleResp(packetCounter, conn)
 		if err != nil {
 			log.ErrorF("failed to handle resp: err: %v", err)
-			continue
+			return
 		}
+		packetCounter++
 	}
 }
 
 func main() {
+	// Initialize log
 	err := util.InitLogger("", 1024*4, time.Second*1, true)
 	if err != nil {
 		fmt.Printf("err: %v", err)
 		return
 	}
 	log := util.GetLog("client")
+	// Create connection.
 	address := fmt.Sprintf("localhost:%d", *port)
 	con, err := net.Dial("tcp", address)
 	if err != nil {
 		log.ErrorF("connect to server failed: %v", err)
 		return
 	}
+	defer con.Close()
+	// Start and wait for connection.
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	go interact(log, con)
-	<-sig
-	// Todo: close connection
+	ctx, cancel := context.WithCancel(context.Background())
+	go interact(cancel, log, con)
+	select {
+	case <-sig:
+		log.InfoF("bye")
+	case <-ctx.Done():
+		log.InfoF("bye")
+	}
 }
