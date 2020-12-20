@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
+	"os"
 	"simpleDb/storage"
 	"simpleDb/util"
 	"time"
@@ -36,26 +36,47 @@ func NewConnectionWrapper(readTimeout, writeTimeout time.Duration, ctx context.C
 type ErrCodeType byte
 
 const (
-	ErrorOk                  = 0
-	ErrorNetWriteInterrupted = 1
-	ErrorNetErrorOnWrite     = 2
-	ErrorNetReadInterrupted  = 3
-	ErrorNetReadError        = 4
-	ErrorNetPacketOutOfOrder = 5
-	ErrUnknownCommand        = 6
-	ErrSyntax                = 7
-	ErrQuery                 = 8
-	ErrSendQueryResult       = 9
+	ErrorOk ErrCodeType = iota
+	ErrorNetUnknown
+	ErrorNetTimeout
+	ErrorNetClosed
+	ErrorNetPacketOutOfOrder
+	ErrUnknownCommand
+	ErrSyntax
+	ErrQuery
+	ErrSendQueryResult
 )
+
+func wrapNetErrToErrMsg(err error) ErrMsg {
+	if err == nil {
+		return okMsg
+	}
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return ErrMsg{errCode: ErrorNetTimeout, Msg: err.Error()}
+	}
+	if err == io.EOF {
+		return ErrMsg{errCode: ErrorNetClosed, Msg: err.Error()}
+	}
+
+	return ErrMsg{errCode: ErrorNetUnknown, Msg: err.Error()}
+}
+
+func packetCounterErrMsg(packetCounter byte, expectedPacketCounter byte) ErrMsg {
+	if packetCounter != expectedPacketCounter {
+		return ErrMsg{errCode: ErrorNetPacketOutOfOrder, Msg: ErrCodeMsgMap[ErrorNetPacketOutOfOrder]}
+	}
+	return okMsg
+}
 
 // The package will send to client. The format look like this:
 // +-------------+-----------------+---------+
 // + package len + package counter + package +
 // +-------------+-----------------+---------+
-func WritePacket(conn net.Conn, packetCounter byte, packet bytes.Buffer, writeTimeout time.Duration) (ErrCodeType, error) {
+func WritePacket(conn net.Conn, packetCounter byte, packet bytes.Buffer, writeTimeout time.Duration) ErrMsg {
 	err := conn.SetWriteDeadline(time.Now().Add(writeTimeout))
-	if err != nil {
-		return ErrorNetWriteInterrupted, err
+	errMsg := wrapNetErrToErrMsg(err)
+	if !errMsg.IsOk() {
+		return errMsg
 	}
 	packetLen := packet.Len()
 	bs := int4ToBytes(uint32(packetLen))
@@ -63,38 +84,34 @@ func WritePacket(conn net.Conn, packetCounter byte, packet bytes.Buffer, writeTi
 	buf := bytes.NewBuffer(bs)
 	buf.Write(packet.Bytes())
 	_, err = buf.WriteTo(conn)
-	if err != nil {
-		return ErrorNetErrorOnWrite, err
-	}
-	return ErrorOk, nil
+	errMsg = wrapNetErrToErrMsg(err)
+	return errMsg
 }
 
 // The client package looks like:
 // +-------------+------------------+------------+
 // + package len +  package counter +  packet    +
 // +-------------+------------------+------------+
-func ReadPacket(conn net.Conn, packetCounter byte, readTimeout time.Duration) ([]byte, ErrCodeType, error) {
+func ReadPacket(conn net.Conn, packetCounter byte, readTimeout time.Duration) ([]byte, ErrMsg) {
 	err := conn.SetReadDeadline(time.Now().Add(readTimeout))
-	if err != nil {
-		return nil, ErrorNetReadInterrupted, err
+	errMsg := wrapNetErrToErrMsg(err)
+	if !errMsg.IsOk() {
+		return nil, errMsg
 	}
 	bs := [5]byte{}
 	_, err = io.ReadFull(conn, bs[:])
-	if err != nil && err != io.EOF {
-		return nil, ErrorNetReadError, err
+	errMsg = wrapNetErrToErrMsg(err)
+	if !errMsg.IsOk() {
+		return nil, errMsg
 	}
-
 	packetLen := BytesToInt4(bs[:4])
 	clientPacketCounter := bs[4]
 	if clientPacketCounter != packetCounter {
-		return nil, ErrorNetPacketOutOfOrder, err
+		return nil, packetCounterErrMsg(clientPacketCounter, packetCounter)
 	}
 	packet := make([]byte, packetLen)
 	_, err = io.ReadFull(conn, packet)
-	if (err != nil && err != io.EOF) || uint32(len(packet)) != packetLen {
-		return nil, ErrorNetReadError, err
-	}
-	return packet, ErrorOk, nil
+	return packet, wrapNetErrToErrMsg(err)
 }
 
 type MsgType byte
@@ -118,7 +135,7 @@ const (
 // +-------------+------------+--------+
 // +      0      +
 // +-------------+
-func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) (ErrCodeType, error) {
+func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) ErrMsg {
 	buf := bytes.Buffer{}
 	buf.WriteByte(OkMsgType)
 	message := ErrCodeMsgMap[okMsg.errCode]
@@ -134,7 +151,7 @@ func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) (ErrCodeType, error) {
 // +-------------+-----------+-----------+
 // +      1      +
 // +-------------+
-func (wrap *connectionWrapper) sendErr(err ErrMsg) (ErrCodeType, error) {
+func (wrap *connectionWrapper) sendErr(err ErrMsg) ErrMsg {
 	buf := bytes.Buffer{}
 	buf.WriteByte(ErrMsgType)
 	buf.WriteByte(byte(err.errCode))
@@ -146,10 +163,6 @@ func (wrap *connectionWrapper) sendErr(err ErrMsg) (ErrCodeType, error) {
 
 var ErrCodeMsgMap = map[ErrCodeType]string{
 	ErrorOk:                  "Ok",
-	ErrorNetWriteInterrupted: "protocol send data to client failed because of timeout",
-	ErrorNetErrorOnWrite:     "protocol send data to client failed",
-	ErrorNetReadInterrupted:  "protocol read client data failed because of timeout",
-	ErrorNetReadError:        "protocol read client data error",
 	ErrorNetPacketOutOfOrder: "protocol read an unexpected order packet",
 	ErrUnknownCommand:        "protocol reads an unknown command",
 	ErrSyntax:                "parser: %s",
@@ -175,8 +188,7 @@ func (wrap *connectionWrapper) parseCommand() {
 		}
 		command, err := wrap.readCommand()
 		if !err.IsOk() {
-			// Todo, maybe we need send err parameters.
-			wrap.sendErr(err)
+			connectionWrapperLog.WarnF("err when read command: %s. close connection!", err.Msg)
 			return
 		}
 		exit, err := command.Do(wrap)
@@ -200,15 +212,18 @@ func (wrap *connectionWrapper) SendErrMsg(msg ErrMsg) {
 var emptyCommand = Command{}
 
 func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
-	packet, errCode, err := ReadPacket(wrap.conn, wrap.packetCounter, wrap.readTimeout)
-	if err != nil {
-		connectionWrapperLog.WarnF("read packet failed: err: %v", err)
+	var packet []byte
+	var errMsg ErrMsg
+	for {
+		packet, errMsg = ReadPacket(wrap.conn, wrap.packetCounter, wrap.readTimeout)
+		if errMsg.IsTimeout() {
+			connectionWrapperLog.WarnF("read packet failed: err: %v", errMsg)
+			continue
+		}
+		break
 	}
-	if errCode >= 0 {
-		return emptyCommand, ErrMsg{errCode: errCode, Msg: fmt.Sprintf(ErrCodeMsgMap[errCode])}
-	}
-	if len(packet) <= 0 {
-		return emptyCommand, ErrMsg{errCode: ErrorNetReadError, Msg: fmt.Sprintf(ErrCodeMsgMap[errCode])}
+	if !errMsg.IsOk() {
+		return emptyCommand, errMsg
 	}
 	return decodeCommand(packet)
 }
@@ -219,7 +234,7 @@ func (wrap *connectionWrapper) readCommand() (Command, ErrMsg) {
 // +-------------+-----------+-----------+
 // +      2      +
 // +-------------+
-func (wrap *connectionWrapper) SendQueryResult(data *storage.RecordBatch) (ErrCodeType, error) {
+func (wrap *connectionWrapper) SendQueryResult(data *storage.RecordBatch) ErrMsg {
 	bs, _ := json.Marshal(data)
 	buf := bytes.Buffer{}
 	buf.WriteByte(DataMsgType)
@@ -229,7 +244,7 @@ func (wrap *connectionWrapper) SendQueryResult(data *storage.RecordBatch) (ErrCo
 }
 
 // For client.
-func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeout time.Duration) (ErrCodeType, error) {
+func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeout time.Duration) ErrMsg {
 	buf := bytes.Buffer{}
 	buf.WriteByte(byte(command.Tp))
 	buf.Write(command.Command.Encode())
@@ -239,12 +254,17 @@ func WriteCommand(conn net.Conn, packetCounter byte, command Command, writeTimeo
 var emptyMsg = Msg{}
 
 func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) (Msg, error) {
-	packet, _, err := ReadPacket(conn, packetCounter, readTimeout)
-	if err != nil {
-		return emptyMsg, err
+	var packet []byte
+	var errMsg ErrMsg
+	for {
+		packet, errMsg = ReadPacket(conn, packetCounter, readTimeout)
+		if errMsg.IsTimeout() {
+			continue
+		}
+		break
 	}
-	if len(packet) < 0 {
-		return emptyMsg, errors.New("wrong packet format")
+	if !errMsg.IsOk() {
+		return emptyMsg, errors.New(errMsg.Msg)
 	}
 	switch packet[0] {
 	case OkMsgType:
@@ -316,6 +336,10 @@ type ErrMsg struct {
 
 func (msg ErrMsg) IsOk() bool {
 	return msg.errCode == ErrorOk
+}
+
+func (msg ErrMsg) IsTimeout() bool {
+	return msg.errCode == ErrorNetTimeout
 }
 
 type Session struct {

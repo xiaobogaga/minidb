@@ -182,9 +182,9 @@ func interact(log util.SimpleLogWrapper, conn net.Conn) {
 			log.ErrorF("parse command error: %v", err)
 			continue
 		}
-		_, err = protocol.WriteCommand(conn, packetCounter, command,
+		errMsg := protocol.WriteCommand(conn, packetCounter, command,
 			time.Millisecond*time.Duration(*writeTimeout))
-		if err != nil {
+		if !errMsg.IsOk() {
 			log.ErrorF("failed to send command: err: %v", err)
 			continue
 		}

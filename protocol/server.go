@@ -13,7 +13,7 @@ var (
 	serverLog         = util.GetLog("protocol")
 	DefaultUnixSocket = "/tmp/minidb.sock"
 	defaultPoolSize   = 16
-	DefaultTimeout    = 1000
+	DefaultTimeout    = 60000 // 1 minute
 	DefaultPort       = 19840
 )
 

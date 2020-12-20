@@ -111,9 +111,9 @@ func (c ComQuery) HandleOneStm(stm parser.Stm, conn *connectionWrapper) ErrMsg {
 		if data == nil {
 			return okMsg
 		}
-		_, err = conn.SendQueryResult(data)
-		if err != nil {
-			return makeErrMsg(ErrSendQueryResult, err.Error())
+		errMsg := conn.SendQueryResult(data)
+		if !errMsg.IsOk() {
+			return errMsg
 		}
 	}
 }
