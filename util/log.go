@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -82,6 +83,16 @@ func InitLogger(savePath string, bufSize int, flushTime time.Duration, toConsole
 		return nil
 	}
 	logCh := make(chan *bytes.Buffer, logBufChCapacity)
+	// create a to console log only.
+	if savePath == "" {
+		fileLog = &SimpleLog{
+			SavePath: savePath,
+			lock:     sync.Mutex{},
+			console:  toConsole,
+		}
+		return nil
+	}
+	// create a file log.
 	flusher, err := newLogFlusher(savePath, logCh)
 	if err != nil {
 		return err
@@ -142,7 +153,7 @@ func (log *SimpleLog) printLog(header string, level int, format string, a ...int
 	l = fmt.Sprintf(l+format, a...)
 	l += "\n"
 	if log.console {
-		println(l)
+		print(l)
 	}
 	if log.SavePath == "" {
 		return
@@ -172,6 +183,11 @@ type logFlusher struct {
 }
 
 func newLogFlusher(fileName string, logCh <-chan *bytes.Buffer) (*logFlusher, error) {
+	parentPathIndex := strings.LastIndex(fileName, "/")
+	if parentPathIndex > 0 {
+		parentPath := fileName[0:parentPathIndex]
+		os.MkdirAll(parentPath, os.ModePerm)
+	}
 	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		return nil, err

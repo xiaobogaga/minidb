@@ -17,7 +17,7 @@ var (
 	unixSocket   = flag.String("socket", protocol.DefaultUnixSocket, "the unix socket this server will listen")
 	readTimeout  = flag.Int("r", protocol.DefaultTimeout, "the read timeout in millisecond")
 	writeTimeout = flag.Int("w", protocol.DefaultTimeout, "the write timeout in millisecond")
-	logPath      = flag.String("log", fmt.Sprintf("/tmp/minidb/minidb-%v.logPath", time.Now().Unix()), "the logPath path")
+	logPath      = flag.String("log", fmt.Sprintf("/tmp/minidb/minidb-%v.log", time.Now().Unix()), "the logPath path")
 )
 
 func main() {

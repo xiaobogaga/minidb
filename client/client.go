@@ -198,9 +198,13 @@ func interact(log util.SimpleLogWrapper, conn net.Conn) {
 }
 
 func main() {
-	util.InitLogger("", 1024*4, time.Second*1, true)
+	err := util.InitLogger("", 1024*4, time.Second*1, true)
+	if err != nil {
+		fmt.Printf("err: %v", err)
+		return
+	}
 	log := util.GetLog("client")
-	address := fmt.Sprintf("localhost:%d", port)
+	address := fmt.Sprintf("localhost:%d", *port)
 	con, err := net.Dial("tcp", address)
 	if err != nil {
 		log.ErrorF("connect to server failed: %v", err)
