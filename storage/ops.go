@@ -3,7 +3,9 @@ package storage
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
+	"strconv"
 )
 
 func Add(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
@@ -332,6 +334,20 @@ func DecodeInt(value []byte) int64 {
 
 // func DecodeMediumText(value []byte) {}
 
+// Return the len of value in this field.
 func FieldLen(field Field, value []byte) int {
-
+	switch field.TP {
+	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
+		// we can compare them by bytes.
+		return len(value)
+	case Bool:
+		return 1
+	case Int:
+		return len(strconv.FormatInt(DecodeInt(value), 10))
+	case Float:
+		v := DecodeFloat(value)
+		return len(fmt.Sprintf("%f", v))
+	default:
+		panic("unknown type")
+	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"net"
@@ -47,13 +48,64 @@ func columnWidth(record *storage.RecordBatch, column int) int {
 }
 
 func columnsWidth(record *storage.RecordBatch) []int {
-
+	ret := make([]int, record.ColumnCount())
+	for i := 0; i < record.ColumnCount(); i++ {
+		ret[i] = columnWidth(record, i)
+	}
+	return ret
 }
 
-func printHeader(record *storage.RecordBatch, log util.SimpleLogWrapper) {
-	for i := 0; i < record.ColumnCount(); i++ {
-
+func nHyphen(n int) string {
+	buf := bytes.Buffer{}
+	for i := 0; i < n; i++ {
+		buf.WriteByte('-')
 	}
+	return buf.String()
+}
+
+// Print table columns with col names.
+// +------+------+
+// +   id +  id2 +
+func printHeader(record *storage.RecordBatch, log util.SimpleLogWrapper, columnWidths []int) {
+	// +-width-+
+	buf := bytes.Buffer{}
+	for i := 0; i < record.ColumnCount(); i++ {
+		width := columnWidths[i]
+		buf.WriteString("+-")
+		buf.WriteString(nHyphen(width))
+		buf.WriteString("-")
+	}
+	buf.WriteString("+\n")
+	for i := 0; i < record.ColumnCount(); i++ {
+		buf.WriteString("+ ")
+		buf.WriteString(fmt.Sprintf("%"+fmt.Sprintf("%ds", columnWidths[i]), record.Fields[i].Name))
+		buf.WriteString(" ")
+	}
+	buf.WriteString("+\n")
+	log.InfoF(buf.String())
+}
+
+func printTail(record *storage.RecordBatch, log util.SimpleLogWrapper, columnWidths []int) {
+	buf := bytes.Buffer{}
+	for i := 0; i < record.ColumnCount(); i++ {
+		width := columnWidths[i]
+		buf.WriteString("+-")
+		buf.WriteString(nHyphen(width))
+		buf.WriteString("-")
+	}
+	buf.WriteString("+\n")
+	log.InfoF(buf.String())
+}
+
+func printRow(record *storage.RecordBatch, row int, log util.SimpleLogWrapper, columnWidths []int) {
+	buf := bytes.Buffer{}
+	for i := 0; i < record.ColumnCount(); i++ {
+		buf.WriteString("+ ")
+		buf.WriteString(fmt.Sprintf("%"+fmt.Sprintf("%ds", columnWidths[i]), record.Records[i].ToString(row)))
+		buf.WriteString(" ")
+	}
+	buf.WriteString("+\n")
+	log.InfoF(buf.String())
 }
 
 // For the first time, we will print table header.
@@ -69,11 +121,13 @@ func printRecord(record *storage.RecordBatch, log util.SimpleLogWrapper, needPri
 		return
 	}
 	if needPrintHeader {
-		printHeader(record, log)
+		printHeader(record, log, columnWidths)
 	}
 	for i := 0; i < record.ColumnCount(); i++ {
-
+		printTail(record, log, columnWidths)
+		printRow(record, i, log, columnWidths)
 	}
+	printTail(record, log, columnWidths)
 }
 
 func printMsg(msg protocol.Msg, log util.SimpleLogWrapper, printHeader bool, columnWidths []int) {

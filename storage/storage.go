@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 )
 
 type Storage struct {
@@ -907,6 +908,26 @@ func (column ColumnVector) Append(value []byte) {
 
 func (column ColumnVector) Appends(values [][]byte) {
 	column.Values = append(column.Values, values...)
+}
+
+func (column ColumnVector) ToString(row int) string {
+	switch column.Field.TP {
+	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
+		// we can compare them by bytes.
+		return string(column.Values[row])
+	case Bool:
+		if column.Bool(row) {
+			return "1"
+		}
+		return "0"
+	case Int:
+		return strconv.FormatInt(DecodeInt(column.Values[row]), 10)
+	case Float:
+		v := DecodeFloat(column.Values[row])
+		return fmt.Sprintf("%f", v)
+	default:
+		panic("unknown type")
+	}
 }
 
 type FieldTP string
