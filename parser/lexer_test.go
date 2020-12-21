@@ -18,11 +18,6 @@ func testOneSqlShouldErr(t *testing.T, sql string) {
 
 }
 
-type testEntity struct {
-	sql    string
-	Tokens []Token
-}
-
 func TestCreateTable(t *testing.T) {
 	sqls := []string{
 		"create table  `hello` (id int, name varchar(20), sex bool, location string, c float, f2 float(10, 2));",
@@ -84,6 +79,30 @@ func TestSelect(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	sql := " update `tb` set name='c', age='h', sss=\"hello()*\", fff=0.05, i=10 where q=='p' and f==10.05 or name==\"hello ,*()ghllo and i==10;\""
+	testOneSql(t, sql)
+}
+
+func TestUse(t *testing.T) {
+	sql := "use db1;"
+	testOneSql(t, sql)
+}
+
+func TestShow(t *testing.T) {
+	sql := "show databases;"
+	testOneSql(t, sql)
+	sql = "show tables"
+	testOneSql(t, sql)
+}
+
+func TestTruncate(t *testing.T) {
+	sql := "truncate table t1;"
+	testOneSql(t, sql)
+}
+
+func TestRename(t *testing.T) {
+	sql := "rename table t1 to t2;"
+	testOneSql(t, sql)
+	sql = "rename database d1 to d2;"
 	testOneSql(t, sql)
 }
 

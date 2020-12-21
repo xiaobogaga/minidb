@@ -186,6 +186,8 @@ const (
 
 	// show tables, show databases.
 	SHOW
+	TABLES
+	DATABASES
 
 	// a specific value
 	// It can be either a numerical value such as an integer or a float (start with a number or a .), true or false.
@@ -335,6 +337,8 @@ var (
 		"OR":             OR,
 		"USE":            USE,
 		"SHOW":           SHOW,
+		"TABLES":         TABLES,
+		"DATABASES":      DATABASES,
 	}
 )
 

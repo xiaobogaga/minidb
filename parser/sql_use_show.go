@@ -1,7 +1,5 @@
 package parser
 
-import "strings"
-
 func (parser *Parser) resolveUseStm() (Stm, error) {
 	if !parser.matchTokenTypes(false, USE) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
@@ -20,15 +18,15 @@ func (parser *Parser) resolveShowStm() (Stm, error) {
 	if !parser.matchTokenTypes(false, SHOW) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	databaseOrTable, ret := parser.parseIdentOrWord(false)
+	databaseOrTable, ret := parser.NextToken()
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	stm := ShowStm{}
-	switch strings.ToUpper(string(databaseOrTable)) {
-	case "DATABASE":
+	switch databaseOrTable.Tp {
+	case DATABASES:
 		stm.TP = ShowDatabaseTP
-	case "TABLE":
+	case TABLES:
 		stm.TP = ShowTableTP
 	default:
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)

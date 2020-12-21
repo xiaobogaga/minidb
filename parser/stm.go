@@ -138,7 +138,7 @@ type DropTableStm struct {
 	TableNames []string
 }
 
-// Rename statement can be rename table or database statement.
+// Rename statement can be rename table statement.
 // It's like:
 // * rename table {tb1 To tb2...}
 type RenameStm struct {
