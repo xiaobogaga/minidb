@@ -153,7 +153,7 @@ func ExprStmToLogicExpr(expr *parser.ExpressionStm, input LogicPlan) LogicExpr {
 	return buildLogicExprWithOp(leftLogicExpr, rightLogicExpr, expr.Op)
 }
 
-func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op parser.ExpressionOp) LogicExpr {
+func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op *parser.ExpressionOp) LogicExpr {
 	switch op.Tp {
 	case parser.ADD:
 		return AddLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}

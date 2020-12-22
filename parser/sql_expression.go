@@ -18,7 +18,7 @@ func (parser *Parser) resolveExpression() (expr *ExpressionStm, err error) {
 	}
 	var exprs []*ExpressionTerm
 	exprs = append(exprs, exprTerm)
-	var ops []ExpressionOp
+	var ops []*ExpressionOp
 	for {
 		token, ok := parser.NextToken()
 		if !ok || !isTokenAOpe(token) {
@@ -35,7 +35,7 @@ func (parser *Parser) resolveExpression() (expr *ExpressionStm, err error) {
 	return parser.buildExpressionsTree(ops, exprs), nil
 }
 
-func (parser *Parser) LexerOpToExpressionOp(op TokenType) ExpressionOp {
+func (parser *Parser) LexerOpToExpressionOp(op TokenType) *ExpressionOp {
 	switch op {
 	case ADD:
 		return OperationAdd
@@ -74,7 +74,7 @@ func (parser *Parser) LexerOpToExpressionOp(op TokenType) ExpressionOp {
 	}
 }
 
-func (parser *Parser) buildExpressionsTree(ops []ExpressionOp, exprTerms []*ExpressionTerm) *ExpressionStm {
+func (parser *Parser) buildExpressionsTree(ops []*ExpressionOp, exprTerms []*ExpressionTerm) *ExpressionStm {
 	if len(ops) == 0 {
 		return &ExpressionStm{LeftExpr: exprTerms[0]}
 	}
@@ -102,7 +102,7 @@ func (parser *Parser) buildExpressionsTree(ops []ExpressionOp, exprTerms []*Expr
 	return parser.makeNewExpression(expressionStack[0], expressionStack[1], ops[0])
 }
 
-func (parser *Parser) makeNewExpression(leftExpr interface{}, rightExpr interface{}, op ExpressionOp) *ExpressionStm {
+func (parser *Parser) makeNewExpression(leftExpr interface{}, rightExpr interface{}, op *ExpressionOp) *ExpressionStm {
 	_, leftIsExpressionTerm := leftExpr.(*ExpressionTerm)
 	_, rightIsExpressionTerm := rightExpr.(*ExpressionTerm)
 	ret := new(ExpressionStm)

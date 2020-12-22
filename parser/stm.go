@@ -276,7 +276,7 @@ type InsertIntoStm struct {
 // Note: literal can be -5
 type ExpressionStm struct {
 	LeftExpr  interface{} // can be ExpressionTerm or ExpressionAst
-	Op        ExpressionOp
+	Op        *ExpressionOp
 	RightExpr interface{}
 }
 
@@ -314,20 +314,20 @@ type ExpressionOp struct {
 }
 
 var (
-	OperationAdd        ExpressionOp = ExpressionOp{Tp: ADD, Priority: 1}
-	OperationMinus      ExpressionOp = ExpressionOp{Tp: MINUS, Priority: 1}
-	OperationMul        ExpressionOp = ExpressionOp{Tp: MUL, Priority: 2}
-	OperationDivide     ExpressionOp = ExpressionOp{Tp: DIVIDE, Priority: 2}
-	OperationMod        ExpressionOp = ExpressionOp{Tp: MOD, Priority: 1}
-	OperationEqual      ExpressionOp = ExpressionOp{Tp: EQUAL, Priority: 1}
-	OperationIs         ExpressionOp = ExpressionOp{Tp: IS, Priority: 1}
-	OperationNotEqual   ExpressionOp = ExpressionOp{Tp: NOTEQUAL, Priority: 1}
-	OperationGreat      ExpressionOp = ExpressionOp{Tp: GREAT, Priority: 1}
-	OperationGreatEqual ExpressionOp = ExpressionOp{Tp: GREATEQUAL, Priority: 1}
-	OperationLess       ExpressionOp = ExpressionOp{Tp: LESS, Priority: 1}
-	OperationLessEqual  ExpressionOp = ExpressionOp{Tp: LESSEQUAL, Priority: 1}
-	OperationAnd        ExpressionOp = ExpressionOp{Tp: AND, Priority: 1}
-	OperationOr         ExpressionOp = ExpressionOp{Tp: OR, Priority: 1}
+	OperationAdd        = &ExpressionOp{Tp: ADD, Priority: 1}
+	OperationMinus      = &ExpressionOp{Tp: MINUS, Priority: 1}
+	OperationMul        = &ExpressionOp{Tp: MUL, Priority: 2}
+	OperationDivide     = &ExpressionOp{Tp: DIVIDE, Priority: 2}
+	OperationMod        = &ExpressionOp{Tp: MOD, Priority: 1}
+	OperationEqual      = &ExpressionOp{Tp: EQUAL, Priority: 1}
+	OperationIs         = &ExpressionOp{Tp: IS, Priority: 1}
+	OperationNotEqual   = &ExpressionOp{Tp: NOTEQUAL, Priority: 1}
+	OperationGreat      = &ExpressionOp{Tp: GREAT, Priority: 1}
+	OperationGreatEqual = &ExpressionOp{Tp: GREATEQUAL, Priority: 1}
+	OperationLess       = &ExpressionOp{Tp: LESS, Priority: 1}
+	OperationLessEqual  = &ExpressionOp{Tp: LESSEQUAL, Priority: 1}
+	OperationAnd        = &ExpressionOp{Tp: AND, Priority: 1}
+	OperationOr         = &ExpressionOp{Tp: OR, Priority: 1}
 	// OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
 	// OperationDot ExpressionOp = ExpressionOp{Tp: lexer.DOT, Priority: 2}
 )
