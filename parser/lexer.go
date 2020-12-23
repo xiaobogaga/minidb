@@ -464,41 +464,57 @@ func (l *Lexer) readContinuousSpace() {
 	}
 }
 
-var wordPattern = regexp.MustCompile("[a-zA-Z]+\\.?[a-zA-Z]*\\.?[a-zA-Z]*")
+var wordPattern = regexp.MustCompile("^[_A-Za-z]+[_A-Za-z0-9]*")
 
+func (l *Lexer) matchDot() bool {
+	return l.pos < len(l.Data) && l.Data[l.pos] == '.'
+}
+
+// A little tricky. Basically we take schema.table.col as a word.
 func (l *Lexer) readWord() error {
+	// We will try to read word.word.word pattern
 	startPos := l.pos
 	word := wordPattern.FindString(string(l.Data[startPos:]))
+	if len(word) < 0 {
+		return l.MakeLexerError(1, startPos)
+	}
 	l.pos += len(word)
 	keyWord, ok := keyWords[strings.ToUpper(word)]
-	if !ok {
-		// Should be a word like TableRef, ColumnName etc.
-		err := l.matchDotPattern(word)
-		if err != nil {
-			return err
-		}
-		l.Tokens = append(l.Tokens, Token{Tp: WORD, StartPos: startPos, EndPos: l.pos})
-	} else {
+	if ok {
+		// Return keyword.
 		l.Tokens = append(l.Tokens, Token{Tp: keyWord, StartPos: startPos, EndPos: l.pos})
+		return nil
 	}
-	return nil
-}
-
-func (l *Lexer) matchDotPattern(word string) error {
-	// we at most have two .. such as schema.table.column
-	splits := strings.Split(word, ".")
-	if len(splits) >= 4 {
-		return l.MakeLexerError(1, l.pos-len(word))
-	}
-	for _, p := range splits {
-		if len(p) <= 0 {
-			return l.MakeLexerError(1, l.pos-len(word))
+	// If not keyword
+	dotSize := 0
+	for {
+		ok := l.matchDot()
+		if !ok {
+			l.Tokens = append(l.Tokens, Token{Tp: WORD, StartPos: startPos, EndPos: l.pos})
+			return nil
+		}
+		dotSize++
+		l.pos++
+		// Doesn't allow word.word.word.word
+		if dotSize > 2 {
+			return l.MakeLexerError(1, l.pos)
+		}
+		nextWordPattern := l.pos
+		word := wordPattern.FindString(string(l.Data[nextWordPattern:]))
+		if len(word) < 0 {
+			return l.MakeLexerError(1, nextWordPattern)
+		}
+		l.pos += len(word)
+		// We doesn't allow word.keyword
+		_, ok = keyWords[strings.ToUpper(word)]
+		if ok {
+			return l.MakeLexerError(1, nextWordPattern)
 		}
 	}
-	return nil
+	panic("won't run here")
 }
 
-var identPattern = regexp.MustCompile("[a-zA-Z]\\w*`")
+var identPattern = regexp.MustCompile("^[_A-Za-z]+[_A-Za-z0-9]*`")
 
 // Read until we find an ident, ident must match regex: [a-z]|[A-Z][_0-9]*
 func (l *Lexer) readIdent() error {
@@ -507,6 +523,9 @@ func (l *Lexer) readIdent() error {
 		return l.MakeLexerError(1, startPos)
 	}
 	ident := identPattern.FindString(string(l.Data[startPos+1:]))
+	if len(ident) == 0 {
+		return l.MakeLexerError(1, startPos)
+	}
 	l.pos += len(ident) + 1
 	l.Tokens = append(l.Tokens, Token{Tp: IDENT, StartPos: startPos, EndPos: l.pos})
 	return nil

@@ -14,8 +14,10 @@ func testOneSql(t *testing.T, sql string) {
 	assert.Nil(t, err, sql)
 }
 
-func testOneSqlShouldErr(t *testing.T, sql string) {
-
+func testOneSqlButErr(t *testing.T, sql string) {
+	lexer := NewLexer()
+	_, err := lexer.Lex([]byte(sql))
+	assert.NotNil(t, err, sql)
 }
 
 func TestCreateTable(t *testing.T) {
@@ -112,6 +114,32 @@ func TestRandomly(t *testing.T) {
 		sql := generateOneRandomSql()
 		testOneSql(t, sql)
 	}
+}
+
+func TestIdentPattern(t *testing.T) {
+	str := "_a1`"
+	assert.True(t, identPattern.Match([]byte(str)))
+	str = "a11`"
+	assert.True(t, identPattern.Match([]byte(str)))
+	str = "_a_11`"
+	assert.True(t, identPattern.Match([]byte(str)))
+	str = "a1111`"
+	assert.True(t, identPattern.Match([]byte(str)))
+	str = "abas_111`"
+	assert.True(t, identPattern.Match([]byte(str)))
+	str = "1_asb1`"
+	assert.False(t, identPattern.Match([]byte(str)))
+}
+
+func TestReadWord(t *testing.T) {
+	sql := "a1.a.a"
+	testOneSql(t, sql)
+	sql = "_a2.a2.a_2"
+	testOneSql(t, sql)
+	sql = "_a2._a2"
+	testOneSql(t, sql)
+	sql = "table.database"
+	testOneSqlButErr(t, sql)
 }
 
 func generateOneRandomSql() string {
