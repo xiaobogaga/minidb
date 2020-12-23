@@ -26,7 +26,7 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 
-	var assignments []AssignmentStm
+	var assignments []*AssignmentStm
 	for {
 		assignment, err := parser.parseAssignmentStm()
 		if err != nil {
@@ -64,7 +64,7 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 	}, nil
 }
 
-func (parser *Parser) resolveMultiUpdateStm(tableRefs []TableReferenceStm, assignments []AssignmentStm) (Stm, error) {
+func (parser *Parser) resolveMultiUpdateStm(tableRefs []TableReferenceStm, assignments []*AssignmentStm) (Stm, error) {
 	where, _ := parser.resolveWhereStm()
 	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)

@@ -37,7 +37,7 @@ func (parser *Parser) resolveExpression() (expr *ExpressionStm, err error) {
 
 func (parser *Parser) LexerOpToExpressionOp(op TokenType) *ExpressionOp {
 	switch op {
-	case ADD:
+	case PLUS:
 		return OperationAdd
 	case MINUS:
 		return OperationMinus
@@ -184,6 +184,7 @@ func (parser *Parser) parseSubExpressionTerm() (expr *ExpressionTerm, err error)
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return &ExpressionTerm{
+		UnaryOp:      NoneUnaryOpTp,
 		Tp:           SubExpressionTermTP,
 		RealExprTerm: exprTerm,
 	}, nil
@@ -191,7 +192,7 @@ func (parser *Parser) parseSubExpressionTerm() (expr *ExpressionTerm, err error)
 
 func isTokenAOpe(token Token) bool {
 	switch token.Tp {
-	case ADD, MINUS, MUL, DIVIDE, MOD, EQUAL, IS,
+	case PLUS, MINUS, MUL, DIVIDE, MOD, EQUAL, IS,
 		NOTEQUAL, GREAT, GREATEQUAL, LESS, LESSEQUAL, AND,
 		OR:
 		return true
@@ -206,8 +207,9 @@ func (parser *Parser) parseLiteralExpressionTerm() (*ExpressionTerm, error) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return &ExpressionTerm{
+		UnaryOp:      NoneUnaryOpTp,
 		Tp:           LiteralExpressionTermTP,
-		RealExprTerm: LiteralExpressionStm(value),
+		RealExprTerm: LiteralExpressionStm(ColumnValue(value)),
 	}, nil
 }
 
@@ -217,6 +219,7 @@ func (parser *Parser) parseIdentifierExpressionTerm() (*ExpressionTerm, error) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return &ExpressionTerm{
+		UnaryOp:      NoneUnaryOpTp,
 		Tp:           IdentifierExpressionTermTP,
 		RealExprTerm: IdentifierExpression(name),
 	}, nil
@@ -245,7 +248,8 @@ func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return &ExpressionTerm{
-		Tp: FuncCallExpressionTermTP,
+		UnaryOp: NoneUnaryOpTp,
+		Tp:      FuncCallExpressionTermTP,
 		RealExprTerm: FunctionCallExpressionStm{
 			FuncName: string(funcName),
 			Params:   params,

@@ -339,12 +339,26 @@ var (
 		"SHOW":           SHOW,
 		"TABLES":         TABLES,
 		"DATABASES":      DATABASES,
+		"TRUE":           VALUE,
+		"FALSE":          VALUE,
 	}
 )
 
+func isSpace(b byte) bool {
+	switch b {
+	case '\t', '\n', '\v', '\f', '\r', ' ':
+		return true
+	default:
+		return false
+	}
+}
+
 func (l *Lexer) Lex(data []byte) ([]Token, error) {
-	data = bytes.TrimSpace(data)
+	l.pos = 0
 	l.Data = data
+	for l.hasRemain() && isSpace(data[l.pos]) {
+		l.pos++
+	}
 	return l.read()
 }
 
@@ -518,16 +532,17 @@ var identPattern = regexp.MustCompile("^[_A-Za-z]+[_A-Za-z0-9]*`")
 
 // Read until we find an ident, ident must match regex: [a-z]|[A-Z][_0-9]*
 func (l *Lexer) readIdent() error {
-	startPos := l.pos
 	if !l.hasRemain() {
-		return l.MakeLexerError(1, startPos)
+		return l.MakeLexerError(1, l.pos)
 	}
-	ident := identPattern.FindString(string(l.Data[startPos+1:]))
+	l.pos++
+	startPos := l.pos
+	ident := identPattern.FindString(string(l.Data[startPos:]))
 	if len(ident) == 0 {
 		return l.MakeLexerError(1, startPos)
 	}
-	l.pos += len(ident) + 1
-	l.Tokens = append(l.Tokens, Token{Tp: IDENT, StartPos: startPos, EndPos: l.pos})
+	l.pos += len(ident)
+	l.Tokens = append(l.Tokens, Token{Tp: IDENT, StartPos: startPos, EndPos: l.pos - 1})
 	return nil
 }
 
@@ -538,14 +553,14 @@ func (l *Lexer) readValue() error {
 	for l.pos++; l.pos < len(l.Data); l.pos++ {
 		if l.Data[l.pos] == quoteType {
 			l.pos++
-			l.Tokens = append(l.Tokens, Token{Tp: VALUE, StartPos: startPos, EndPos: l.pos})
+			l.Tokens = append(l.Tokens, Token{Tp: VALUE, StartPos: startPos + 1, EndPos: l.pos - 1})
 			return nil
 		}
 	}
 	return l.MakeLexerError(1, startPos)
 }
 
-var numericValuePattern = regexp.MustCompile("[0-9]+.?[0-9]*")
+var numericValuePattern = regexp.MustCompile("^[0-9]*\\.?[0-9]*")
 
 // Read an numeric value. either an integer or a float value.
 func (l *Lexer) readNumeric() error {

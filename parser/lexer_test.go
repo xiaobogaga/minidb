@@ -142,6 +142,52 @@ func TestReadWord(t *testing.T) {
 	testOneSqlButErr(t, sql)
 }
 
+func TestNumericalPattern(t *testing.T) {
+	sql := "10.0"
+	testOneSql(t, sql)
+	sql = "0.0"
+	testOneSql(t, sql)
+	sql = ".10"
+	testOneSql(t, sql)
+}
+
+func TestLexerIdent(t *testing.T) {
+	lexer := NewLexer()
+	ts, err := lexer.Lex([]byte("`a1` _ab"))
+	assert.Nil(t, err)
+	assert.Equal(t, Token{Tp: IDENT, StartPos: 1, EndPos: 3}, ts[0])
+	assert.Equal(t, Token{Tp: WORD, StartPos: 5, EndPos: 8}, ts[1])
+}
+
+func TestLexerWords(t *testing.T) {
+	lexer := NewLexer()
+	ts, err := lexer.Lex([]byte("a1.a2.a3 a1.a2 a1 _a3"))
+	assert.Nil(t, err)
+	assert.Equal(t, Token{Tp: WORD, StartPos: 0, EndPos: 8}, ts[0])
+	assert.Equal(t, Token{Tp: WORD, StartPos: 9, EndPos: 14}, ts[1])
+	assert.Equal(t, Token{Tp: WORD, StartPos: 15, EndPos: 17}, ts[2])
+	assert.Equal(t, Token{Tp: WORD, StartPos: 18, EndPos: 21}, ts[3])
+}
+
+func TestLexerValue(t *testing.T) {
+	lexer := NewLexer()
+	ts, err := lexer.Lex([]byte(" 'hello' \"hi \" true"))
+	assert.Nil(t, err)
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 2, EndPos: 7}, ts[0])
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 10, EndPos: 13}, ts[1])
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 15, EndPos: 19}, ts[2])
+}
+
+func TestLexerNumerical(t *testing.T) {
+	lexer := NewLexer()
+	ts, err := lexer.Lex([]byte(" 10 10.0 0.1 10.10"))
+	assert.Nil(t, err)
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 1, EndPos: 3}, ts[0])
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 4, EndPos: 8}, ts[1])
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 9, EndPos: 12}, ts[2])
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 13, EndPos: 18}, ts[3])
+}
+
 func generateOneRandomSql() string {
 	i := rand.Int63n(time.Now().Unix())
 	ret := i % 8

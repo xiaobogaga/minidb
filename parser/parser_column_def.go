@@ -30,10 +30,10 @@ func (parser *Parser) parseColumnDef() (*ColumnDefStm, error) {
 	if parser.matchTokenTypes(true, AUTO_INCREMENT) {
 		col.AutoIncrement = true
 	}
-	if parser.matchTokenTypes(true, UNIQUE) || parser.matchTokenTypes(true, UNIQUE, KEY) {
+	if parser.matchTokenTypes(true, UNIQUE, KEY) || parser.matchTokenTypes(true, UNIQUE) {
 		col.UniqueKey = true
 	}
-	if parser.matchTokenTypes(true, PRIMARY) || parser.matchTokenTypes(true, PRIMARY, KEY) {
+	if parser.matchTokenTypes(true, PRIMARY, KEY) || parser.matchTokenTypes(true, PRIMARY) {
 		col.PrimaryKey = true
 	}
 	return col, nil

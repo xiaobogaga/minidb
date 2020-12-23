@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"simpleDb/util"
+	"strconv"
 )
 
 var parserLog = util.GetLog("Parser")
@@ -145,6 +146,7 @@ func (parser *Parser) parseColumnType(ifNotRollback bool) (ColumnType, bool) {
 	case VARCHAR:
 		ranges, success = parser.parseTypeRanges(true, 1)
 	case BOOL, DATETIME, BLOB, MEDIUMBLOB, TEXT, MEDIUMTEXT:
+		success = true
 	default:
 	}
 	if !success {
@@ -156,12 +158,22 @@ func (parser *Parser) parseColumnType(ifNotRollback bool) (ColumnType, bool) {
 	return ColumnType{Tp: t.Tp, Ranges: ranges}, true
 }
 
+func DecodeInt(data []byte) (int, bool) {
+	value, err := strconv.ParseInt(string(data), 10, 64)
+	return int(value), err == nil
+}
+
+var emptyRange = [2]int{0, 0}
+
 // parseTypeRanges try to parse a range from a type def, such as (5) of int(5), (10, 2) of float(10, 2).
 func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2]int, success bool) {
 	if !parser.matchTokenTypes(true, LEFTBRACKET) {
-		return
+		return emptyRange, true
 	}
 	for i := 0; i < rangeSize; i++ {
+		if i != 0 && !parser.matchTokenTypes(true, COMMA) {
+			break
+		}
 		value, ok := parser.parseValue(false)
 		if !ok {
 			if ifNotRollback {
@@ -169,14 +181,14 @@ func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2
 			}
 			return
 		}
-		r, success := DecodeValue(value, INT)
+		r, success := DecodeInt(value)
 		if !success {
 			if ifNotRollback {
 				parser.pos -= i + 2
 			}
 			return ret, success
 		}
-		ret[i] = r.(int)
+		ret[i] = r
 	}
 	if !parser.matchTokenTypes(true, RIGHTBRACKET) {
 		parser.pos -= rangeSize + 1
@@ -194,7 +206,7 @@ func (parser *Parser) parseIdentOrWord(ifNotRollback bool) (s []byte, ret bool) 
 		return nil, false
 	}
 	if t.Tp == IDENT {
-		return parser.Data[t.StartPos+1 : t.EndPos-1], true
+		return parser.Data[t.StartPos:t.EndPos], true
 	} else {
 		return parser.Data[t.StartPos:t.EndPos], true
 	}
@@ -207,9 +219,6 @@ func (parser *Parser) parseValue(ifNotRollback bool) ([]byte, bool) {
 			parser.UnReadToken()
 		}
 		return nil, false
-	}
-	if parser.Data[t.StartPos] == '\'' || parser.Data[t.StartPos] == '"' {
-		return parser.Data[t.StartPos+1 : t.EndPos-1], true
 	}
 	return parser.Data[t.StartPos:t.EndPos], true
 }

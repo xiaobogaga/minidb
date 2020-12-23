@@ -68,9 +68,6 @@ func (parser *Parser) parseCreateTableStm() (stm Stm, err error) {
 	default:
 		return nil, parser.MakeSyntaxError(1, parser.pos)
 	}
-	if !parser.matchTokenTypes(false, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
-	}
 	return stm, err
 }
 
@@ -93,15 +90,12 @@ func (parser *Parser) parseCreateTableLikeStm(ifNotExist bool, tableName []byte)
 
 // * create table [if not exist] tb_name2 (Column_Def..., Index_Def..., Constraint_Def...) [engine=value] [[Default | character set = value] | [Default | collate = value]];
 func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []byte) (*CreateTableStm, error) {
-	if !parser.matchTokenTypes(false, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
-	}
-	var constraints []ConstraintDefStm
+	var constraints []*ConstraintDefStm
 	var columns []*ColumnDefStm
-	var indexes []IndexDefStm
+	var indexes []*IndexDefStm
 	var col *ColumnDefStm
-	var index IndexDefStm
-	var constraint ConstraintDefStm
+	var index *IndexDefStm
+	var constraint *ConstraintDefStm
 	var err error
 	for {
 		token, ok := parser.NextToken()
@@ -124,9 +118,15 @@ func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []by
 		if err != nil {
 			return nil, parser.MakeSyntaxError(1, parser.pos)
 		}
-		constraints = append(constraints, constraint)
-		columns = append(columns, col)
-		indexes = append(indexes, index)
+		if constraint != nil {
+			constraints = append(constraints, constraint)
+		}
+		if col != nil {
+			columns = append(columns, col)
+		}
+		if index != nil {
+			indexes = append(indexes, index)
+		}
 		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}

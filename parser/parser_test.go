@@ -14,9 +14,8 @@ func testSqls(t *testing.T, sqls []testEntity) {
 	parser := NewParser()
 	for _, sql := range sqls {
 		stm, err := parser.Parse([]byte(sql.sql))
-		//log.LogDebug("%+v\n", stm)
 		assert.Nil(t, err, sql)
-		assert.Equal(t, sql.stm, stm, sql)
+		assert.Equal(t, sql.stm, stm[0], sql)
 	}
 }
 
@@ -25,9 +24,9 @@ func TestCreateStm(t *testing.T) {
 		{
 			"create table IF NOT EXIST tb_1" +
 				"(" +
-				"id int default 0 primary key, " +
+				"id int default 10 primary key, " +
 				"name varchar( 20) default \"hello\", " +
-				"age float(10, 2) default 10, " +
+				"age float(10, 2) default 10.5, " +
 				"location text default \"haha\", " +
 				"age char default 'z'," +
 				"sex bool default true" +
@@ -36,11 +35,12 @@ func TestCreateStm(t *testing.T) {
 				TableName:  "tb_1",
 				IfNotExist: true,
 				Cols: []*ColumnDefStm{
-					{ColName: "id", ColumnType: ColumnType{Tp: INT}, PrimaryKey: true, ColDefaultValue: ColumnValue([]byte("0"))},
-					{ColName: "name", ColumnType: ColumnType{Tp: VARCHAR, Ranges: [2]int{0, 20}}, ColDefaultValue: ColumnValue([]byte("hello"))},
-					{ColName: "age", ColumnType: ColumnType{Tp: FLOAT, Ranges: [2]int{10, 2}}, ColDefaultValue: ColumnValue([]byte("10"))},
+					{ColName: "id", ColumnType: ColumnType{Tp: INT}, PrimaryKey: true, ColDefaultValue: ColumnValue([]byte("10"))},
+					{ColName: "name", ColumnType: ColumnType{Tp: VARCHAR, Ranges: [2]int{20, 0}}, ColDefaultValue: ColumnValue([]byte("hello"))},
+					{ColName: "age", ColumnType: ColumnType{Tp: FLOAT, Ranges: [2]int{10, 2}}, ColDefaultValue: ColumnValue([]byte("10.5"))},
 					{ColName: "location", ColumnType: ColumnType{Tp: TEXT}, ColDefaultValue: ColumnValue([]byte("haha"))},
 					{ColName: "age", ColumnType: ColumnType{Tp: CHAR}, ColDefaultValue: ColumnValue([]byte{'z'})},
+					{ColName: "sex", ColumnType: ColumnType{Tp: BOOL}, ColDefaultValue: ColumnValue([]byte("true"))},
 				},
 			},
 		},
@@ -102,55 +102,60 @@ func TestInsertStm(t *testing.T) {
 				TableName: "tb_1",
 				Values: []*ExpressionStm{
 					{
-						LeftExpr: ExpressionStm{
-							LeftExpr: ExpressionTerm{
+						LeftExpr: &ExpressionStm{
+							LeftExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
 								RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
 							},
 							Op: OperationAdd,
-							RightExpr: ExpressionTerm{
+							RightExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
 								RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("100"))),
 							},
 						},
 						Op: OperationAdd,
-						RightExpr: ExpressionStm{
-							LeftExpr: FunctionCallExpressionStm{
+						RightExpr: &ExpressionTerm{
+							UnaryOp: NoneUnaryOpTp,
+							Tp:      FuncCallExpressionTermTP,
+							RealExprTerm: FunctionCallExpressionStm{
 								FuncName: "sqrt",
 								Params: []*ExpressionStm{
 									{
-										LeftExpr: LiteralExpressionStm(ColumnValue([]byte("10.0"))),
-										Op:       nil,
+										LeftExpr: &ExpressionTerm{
+											UnaryOp:      NoneUnaryOpTp,
+											Tp:           LiteralExpressionTermTP,
+											RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("10.0"))),
+										},
 									},
 								},
 							},
 						},
 					},
 					{
-						LeftExpr: ExpressionTerm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("20.5"))),
 						},
 					},
 					{
-						LeftExpr: ExpressionTerm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("z"))),
 						},
 					},
 					{
-						LeftExpr: ExpressionTerm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("hello"))),
 						},
 					},
 					{
-						LeftExpr: ExpressionTerm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("true"))),
@@ -165,8 +170,20 @@ func TestInsertStm(t *testing.T) {
 				TableName: "tb_1",
 				Cols:      []string{"name1", "col2"},
 				Values: []*ExpressionStm{
-					{},
-					{},
+					{
+						LeftExpr: &ExpressionTerm{
+							UnaryOp:      NoneUnaryOpTp,
+							Tp:           LiteralExpressionTermTP,
+							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
+						},
+					},
+					{
+						LeftExpr: &ExpressionTerm{
+							UnaryOp:      NoneUnaryOpTp,
+							Tp:           LiteralExpressionTermTP,
+							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("hello"))),
+						},
+					},
 				}},
 		},
 	}
@@ -459,7 +476,7 @@ func TestUpdateStm(t *testing.T) {
 						},
 					},
 				},
-				Assignments: []AssignmentStm{
+				Assignments: []*AssignmentStm{
 					{
 						ColName: "id",
 						Value: &ExpressionStm{
@@ -525,7 +542,7 @@ func TestUpdateStm(t *testing.T) {
 						},
 					},
 				},
-				Assignments: []AssignmentStm{
+				Assignments: []*AssignmentStm{
 					{
 						ColName: "id",
 						Value: &ExpressionStm{

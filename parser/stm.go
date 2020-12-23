@@ -27,8 +27,8 @@ type CreateTableStm struct {
 	TableName   string
 	IfNotExist  bool
 	Cols        []*ColumnDefStm
-	Indexes     []IndexDefStm
-	Constraints []ConstraintDefStm
+	Indexes     []*IndexDefStm
+	Constraints []*ConstraintDefStm
 	Engine      string
 	Charset     string
 	Collate     string
@@ -373,7 +373,7 @@ type SubQueryStm *SelectStm
 // * update table_reference... set assignments... [WhereStm]
 type UpdateStm struct {
 	TableRefs   TableReferenceStm
-	Assignments []AssignmentStm
+	Assignments []*AssignmentStm
 	Where       WhereStm
 	OrderBy     *OrderByStm
 	Limit       *LimitStm
@@ -381,7 +381,7 @@ type UpdateStm struct {
 
 type MultiUpdateStm struct {
 	TableRefs   []TableReferenceStm
-	Assignments []AssignmentStm
+	Assignments []*AssignmentStm
 	Where       WhereStm
 }
 
