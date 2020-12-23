@@ -188,9 +188,17 @@ func TestDeleteStm(t *testing.T) {
 					},
 				},
 				Where: WhereStm(&ExpressionStm{
-					LeftExpr:  LiteralExpressionStm(ColumnValue([]byte("age"))),
-					Op:        OperationEqual,
-					RightExpr: LiteralExpressionStm(ColumnValue([]byte("10"))),
+					LeftExpr: ExpressionTerm{
+						UnaryOp:      NoneUnaryOpTp,
+						Tp:           IdentifierExpressionTermTP,
+						RealExprTerm: IdentifierExpression([]byte("age")),
+					},
+					Op: OperationEqual,
+					RightExpr: ExpressionTerm{
+						UnaryOp:      NoneUnaryOpTp,
+						Tp:           LiteralExpressionTermTP,
+						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("10"))),
+					},
 				}),
 			},
 		},
@@ -207,14 +215,39 @@ func TestDeleteStm(t *testing.T) {
 					},
 				},
 				Where: WhereStm(&ExpressionStm{
-					LeftExpr:  LiteralExpressionStm(ColumnValue([]byte("id"))),
-					Op:        OperationNotEqual,
-					RightExpr: LiteralExpressionStm(ColumnValue([]byte("1"))),
+					LeftExpr: ExpressionTerm{
+						UnaryOp:      NoneUnaryOpTp,
+						Tp:           IdentifierExpressionTermTP,
+						RealExprTerm: IdentifierExpression([]byte("sex")),
+					},
+					Op: OperationEqual,
+					RightExpr: ExpressionTerm{
+						UnaryOp:      NoneUnaryOpTp,
+						Tp:           LiteralExpressionTermTP,
+						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("true"))),
+					},
 				}),
 				Limit: &LimitStm{Count: 5},
 				OrderBy: &OrderByStm{
 					Expressions: []*OrderedExpressionStm{
-						{},
+						{
+							Expression: &ExpressionStm{
+								LeftExpr: ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           LiteralExpressionTermTP,
+									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("sex"))),
+								},
+							},
+						},
+						{
+							Expression: &ExpressionStm{
+								LeftExpr: ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           LiteralExpressionTermTP,
+									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("age"))),
+								},
+							},
+						},
 					},
 				},
 			},
@@ -224,46 +257,135 @@ func TestDeleteStm(t *testing.T) {
 }
 
 func TestSelectStm(t *testing.T) {
-	var nilWhereStm *WhereStm
-	var nilOrderbyStm *OrderByStm
-	var nilLimitStm *LimitStm
-	id := ColumnRefStm("id")
-	name := ColumnRefStm("name")
-	count := ColumnRefStm("count")
-	age := ColumnRefStm("age")
-	equalOp := OperationStm(CHECKEQUAL)
-	addOp := OperationStm(ADD)
 	sqls := []testEntity{
 		{
 			"select * from tb_1;",
 			&SelectStm{
-				TableRef:   "tb_1",
-				WhereStm:   nilWhereStm,
-				OrderByStm: nilOrderbyStm,
-				LimitStm:   nilLimitStm,
+				Tp: SelectAllTp,
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceTableFactorTp,
+						TableReference: TableReferenceTableFactorStm{
+							Tp: TableReferencePureTableNameTp,
+							TableFactorReference: TableReferencePureTableRefStm{
+								TableName: "tb_1",
+							},
+						},
+					},
+				},
 			},
 		},
 		{
 			"select * from tb_1 where id == 1 order by name limit 10;",
 			&SelectStm{
-				TableRef:   "tb_1",
-				WhereStm:   &WhereStm{ExpressionStms: &ExpressionStm{Params: []Stm{&id, &equalOp, &ColumnValue{ValueType: INTVALUE, Value: 1}}}},
-				OrderByStm: &OrderByStm{Cols: []string{"name"}},
-				LimitStm:   &LimitStm{Count: 10},
+				Tp: SelectAllTp,
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceTableFactorTp,
+						TableReference: TableReferenceTableFactorStm{
+							Tp: TableReferencePureTableNameTp,
+							TableFactorReference: TableReferencePureTableRefStm{
+								TableName: "tb_1",
+							},
+						},
+					},
+				},
+				Where: WhereStm(&ExpressionStm{
+					LeftExpr: ExpressionTerm{
+						UnaryOp:      NoneUnaryOpTp,
+						Tp:           IdentifierExpressionTermTP,
+						RealExprTerm: IdentifierExpression([]byte("id")),
+					},
+					Op: OperationEqual,
+					RightExpr: ExpressionTerm{
+						UnaryOp:      NoneUnaryOpTp,
+						Tp:           LiteralExpressionTermTP,
+						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
+					},
+				}),
+				OrderBy: &OrderByStm{
+					Expressions: []*OrderedExpressionStm{
+						{
+							Expression: &ExpressionStm{
+								LeftExpr: ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           LiteralExpressionTermTP,
+									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("name"))),
+								},
+							},
+						},
+					},
+				},
+				LimitStm: &LimitStm{Count: 10},
 			},
 		},
 		{
-			"select name+5, age + 4, count from tb_1 where id==1 order by name limit 1;",
+			"select name+5 as name1, age + 4, count from tb_1 where id==1 order by name limit 1;",
 			&SelectStm{
-				Expressions: []Stm{
-					&ExpressionStm{Params: []Stm{&name, &addOp, &ColumnValue{ValueType: INTVALUE, Value: 5}}},
-					&ExpressionStm{Params: []Stm{&age, &addOp, &ColumnValue{ValueType: INTVALUE, Value: 4}}},
-					&count,
+				Tp: SelectAllTp,
+				SelectExpressions: &SelectExpressionStm{
+					Tp: ExprSelectExpressionTp,
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("name")),
+								},
+								Op: OperationAdd,
+								RightExpr: ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           LiteralExpressionTermTP,
+									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("5"))),
+								},
+							},
+							Alias: "name1",
+						},
+						{
+							Expr: &ExpressionStm{
+								LeftExpr:  LiteralExpressionStm(ColumnValue([]byte("age"))),
+								Op:        OperationAdd,
+								RightExpr: LiteralExpressionStm(ColumnValue([]byte("4"))),
+							},
+						},
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: LiteralExpressionStm(ColumnValue([]byte("count"))),
+							},
+						},
+					},
 				},
-				TableRef:   "tb_1",
-				WhereStm:   &WhereStm{ExpressionStms: &ExpressionStm{Params: []Stm{&id, &equalOp, &ColumnValue{ValueType: INTVALUE, Value: 1}}}},
-				OrderByStm: &OrderByStm{Cols: []string{"name"}},
-				LimitStm:   &LimitStm{Count: 1},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceTableFactorTp,
+						TableReference: TableReferenceTableFactorStm{
+							Tp: TableReferencePureTableNameTp,
+							TableFactorReference: TableReferencePureTableRefStm{
+								TableName: "tb_1",
+							},
+						},
+					},
+				},
+				Where: WhereStm(&ExpressionStm{
+					LeftExpr:  LiteralExpressionStm(ColumnValue([]byte("id"))),
+					Op:        OperationEqual,
+					RightExpr: LiteralExpressionStm(ColumnValue([]byte("1"))),
+				}),
+				OrderBy: &OrderByStm{
+					Expressions: []*OrderedExpressionStm{
+						{
+							Expression: &ExpressionStm{
+								LeftExpr: ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           LiteralExpressionTermTP,
+									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("name"))),
+								},
+							},
+						},
+					},
+				},
+				LimitStm: &LimitStm{Count: 1},
 			},
 		},
 	}
@@ -285,49 +407,70 @@ func TestTruncateStm(t *testing.T) {
 }
 
 func TestUpdateStm(t *testing.T) {
-	id := ColumnRefStm("id")
-	name := ColumnRefStm("name")
-	c := ColumnRefStm("c")
-	b := ColumnRefStm("b")
-	f := ColumnRefStm("f")
-	age := ColumnRefStm("age")
-	andOp := OperationStm(AND)
-	equalOp := OperationStm(ASSIGNEQUAL)
-	checkEqualOp := OperationStm(CHECKEQUAL)
 	sqls := []testEntity{
 		{
 			"update tb_1 set id=1, name=\"hello\", c='x', b=false, f=10.5;",
 			&UpdateStm{
-				TableRef: "tb_1",
-				Expressions: []Stm{
-					&ExpressionStm{Params: []Stm{&id, &equalOp, &ColumnValue{ValueType: INTVALUE, Value: 1}}},
-					&ExpressionStm{Params: []Stm{&name, &equalOp, &ColumnValue{ValueType: STRINGVALUE, Value: "hello"}}},
-					&ExpressionStm{Params: []Stm{&c, &equalOp, &ColumnValue{ValueType: CHARVALUE, Value: byte('x')}}},
-					&ExpressionStm{Params: []Stm{&b, &equalOp, &ColumnValue{ValueType: FALSE, Value: false}}},
-					&ExpressionStm{Params: []Stm{&f, &equalOp, &ColumnValue{ValueType: FLOATVALUE, Value: 10.5}}},
+				TableRefs: TableReferenceStm{
+					Tp: TableReferenceTableFactorTp,
+					TableReference: TableReferenceTableFactorStm{
+						Tp: TableReferencePureTableNameTp,
+						TableFactorReference: TableReferencePureTableRefStm{
+							TableName: "tb_1",
+						},
+					},
+				},
+				Assignments: []AssignmentStm{
+					{
+						ColName: "id",
+						Value:   &ExpressionStm{},
+					},
+					{
+						ColName: "name",
+						Value:   &ExpressionStm{},
+					},
+					{
+						ColName: "c",
+						Value:   &ExpressionStm{},
+					},
+					{
+						ColName: "b",
+						Value:   &ExpressionStm{},
+					},
+					{
+						ColName: "f",
+						Value:   &ExpressionStm{},
+					},
 				},
 			},
 		},
 		{
-			"update tb_1 set id=1 where age==10 and id==1;",
+			"update tb_1 set id=id+1 where age==10 and id==1;",
 			&UpdateStm{
-				TableRef: "tb_1",
-				Expressions: []Stm{
-					&ExpressionStm{Params: []Stm{&id, &equalOp, &ColumnValue{ValueType: INTVALUE, Value: 1}}},
-				},
-				WhereStm: &WhereStm{
-					ExpressionStms: &ExpressionStm{
-						Params: []Stm{
-							&age,
-							&checkEqualOp,
-							&ColumnValue{ValueType: INTVALUE, Value: 10},
-							&andOp,
-							&id,
-							&checkEqualOp,
-							&ColumnValue{ValueType: INTVALUE, Value: 1},
+				TableRefs: TableReferenceStm{
+					Tp: TableReferenceTableFactorTp,
+					TableReference: TableReferenceTableFactorStm{
+						Tp: TableReferencePureTableNameTp,
+						TableFactorReference: TableReferencePureTableRefStm{
+							TableName: "tb_1",
 						},
 					},
 				},
+				Assignments: []AssignmentStm{
+					{
+						ColName: "id",
+						Value:   &ExpressionStm{},
+					},
+				},
+				Where: WhereStm(&ExpressionStm{
+					LeftExpr: ExpressionStm{
+						LeftExpr:  LiteralExpressionStm(ColumnValue([]byte("age"))),
+						Op:        OperationEqual,
+						RightExpr: LiteralExpressionStm(ColumnValue([]byte("10"))),
+					},
+					Op:        OperationAnd,
+					RightExpr: ExpressionStm{},
+				}),
 			},
 		},
 	}

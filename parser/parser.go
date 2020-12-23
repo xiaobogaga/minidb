@@ -42,7 +42,7 @@ func (parser *Parser) Parse(data []byte) (stms []Stm, err error) {
 	}
 	parser.Tokens = tokens
 	parser.Data = data
-	parser.pos = -1
+	parser.pos = 0
 	var stm Stm
 	for {
 		token, ok := parser.NextToken()
