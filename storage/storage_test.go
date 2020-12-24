@@ -26,3 +26,7 @@ func TestRecordBatch_JsonEncode(t *testing.T) {
 		panic(err)
 	}
 }
+
+func TestInferenceType(t *testing.T) {
+	data :=
+}

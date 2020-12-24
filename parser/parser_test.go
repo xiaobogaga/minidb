@@ -36,10 +36,10 @@ func TestCreateStm(t *testing.T) {
 				IfNotExist: true,
 				Cols: []*ColumnDefStm{
 					{ColName: "id", ColumnType: ColumnType{Tp: INT}, PrimaryKey: true, ColDefaultValue: ColumnValue([]byte("10"))},
-					{ColName: "name", ColumnType: ColumnType{Tp: VARCHAR, Ranges: [2]int{20, 0}}, ColDefaultValue: ColumnValue([]byte("hello"))},
+					{ColName: "name", ColumnType: ColumnType{Tp: VARCHAR, Ranges: [2]int{20, 0}}, ColDefaultValue: ColumnValue([]byte("\"hello\""))},
 					{ColName: "age", ColumnType: ColumnType{Tp: FLOAT, Ranges: [2]int{10, 2}}, ColDefaultValue: ColumnValue([]byte("10.5"))},
-					{ColName: "location", ColumnType: ColumnType{Tp: TEXT}, ColDefaultValue: ColumnValue([]byte("haha"))},
-					{ColName: "age", ColumnType: ColumnType{Tp: CHAR}, ColDefaultValue: ColumnValue([]byte{'z'})},
+					{ColName: "location", ColumnType: ColumnType{Tp: TEXT}, ColDefaultValue: ColumnValue([]byte("\"haha\""))},
+					{ColName: "age", ColumnType: ColumnType{Tp: CHAR}, ColDefaultValue: ColumnValue([]byte("'z'"))},
 					{ColName: "sex", ColumnType: ColumnType{Tp: BOOL}, ColDefaultValue: ColumnValue([]byte("true"))},
 				},
 			},
@@ -144,14 +144,14 @@ func TestInsertStm(t *testing.T) {
 						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
-							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("z"))),
+							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("'z'"))),
 						},
 					},
 					{
 						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
-							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("hello"))),
+							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("\"hello\""))),
 						},
 					},
 					{
@@ -181,7 +181,7 @@ func TestInsertStm(t *testing.T) {
 						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
-							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("hello"))),
+							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("\"hello\""))),
 						},
 					},
 				}},
@@ -205,28 +205,28 @@ func TestDeleteStm(t *testing.T) {
 					},
 				},
 				Where: WhereStm(&ExpressionStm{
-					LeftExpr: ExpressionStm{
-						LeftExpr: ExpressionTerm{
+					LeftExpr: &ExpressionStm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           IdentifierExpressionTermTP,
 							RealExprTerm: IdentifierExpression([]byte("age")),
 						},
 						Op: OperationEqual,
-						RightExpr: ExpressionTerm{
+						RightExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("10"))),
 						},
 					},
 					Op: OperationAnd,
-					RightExpr: ExpressionStm{
-						LeftExpr: ExpressionTerm{
+					RightExpr: &ExpressionStm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           IdentifierExpressionTermTP,
 							RealExprTerm: IdentifierExpression([]byte("sex")),
 						},
 						Op: OperationEqual,
-						RightExpr: ExpressionTerm{
+						RightExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("true"))),
@@ -248,13 +248,13 @@ func TestDeleteStm(t *testing.T) {
 					},
 				},
 				Where: WhereStm(&ExpressionStm{
-					LeftExpr: ExpressionTerm{
+					LeftExpr: &ExpressionTerm{
 						UnaryOp:      NoneUnaryOpTp,
 						Tp:           IdentifierExpressionTermTP,
 						RealExprTerm: IdentifierExpression([]byte("id")),
 					},
 					Op: OperationGreat,
-					RightExpr: ExpressionTerm{
+					RightExpr: &ExpressionTerm{
 						UnaryOp:      NoneUnaryOpTp,
 						Tp:           LiteralExpressionTermTP,
 						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
@@ -265,21 +265,23 @@ func TestDeleteStm(t *testing.T) {
 					Expressions: []*OrderedExpressionStm{
 						{
 							Expression: &ExpressionStm{
-								LeftExpr: ExpressionTerm{
+								LeftExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
-									Tp:           LiteralExpressionTermTP,
-									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("sex"))),
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("sex")),
 								},
 							},
+							Asc: true,
 						},
 						{
 							Expression: &ExpressionStm{
-								LeftExpr: ExpressionTerm{
+								LeftExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
-									Tp:           LiteralExpressionTermTP,
-									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("age"))),
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("age")),
 								},
 							},
+							Asc: true,
 						},
 					},
 				},
@@ -326,14 +328,17 @@ func TestSelectStm(t *testing.T) {
 						},
 					},
 				},
+				SelectExpressions: &SelectExpressionStm{
+					Tp: StarSelectExpressionTp,
+				},
 				Where: WhereStm(&ExpressionStm{
-					LeftExpr: ExpressionTerm{
+					LeftExpr: &ExpressionTerm{
 						UnaryOp:      NoneUnaryOpTp,
 						Tp:           IdentifierExpressionTermTP,
 						RealExprTerm: IdentifierExpression([]byte("id")),
 					},
 					Op: OperationLessEqual,
-					RightExpr: ExpressionTerm{
+					RightExpr: &ExpressionTerm{
 						UnaryOp:      NoneUnaryOpTp,
 						Tp:           LiteralExpressionTermTP,
 						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
@@ -343,12 +348,13 @@ func TestSelectStm(t *testing.T) {
 					Expressions: []*OrderedExpressionStm{
 						{
 							Expression: &ExpressionStm{
-								LeftExpr: ExpressionTerm{
+								LeftExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
-									Tp:           LiteralExpressionTermTP,
-									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("name"))),
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("name")),
 								},
 							},
+							Asc: true,
 						},
 					},
 				},
@@ -356,7 +362,7 @@ func TestSelectStm(t *testing.T) {
 			},
 		},
 		{
-			"select name+5 as name1, age * 4, count from tb_1 where id==1 order by name limit 1;",
+			"select name+5 as name1, age * 4, count from tb_1 where id==1 order by name desc limit 1;",
 			&SelectStm{
 				Tp: SelectAllTp,
 				SelectExpressions: &SelectExpressionStm{
@@ -364,13 +370,13 @@ func TestSelectStm(t *testing.T) {
 					Expr: []*SelectExpr{
 						{
 							Expr: &ExpressionStm{
-								LeftExpr: ExpressionTerm{
+								LeftExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
 									Tp:           IdentifierExpressionTermTP,
 									RealExprTerm: IdentifierExpression([]byte("name")),
 								},
 								Op: OperationAdd,
-								RightExpr: ExpressionTerm{
+								RightExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
 									Tp:           LiteralExpressionTermTP,
 									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("5"))),
@@ -380,13 +386,13 @@ func TestSelectStm(t *testing.T) {
 						},
 						{
 							Expr: &ExpressionStm{
-								LeftExpr: ExpressionTerm{
+								LeftExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
 									Tp:           IdentifierExpressionTermTP,
 									RealExprTerm: IdentifierExpression([]byte("age")),
 								},
 								Op: OperationMul,
-								RightExpr: ExpressionTerm{
+								RightExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
 									Tp:           LiteralExpressionTermTP,
 									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("4"))),
@@ -395,7 +401,7 @@ func TestSelectStm(t *testing.T) {
 						},
 						{
 							Expr: &ExpressionStm{
-								LeftExpr: ExpressionTerm{
+								LeftExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
 									Tp:           IdentifierExpressionTermTP,
 									RealExprTerm: IdentifierExpression([]byte("count")),
@@ -416,13 +422,13 @@ func TestSelectStm(t *testing.T) {
 					},
 				},
 				Where: WhereStm(&ExpressionStm{
-					LeftExpr: ExpressionTerm{
+					LeftExpr: &ExpressionTerm{
 						UnaryOp:      NoneUnaryOpTp,
 						Tp:           IdentifierExpressionTermTP,
 						RealExprTerm: IdentifierExpression([]byte("id")),
 					},
 					Op: OperationEqual,
-					RightExpr: ExpressionTerm{
+					RightExpr: &ExpressionTerm{
 						UnaryOp:      NoneUnaryOpTp,
 						Tp:           LiteralExpressionTermTP,
 						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
@@ -432,12 +438,13 @@ func TestSelectStm(t *testing.T) {
 					Expressions: []*OrderedExpressionStm{
 						{
 							Expression: &ExpressionStm{
-								LeftExpr: ExpressionTerm{
+								LeftExpr: &ExpressionTerm{
 									UnaryOp:      NoneUnaryOpTp,
-									Tp:           LiteralExpressionTermTP,
-									RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("name"))),
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("name")),
 								},
 							},
+							Asc: false,
 						},
 					},
 				},
@@ -465,7 +472,7 @@ func TestTruncateStm(t *testing.T) {
 func TestUpdateStm(t *testing.T) {
 	sqls := []testEntity{
 		{
-			"update tb_1 set id=1, name=\"hello\", c='x', b=false, f=10.5;",
+			"update tb_1 set id=1, name='hello', c='x', b=false, f=10.5;",
 			&UpdateStm{
 				TableRefs: TableReferenceStm{
 					Tp: TableReferenceTableFactorTp,
@@ -480,7 +487,7 @@ func TestUpdateStm(t *testing.T) {
 					{
 						ColName: "id",
 						Value: &ExpressionStm{
-							LeftExpr: ExpressionTerm{
+							LeftExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
 								RealExprTerm: LiteralExpressionStm([]byte("1")),
@@ -490,27 +497,27 @@ func TestUpdateStm(t *testing.T) {
 					{
 						ColName: "name",
 						Value: &ExpressionStm{
-							LeftExpr: ExpressionTerm{
+							LeftExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
-								RealExprTerm: LiteralExpressionStm([]byte("hello")),
+								RealExprTerm: LiteralExpressionStm([]byte("'hello'")),
 							},
 						},
 					},
 					{
 						ColName: "c",
 						Value: &ExpressionStm{
-							LeftExpr: ExpressionTerm{
+							LeftExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
-								RealExprTerm: LiteralExpressionStm([]byte("x")),
+								RealExprTerm: LiteralExpressionStm([]byte("'x'")),
 							},
 						},
 					},
 					{
 						ColName: "b",
 						Value: &ExpressionStm{
-							LeftExpr: ExpressionTerm{
+							LeftExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
 								RealExprTerm: LiteralExpressionStm([]byte("false")),
@@ -520,7 +527,7 @@ func TestUpdateStm(t *testing.T) {
 					{
 						ColName: "f",
 						Value: &ExpressionStm{
-							LeftExpr: ExpressionTerm{
+							LeftExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
 								RealExprTerm: LiteralExpressionStm([]byte("10.5")),
@@ -546,13 +553,13 @@ func TestUpdateStm(t *testing.T) {
 					{
 						ColName: "id",
 						Value: &ExpressionStm{
-							LeftExpr: ExpressionTerm{
+							LeftExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           IdentifierExpressionTermTP,
 								RealExprTerm: IdentifierExpression([]byte("id")),
 							},
 							Op: OperationDivide,
-							RightExpr: ExpressionTerm{
+							RightExpr: &ExpressionTerm{
 								UnaryOp:      NoneUnaryOpTp,
 								Tp:           LiteralExpressionTermTP,
 								RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("2"))),
@@ -561,28 +568,28 @@ func TestUpdateStm(t *testing.T) {
 					},
 				},
 				Where: WhereStm(&ExpressionStm{
-					LeftExpr: ExpressionStm{
-						LeftExpr: ExpressionTerm{
+					LeftExpr: &ExpressionStm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           IdentifierExpressionTermTP,
 							RealExprTerm: IdentifierExpression([]byte("age")),
 						},
 						Op: OperationLessEqual,
-						RightExpr: ExpressionTerm{
+						RightExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("10"))),
 						},
 					},
 					Op: OperationOr,
-					RightExpr: ExpressionStm{
-						LeftExpr: ExpressionTerm{
+					RightExpr: &ExpressionStm{
+						LeftExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           IdentifierExpressionTermTP,
 							RealExprTerm: IdentifierExpression([]byte("id")),
 						},
-						Op: OperationLess,
-						RightExpr: ExpressionTerm{
+						Op: OperationGreat,
+						RightExpr: &ExpressionTerm{
 							UnaryOp:      NoneUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
 							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),

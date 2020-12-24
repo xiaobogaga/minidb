@@ -38,8 +38,10 @@ func (parser *Parser) parseDeleteSingleTableStm() (stm *SingleDeleteStm, err err
 		TableRef: TableReferenceStm{
 			Tp: TableReferenceTableFactorTp,
 			TableReference: TableReferenceTableFactorStm{
-				Tp:                   TableReferencePureTableNameTp,
-				TableFactorReference: string(tableName),
+				Tp: TableReferencePureTableNameTp,
+				TableFactorReference: TableReferencePureTableRefStm{
+					TableName: string(tableName),
+				},
 			},
 		},
 		Where:   whereStm,

@@ -514,11 +514,6 @@ func (f Field) CanOp(another Field, opType OpType) (err error) {
 	}
 }
 
-func (f Field) CanOp2(another FieldTP, opType OpType) (err error) {
-	f2 := Field{TP: another}
-	return f.CanOp(f2, opType)
-}
-
 const rowIndexName = "_rowid"
 
 var RowIndexField = Field{Name: rowIndexName, TP: Int, AllowNull: true, AutoIncrement: false, PrimaryKey: false}
@@ -554,9 +549,9 @@ func (tp OpType) String() string {
 	case DivideOpType:
 		return "/"
 	case AndOpType:
-		return "&&"
+		return "and"
 	case OrOpType:
-		return "||"
+		return "or"
 	case ModOpType:
 		return "%"
 	case GreatOpType:

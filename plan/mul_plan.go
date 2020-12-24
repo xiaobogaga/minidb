@@ -85,7 +85,7 @@ type AssignmentExpr struct {
 	Expr LogicExpr
 }
 
-func AssignmentStmToAssignmentExprs(assignments []parser.AssignmentStm, input LogicPlan) []AssignmentExpr {
+func AssignmentStmToAssignmentExprs(assignments []*parser.AssignmentStm, input LogicPlan) []AssignmentExpr {
 	ret := make([]AssignmentExpr, len(assignments))
 	for i, expr := range assignments {
 		ret[i] = AssignmentExpr{

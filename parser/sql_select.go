@@ -26,7 +26,7 @@ func (parser *Parser) resolveSelectStm(needCheckSemicolon bool) (stm Stm, err er
 		parser.UnReadToken()
 	}
 	var selectExpressionStm *SelectExpressionStm
-	if parser.matchTokenTypes(true, STAR) {
+	if parser.matchTokenTypes(true, MUL) {
 		selectExpressionStm, err = parser.parseStarSelectExpression()
 	} else {
 		selectExpressionStm, err = parser.parseExprSelectExpression()
@@ -40,8 +40,7 @@ func (parser *Parser) resolveSelectStm(needCheckSemicolon bool) (stm Stm, err er
 
 func (parser *Parser) parseStarSelectExpression() (*SelectExpressionStm, error) {
 	return &SelectExpressionStm{
-		Tp:   StarSelectExpressionTp,
-		Expr: STAR,
+		Tp: StarSelectExpressionTp,
 	}, nil
 }
 

@@ -95,7 +95,8 @@ func Mul(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			return ret
 		case Float:
 			floatVal2 := DecodeFloat(val2)
-			val := float64(intVal1) * floatVal2
+			floatVal1 := float64(intVal1)
+			val := floatVal1 * floatVal2
 			ret := EncodeFloat(val)
 			return ret
 		default:
@@ -257,7 +258,7 @@ func compare(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) int {
 		} else if tp2 == Int {
 			v2 = float64(DecodeInt(val2))
 		} else {
-			panic("unknown type")
+			panic("unsupported type")
 		}
 		switch {
 		case v1 == v2:

@@ -326,8 +326,8 @@ var (
 	OperationGreatEqual = &ExpressionOp{Tp: GREATEQUAL, Priority: 1}
 	OperationLess       = &ExpressionOp{Tp: LESS, Priority: 1}
 	OperationLessEqual  = &ExpressionOp{Tp: LESSEQUAL, Priority: 1}
-	OperationAnd        = &ExpressionOp{Tp: AND, Priority: 1}
-	OperationOr         = &ExpressionOp{Tp: OR, Priority: 1}
+	OperationAnd        = &ExpressionOp{Tp: AND, Priority: 0}
+	OperationOr         = &ExpressionOp{Tp: OR, Priority: 0}
 	// OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
 	// OperationDot ExpressionOp = ExpressionOp{Tp: lexer.DOT, Priority: 2}
 )
@@ -554,9 +554,9 @@ const (
 type SelectLockTp byte
 
 const (
-	ForUpdateLockTp SelectLockTp = iota
+	NoneLockTp SelectLockTp = iota
+	ForUpdateLockTp
 	LockInShareModeTp
-	NoneLockTp
 )
 
 type UseDatabaseStm struct {

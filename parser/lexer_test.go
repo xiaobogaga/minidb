@@ -173,8 +173,8 @@ func TestLexerValue(t *testing.T) {
 	lexer := NewLexer()
 	ts, err := lexer.Lex([]byte(" 'hello' \"hi \" true"))
 	assert.Nil(t, err)
-	assert.Equal(t, Token{Tp: VALUE, StartPos: 2, EndPos: 7}, ts[0])
-	assert.Equal(t, Token{Tp: VALUE, StartPos: 10, EndPos: 13}, ts[1])
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 1, EndPos: 8}, ts[0])
+	assert.Equal(t, Token{Tp: VALUE, StartPos: 9, EndPos: 14}, ts[1])
 	assert.Equal(t, Token{Tp: VALUE, StartPos: 15, EndPos: 19}, ts[2])
 }
 

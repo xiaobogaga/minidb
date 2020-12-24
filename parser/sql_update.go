@@ -18,7 +18,7 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		tableRefs = append(tableRefs, tableRef)
-		if !parser.matchTokenTypes(false, COMMA) {
+		if !parser.matchTokenTypes(true, COMMA) {
 			break
 		}
 	}

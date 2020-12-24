@@ -169,7 +169,6 @@ const (
 	// * select [all | distinct | distinctrow] select_expression... from table_reference... [WhereStm] [GroupByStm] [HavingStm]
 	// [OrderByStm] [LimitStm] [for update | lock in share mode]
 	SELECT
-	STAR
 	ALL
 	DISTINCT
 	DISTINCTROW
@@ -321,7 +320,6 @@ var (
 		"OFFSET":         OFFSET,
 		"FROM":           FROM,
 		"SELECT":         SELECT,
-		"STAR":           STAR,
 		"ALL":            ALL,
 		"DISTINCT":       DISTINCT,
 		"DISTINCTROW":    DISTINCTROW,
@@ -399,8 +397,13 @@ func (l *Lexer) readSpecialCharacters() error {
 		l.pos += 2
 		l.Tokens = append(l.Tokens, Token{Tp: NOTEQUAL, StartPos: l.pos - 2, EndPos: l.pos})
 	case '=':
-		l.pos++
-		l.Tokens = append(l.Tokens, Token{Tp: EQUAL, StartPos: l.pos - 1, EndPos: l.pos})
+		if l.matchToken('=') {
+			l.pos += 2
+			l.Tokens = append(l.Tokens, Token{Tp: EQUAL, StartPos: l.pos - 2, EndPos: l.pos})
+		} else {
+			l.pos++
+			l.Tokens = append(l.Tokens, Token{Tp: EQUAL, StartPos: l.pos - 1, EndPos: l.pos})
+		}
 	case '>':
 		// > or >=
 		if l.matchToken('=') {
@@ -553,7 +556,7 @@ func (l *Lexer) readValue() error {
 	for l.pos++; l.pos < len(l.Data); l.pos++ {
 		if l.Data[l.pos] == quoteType {
 			l.pos++
-			l.Tokens = append(l.Tokens, Token{Tp: VALUE, StartPos: startPos + 1, EndPos: l.pos - 1})
+			l.Tokens = append(l.Tokens, Token{Tp: VALUE, StartPos: startPos, EndPos: l.pos})
 			return nil
 		}
 	}
