@@ -12,25 +12,25 @@ type Storage struct {
 	Dbs map[string]*DbInfo
 }
 
-func (storage Storage) HasSchema(schema string) bool {
+func (storage *Storage) HasSchema(schema string) bool {
 	_, ok := storage.Dbs[schema]
 	return ok
 }
 
-func (storage Storage) GetDbInfo(schema string) *DbInfo {
+func (storage *Storage) GetDbInfo(schema string) *DbInfo {
 	return storage.Dbs[schema]
 }
 
-func (storage Storage) CreateSchema(name, charset, collate string) {
+func (storage *Storage) CreateSchema(name, charset, collate string) {
 	schema := &DbInfo{Name: name, Charset: charset, Collate: collate}
 	storage.Dbs[schema.Name] = schema
 }
 
-func (storage Storage) RemoveSchema(schema string) {
+func (storage *Storage) RemoveSchema(schema string) {
 	delete(storage.Dbs, schema)
 }
 
-func (storage Storage) HasTable(schema, table string) bool {
+func (storage *Storage) HasTable(schema, table string) bool {
 	if !storage.HasSchema(schema) {
 		return false
 	}
@@ -38,9 +38,9 @@ func (storage Storage) HasTable(schema, table string) bool {
 	return db.HasTable(table)
 }
 
-var storage = Storage{Dbs: map[string]*DbInfo{}}
+var storage = &Storage{Dbs: map[string]*DbInfo{}}
 
-func GetStorage() Storage {
+func GetStorage() *Storage {
 	return storage
 }
 
@@ -69,16 +69,16 @@ func (dbs *DbInfo) RemoveTable(tableName string) {
 }
 
 type TableInfo struct {
-	Schema  Schema
+	Schema  *Schema
 	Charset string
 	Collate string
 	Engine  string
-	Datas   []ColumnVector
+	Datas   []*ColumnVector
 }
 
 // This Is for join, a schema might have multiple sub table schemas.
 type Schema struct {
-	Tables []SingleTableSchema
+	Tables []*SingleTableSchema
 	// Name   string // Because this can support join tables. do we need name?
 }
 
@@ -96,7 +96,7 @@ type SingleTableSchema struct {
 	SchemaName string
 }
 
-func (schema SingleTableSchema) AppendColumn(field Field) {
+func (schema *SingleTableSchema) AppendColumn(field Field) {
 	schema.Columns = append(schema.Columns, field)
 }
 
@@ -105,10 +105,10 @@ func (table *TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
 	// The records in the last column is the row index if needRowIndex is true.
 	ret := &RecordBatch{
 		Fields:  table.Schema.Tables[0].Columns,
-		Records: make([]ColumnVector, len(table.Schema.Tables[0].Columns)),
+		Records: make([]*ColumnVector, len(table.Schema.Tables[0].Columns)),
 	}
 	ret.Fields = append(ret.Fields, RowIndexField)
-	ret.Records = append(ret.Records, ColumnVector{Field: RowIndexField})
+	ret.Records = append(ret.Records, &ColumnVector{Field: RowIndexField})
 	if len(table.Datas) == 0 {
 		return ret
 	}
@@ -163,13 +163,13 @@ func (table *TableInfo) DeleteRow(row int) {
 	}
 }
 
-func (table TableInfo) Truncate() {
+func (table *TableInfo) Truncate() {
 	for i := 0; i < len(table.Datas); i++ {
 		table.Datas[i].Values = nil
 	}
 }
 
-func (table TableInfo) InsertData(cols []string, values [][]byte) {
+func (table *TableInfo) InsertData(cols []string, values [][]byte) {
 	for i, col := range cols {
 		for _, tableCol := range table.Datas {
 			if tableCol.Field.Name == col {
@@ -179,7 +179,7 @@ func (table TableInfo) InsertData(cols []string, values [][]byte) {
 	}
 }
 
-func (schema Schema) HasSubTable(tableName string) bool {
+func (schema *Schema) HasSubTable(tableName string) bool {
 	for _, table := range schema.Tables {
 		if table.TableName == tableName {
 			return true
@@ -188,7 +188,7 @@ func (schema Schema) HasSubTable(tableName string) bool {
 	return false
 }
 
-func (schema Schema) GetSubTableFromColumn(schemaName, tableName, col string) (SingleTableSchema, error) {
+func (schema *Schema) GetSubTableFromColumn(schemaName, tableName, col string) (*SingleTableSchema, error) {
 	for _, table := range schema.Tables {
 		// Schema can be empty
 		if schemaName == "" && table.TableName == tableName && schema.TableHasColumn(table.Columns, col) {
@@ -202,18 +202,22 @@ func (schema Schema) GetSubTableFromColumn(schemaName, tableName, col string) (S
 			return table, nil
 		}
 	}
-	return SingleTableSchema{}, errors.New("cannot find such table")
+	return nil, errors.New("cannot find such table")
 }
 
 // HasColumn returns whether this schema has such schema, table And column.
 // schemaName, tableName can be empty, then it will iterate all db schema to find such column.
-func (schema Schema) HasColumn(schemaName, tableName, columnName string) bool {
+func (schema *Schema) HasColumn(schemaName, tableName, columnName string) bool {
 	for _, table := range schema.Tables {
 		// Schema can be empty
 		if schemaName == "" && table.TableName == tableName && schema.TableHasColumn(table.Columns, columnName) {
 			return true
 		}
 		if schemaName == "" && tableName == "" && schema.TableHasColumn(table.Columns, columnName) {
+			return true
+		}
+		if schemaName != "" && (schemaName == table.SchemaName) && tableName == "" &&
+			schema.TableHasColumn(table.Columns, columnName) {
 			return true
 		}
 		if schemaName != "" && (schemaName == table.SchemaName) && table.TableName == tableName &&
@@ -224,7 +228,7 @@ func (schema Schema) HasColumn(schemaName, tableName, columnName string) bool {
 	return false
 }
 
-func (schema Schema) TableHasColumn(fields []Field, column string) bool {
+func (schema *Schema) TableHasColumn(fields []Field, column string) bool {
 	for _, f := range fields {
 		if f.Name == column {
 			return true
@@ -233,12 +237,15 @@ func (schema Schema) TableHasColumn(fields []Field, column string) bool {
 	return false
 }
 
-func (schema Schema) HasAmbiguousColumn(schemaName, tableName, columnName string) bool {
+func (schema *Schema) HasAmbiguousColumn(schemaName, tableName, columnName string) bool {
 	if schemaName != "" && tableName != "" {
 		return false
 	}
 	times := 0
 	for _, table := range schema.Tables {
+		if schemaName != "" && table.SchemaName != schemaName {
+			continue
+		}
 		if tableName == "" && schema.TableHasColumn(table.Columns, columnName) {
 			times++
 		}
@@ -249,29 +256,27 @@ func (schema Schema) HasAmbiguousColumn(schemaName, tableName, columnName string
 	return times > 1
 }
 
-var emptyField = Field{}
-
-func (schema Schema) GetField(columnName string) Field {
+func (schema *Schema) GetField(columnName string) *Field {
 	for _, table := range schema.Tables {
 		for _, field := range table.Columns {
 			if field.Name == columnName {
-				return field
+				return &field
 			}
 		}
 	}
-	return emptyField
+	return nil
 }
 
-func (schema Schema) Merge(right Schema) (Schema, error) {
-	ret := Schema{} // Are we safe here.
+func (schema *Schema) Merge(right *Schema) (*Schema, error) {
+	ret := &Schema{} // Are we safe here.
 	ret.Tables = append(ret.Tables, schema.Tables...)
 	ret.Tables = append(ret.Tables, right.Tables...)
 	return ret, nil
 }
 
 type RecordBatch struct {
-	Fields  []Field        `json:"fields"`
-	Records []ColumnVector `json:"records"`
+	Fields  []Field         `json:"fields"`
+	Records []*ColumnVector `json:"records"`
 }
 
 func (recordBatch *RecordBatch) RowCount() int {
@@ -281,16 +286,13 @@ func (recordBatch *RecordBatch) RowCount() int {
 	return 0
 }
 
-var emptyColumnVector = ColumnVector{}
-
-func (recordBatch *RecordBatch) GetColumnValue(colName string) ColumnVector {
+func (recordBatch *RecordBatch) GetColumnValue(colName string) *ColumnVector {
 	for _, col := range recordBatch.Records {
 		if col.Field.Name == colName {
 			return col
 		}
 	}
-	// Todo: do we need to change it to pointer
-	return emptyColumnVector
+	return nil
 }
 
 func (recordBatch *RecordBatch) ColumnCount() int {
@@ -301,7 +303,7 @@ func (recordBatch *RecordBatch) ColumnCount() int {
 func (recordBatch *RecordBatch) Join(another *RecordBatch) *RecordBatch {
 	ret := &RecordBatch{
 		Fields:  make([]Field, len(recordBatch.Fields)+len(another.Fields)),
-		Records: make([]ColumnVector, len(recordBatch.Records)+len(another.Records)),
+		Records: make([]*ColumnVector, len(recordBatch.Records)+len(another.Records)),
 	}
 	// set Field first.
 	for i, f := range recordBatch.Fields {
@@ -332,10 +334,12 @@ func (recordBatch *RecordBatch) Append(new *RecordBatch) {
 // columnVector represents the order of recordBatch. It's has just one row.
 // whose field Is Field{Name: "order", TP: storage.Int}.
 func (recordBatch *RecordBatch) OrderBy(columnVector ColumnVector) {
-	temp := &RecordBatch{Fields: recordBatch.Fields, Records: make([]ColumnVector, len(recordBatch.Records))}
+	temp := &RecordBatch{Fields: recordBatch.Fields, Records: make([]*ColumnVector, len(recordBatch.Records))}
 	for i, col := range recordBatch.Records {
-		temp.Records[i].Field = temp.Fields[i]
-		temp.Records[i].Values = make([][]byte, len(col.Values))
+		temp.Records[i] = &ColumnVector{
+			Field:  temp.Fields[i],
+			Values: make([][]byte, len(col.Values)),
+		}
 	}
 	// Reorder
 	for j := 0; j < columnVector.Size(); j++ {
@@ -349,7 +353,7 @@ func (recordBatch *RecordBatch) OrderBy(columnVector ColumnVector) {
 }
 
 // Set the i-th column values in recordBatch by using columnVector.
-func (recordBatch *RecordBatch) SetColumnValue(col int, columnVector ColumnVector) {
+func (recordBatch *RecordBatch) SetColumnValue(col int, columnVector *ColumnVector) {
 	recordBatch.Records[col] = columnVector
 }
 
@@ -365,8 +369,9 @@ func (recordBatch *RecordBatch) Copy(src *RecordBatch, srcFrom, descFrom, size i
 	for i := srcFrom; i < srcFrom+size && i < src.RowCount(); i++ {
 		// Copy one row.
 		for j := 0; j < src.ColumnCount(); j++ {
-			recordBatch.Records[j].Values[i] = src.Records[j].Values[i]
+			recordBatch.Records[j].Values[descFrom] = src.Records[j].Values[i]
 		}
+		descFrom++
 	}
 }
 
@@ -388,10 +393,10 @@ func (recordBatch *RecordBatch) Filter(selectedRows ColumnVector) *RecordBatch {
 // Return data[startIndex: startIndex + size - 1]
 func (recordBatch *RecordBatch) Slice(startIndex, size int) *RecordBatch {
 	ret := MakeEmptyRecordBatchFrom(recordBatch)
-	for i := startIndex; i < startIndex+size && i < ret.RowCount(); i++ {
+	for i := startIndex; i < startIndex+size && i < recordBatch.RowCount(); i++ {
 		// Copy one row.
 		for j := 0; j < recordBatch.ColumnCount(); j++ {
-			ret.Records[j].Values[i] = recordBatch.Records[j].Values[i]
+			ret.Records[j].Append(recordBatch.Records[j].Values[i])
 		}
 	}
 	return ret
@@ -400,12 +405,12 @@ func (recordBatch *RecordBatch) Slice(startIndex, size int) *RecordBatch {
 func MakeEmptyRecordBatchFrom(src *RecordBatch) *RecordBatch {
 	ret := &RecordBatch{
 		Fields:  make([]Field, src.ColumnCount()),
-		Records: make([]ColumnVector, src.ColumnCount()),
+		Records: make([]*ColumnVector, src.ColumnCount()),
 	}
 	// copy field And column vector field first.
 	for i, f := range src.Fields {
 		ret.Fields[i] = f
-		ret.Records[i].Field = f
+		ret.Records[i] = &ColumnVector{Field: f}
 	}
 	return ret
 }
@@ -468,10 +473,10 @@ func (f Field) IsFloat() bool {
 func (f Field) CanOp(another Field, opType OpType) (err error) {
 	switch opType {
 	case NegativeOpType:
-		if f.IsNumerical() {
+		if !f.IsNumerical() {
 			err = errors.New("- cannot apply to non numerical type")
 		}
-		return nil
+		return
 	case AddOpType, MinusOpType, MulOpType, DivideOpType:
 		if f.IsNumerical() && another.IsNumerical() {
 			return nil
@@ -614,6 +619,7 @@ var typeOpMap = map[string]FieldTP{
 }
 
 // Return the new type after we apply f op another.
+// Didn't do type match check here and assume user already did type checking.
 func (f Field) InferenceType(another Field, op OpType) FieldTP {
 	if op.Comparator() {
 		return Bool
@@ -621,7 +627,7 @@ func (f Field) InferenceType(another Field, op OpType) FieldTP {
 	if op.Logic() {
 		return Bool
 	}
-	key := fmt.Sprintf("%s %s %s", f.TP, another.TP, op)
+	key := fmt.Sprintf("%s %s %s", f.TP, op, another.TP)
 	return typeOpMap[key]
 }
 
@@ -630,11 +636,7 @@ func InferenceType(data []byte) FieldTP {
 		return Bool
 	}
 	if data[0] >= '0' && data[0] <= '9' {
-		InferenceNumericalType(data)
-	}
-	if data[0] == '.' {
-		// must a float type.
-		return Float
+		return InferenceNumericalType(data)
 	}
 	if data[0] == '\'' || data[0] == '"' {
 		return Text
@@ -655,25 +657,25 @@ type ColumnVector struct {
 	Values [][]byte
 }
 
-func (column ColumnVector) GetField() Field {
+func (column *ColumnVector) GetField() Field {
 	return column.Field
 }
 
-func (column ColumnVector) GetTP() FieldTP {
+func (column *ColumnVector) GetTP() FieldTP {
 	return column.Field.TP
 }
 
-func (column ColumnVector) Size() int {
+func (column *ColumnVector) Size() int {
 	return len(column.Values)
 }
 
-func (column ColumnVector) RawValue(row int) []byte {
+func (column *ColumnVector) RawValue(row int) []byte {
 	return column.Values[row]
 }
 
-func (column ColumnVector) Negative() ColumnVector {
+func (column *ColumnVector) Negative() *ColumnVector {
 	// column must be a numeric type
-	ret := ColumnVector{Field: column.Field}
+	ret := &ColumnVector{Field: column.Field}
 	for _, value := range column.Values {
 		v := Negative(column.Field.TP, value)
 		ret.Values = append(ret.Values, v)
@@ -682,10 +684,9 @@ func (column ColumnVector) Negative() ColumnVector {
 }
 
 // Add another And column And return the new column with name `name`
-func (column ColumnVector) Add(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{TP: column.Field.InferenceType(another.Field, AddOpType), Name: name},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Add(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{TP: column.Field.InferenceType(another.Field, AddOpType), Name: name},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -696,10 +697,9 @@ func (column ColumnVector) Add(another ColumnVector, name string) ColumnVector {
 }
 
 // Minus another And column And return the new column with name `name`
-func (column ColumnVector) Minus(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{TP: column.Field.InferenceType(another.Field, MinusOpType), Name: name},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Minus(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{TP: column.Field.InferenceType(another.Field, MinusOpType), Name: name},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -709,10 +709,9 @@ func (column ColumnVector) Minus(another ColumnVector, name string) ColumnVector
 	return ret
 }
 
-func (column ColumnVector) Mul(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{TP: column.Field.InferenceType(another.Field, MulOpType), Name: name},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Mul(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{TP: column.Field.InferenceType(another.Field, MulOpType), Name: name},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -722,10 +721,9 @@ func (column ColumnVector) Mul(another ColumnVector, name string) ColumnVector {
 	return ret
 }
 
-func (column ColumnVector) Divide(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{TP: column.Field.InferenceType(another.Field, DivideOpType), Name: name},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Divide(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{TP: column.Field.InferenceType(another.Field, DivideOpType), Name: name},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -735,10 +733,9 @@ func (column ColumnVector) Divide(another ColumnVector, name string) ColumnVecto
 	return ret
 }
 
-func (column ColumnVector) Mod(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{TP: column.Field.InferenceType(another.Field, ModOpType), Name: name},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Mod(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{TP: column.Field.InferenceType(another.Field, ModOpType), Name: name},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -748,164 +745,181 @@ func (column ColumnVector) Mod(another ColumnVector, name string) ColumnVector {
 	return ret
 }
 
-func (column ColumnVector) Equal(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Equal(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(Equal(val1, column.Field.TP, val2, another.Field.TP))
 	}
 	return ret
 }
 
-func (column ColumnVector) Is(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Is(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(Is(val1, column.Field.TP, val2, another.Field.TP))
 	}
 	return ret
 }
 
-func (column ColumnVector) NotEqual(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) NotEqual(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(NotEqual(val1, column.Field.TP, val2, another.Field.TP))
 	}
 	return ret
 }
 
-func (column ColumnVector) Great(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Great(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(Great(val1, column.Field.TP, val2, another.Field.TP))
 	}
 	return ret
 }
 
-func (column ColumnVector) GreatEqual(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) GreatEqual(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(GreatEqual(val1, column.Field.TP, val2, another.Field.TP))
 	}
 	return ret
 }
 
-func (column ColumnVector) Less(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Less(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(Less(val1, column.Field.TP, val2, another.Field.TP))
 	}
 	return ret
 }
 
-func (column ColumnVector) LessEqual(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) LessEqual(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(LessEqual(val1, column.Field.TP, val2, another.Field.TP))
 	}
 	return ret
 }
 
-func (column ColumnVector) And(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) And(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(And(val1, val2))
 	}
 	return ret
 }
 
-func (column ColumnVector) Or(another ColumnVector, name string) ColumnVector {
-	ret := ColumnVector{
-		Field:  Field{Name: name, TP: Bool},
-		Values: make([][]byte, column.Size()),
+func (column *ColumnVector) Or(another *ColumnVector, name string) *ColumnVector {
+	ret := &ColumnVector{
+		Field: Field{Name: name, TP: Bool},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
-		val2 := column.RawValue(i)
+		val2 := another.RawValue(i)
 		ret.Append(Or(val1, val2))
 	}
 	return ret
 }
 
+type sortTrick struct {
+	RetValue   []byte
+	SortValues [][]byte
+}
+
 // sort column by using order specified by others in order asc.
-func (column ColumnVector) Sort(others []ColumnVector, asc []bool) ColumnVector {
-	ret := ColumnVector{Field: column.Field, Values: make([][]byte, column.Size())}
-	ret.Appends(column.Values)
-	sort.Slice(ret.Values, func(i, j int) bool {
-		for i := 0; i < len(others); i++ {
-			c := compare(ret.Values[i], column.GetTP(), ret.Values[j], column.GetTP())
+func (column *ColumnVector) Sort(others []*ColumnVector, asc []bool) *ColumnVector {
+	ret := &ColumnVector{Field: column.Field}
+	// This must be careful to make sure columns in others are swapped along with ret.values.
+	sortTrick := make([]sortTrick, column.Size())
+	for i := 0; i < column.Size(); i++ {
+		sortTrick[i].RetValue = column.RawValue(i)
+		sortTrick[i].SortValues = make([][]byte, len(others))
+		for j := 0; j < len(others); j++ {
+			sortTrick[i].SortValues[j] = others[j].RawValue(i)
+		}
+	}
+	sort.Slice(sortTrick, func(i, j int) bool {
+		for h := 0; h < len(others); h++ {
+			sortColumn := others[h]
+			c := compare(sortTrick[i].SortValues[h], sortColumn.GetTP(), sortTrick[j].SortValues[h], sortColumn.GetTP())
 			if c == 0 {
 				continue
 			}
 			if c < 0 {
-				return asc[i]
+				return asc[h]
 			}
 			if c > 0 {
-				return !asc[i]
+				return !asc[h]
 			}
 		}
 		return i < j
 	})
+	// copy sortTricks.values to ret.
+	for i := 0; i < column.Size(); i++ {
+		ret.Append(sortTrick[i].RetValue)
+	}
 	return ret
 }
 
 // column must be a bool column
-func (column ColumnVector) Bool(row int) bool {
+func (column *ColumnVector) Bool(row int) bool {
 	return DecodeBool(column.Values[row])
 }
 
 // column must a integer column.
-func (column ColumnVector) Int(row int) int64 {
+func (column *ColumnVector) Int(row int) int64 {
 	return DecodeInt(column.Values[row])
 }
 
-func (column ColumnVector) Append(value []byte) {
+func (column *ColumnVector) String(row int) string {
+	return string(column.RawValue(row))
+}
+
+func (column *ColumnVector) Float(row int) float64 {
+	return DecodeFloat(column.RawValue(row))
+}
+
+func (column *ColumnVector) Append(value []byte) {
 	column.Values = append(column.Values, value)
 }
 
-func (column ColumnVector) Appends(values [][]byte) {
+func (column *ColumnVector) Appends(values [][]byte) {
 	column.Values = append(column.Values, values...)
 }
 
-func (column ColumnVector) ToString(row int) string {
+func (column *ColumnVector) ToString(row int) string {
 	switch column.Field.TP {
 	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
 		// we can compare them by bytes.
