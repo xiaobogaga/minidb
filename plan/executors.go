@@ -127,12 +127,12 @@ func columnDefToStorageColumn(col *parser.ColumnDefStm, tableName, schemaName st
 	return ret
 }
 
-func getSchema(stm *parser.CreateTableStm, dbInfo *storage.DbInfo) (storage.Schema, error) {
+func getSchema(stm *parser.CreateTableStm, dbInfo *storage.DbInfo) (*storage.Schema, error) {
 	schemaName, tableName, _ := getSchemaTableName(stm.TableName, dbInfo.Name)
-	ret := storage.Schema{
-		Tables: make([]storage.SingleTableSchema, 1),
+	ret := &storage.Schema{
+		Tables: make([]*storage.SingleTableSchema, 1),
 	}
-	ret.Tables[0] = storage.SingleTableSchema{
+	ret.Tables[0] = &storage.SingleTableSchema{
 		Columns:    make([]storage.Field, len(stm.Cols)+1),
 		TableName:  tableName,
 		SchemaName: schemaName,
@@ -271,7 +271,7 @@ func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch
 		}
 		ret := &storage.RecordBatch{
 			Fields:  make([]storage.Field, 2),
-			Records: make([]storage.ColumnVector, 2),
+			Records: make([]*storage.ColumnVector, 2),
 		}
 		f1 := storage.RowIndexField
 		f2 := storage.Field{TP: storage.Text, Name: "tables"}
@@ -288,7 +288,7 @@ func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch
 	case parser.ShowDatabaseTP:
 		ret := &storage.RecordBatch{
 			Fields:  make([]storage.Field, 2),
-			Records: make([]storage.ColumnVector, 2),
+			Records: make([]*storage.ColumnVector, 2),
 		}
 		f1 := storage.RowIndexField
 		f2 := storage.Field{TP: storage.Text, Name: "databases"}

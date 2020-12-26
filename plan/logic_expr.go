@@ -13,7 +13,7 @@ type LogicExpr interface {
 	String() string
 	TypeCheck() error
 	AggrTypeCheck(groupByExpr []LogicExpr) error
-	Evaluate(input *storage.RecordBatch) storage.ColumnVector
+	Evaluate(input *storage.RecordBatch) *storage.ColumnVector
 	EvaluateRow(row int, input *storage.RecordBatch) []byte
 	Accumulate(row int, input *storage.RecordBatch) // Accumulate the value.
 	AccumulateValue() []byte
@@ -35,7 +35,7 @@ type IdentifierLogicExpr struct {
 func (ident IdentifierLogicExpr) toField() storage.Field {
 	// The column must be unique in the input schema.
 	schema := ident.input.Schema()
-	return schema.GetField(ident.Column)
+	return *schema.GetField(ident.Column)
 }
 
 func (ident IdentifierLogicExpr) String() string {
@@ -67,7 +67,7 @@ func (ident IdentifierLogicExpr) TypeCheck() error {
 	return nil
 }
 
-func (ident IdentifierLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (ident IdentifierLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	return input.GetColumnValue(ident.Column)
 }
 
@@ -151,12 +151,12 @@ func (literal LiteralLogicExpr) String() string {
 	return string(literal.Data)
 }
 
-func (literal LiteralLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
-	ret := storage.ColumnVector{
+func (literal LiteralLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
+	ret := &storage.ColumnVector{
 		Field: storage.Field{Name: string(literal.Data), TP: storage.InferenceType(literal.Data)},
 	}
 	for i := 0; i < input.RowCount(); i++ {
-		ret.Values = append(ret.Values, literal.Data)
+		ret.Append(literal.Data)
 	}
 	return ret
 }
@@ -217,7 +217,7 @@ func (negative NegativeLogicExpr) String() string {
 	return fmt.Sprintf("-%s", negative.Expr)
 }
 
-func (negative NegativeLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (negative NegativeLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	columnVector := negative.Expr.Evaluate(input)
 	return columnVector.Negative()
 }
@@ -306,7 +306,7 @@ func (add AddLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.AddOpType)
 }
 
-func (add AddLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (add AddLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := add.Left.Evaluate(input)
 	rightColumnVector := add.Right.Evaluate(input)
 	return leftColumnVector.Add(rightColumnVector, add.String())
@@ -419,7 +419,7 @@ func (minus MinusLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", minus))
 }
 
-func (minus MinusLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (minus MinusLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := minus.Left.Evaluate(input)
 	rightColumnVector := minus.Right.Evaluate(input)
 	return leftColumnVector.Minus(rightColumnVector, minus.String())
@@ -501,7 +501,7 @@ func (mul MulLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.MulOpType)
 }
 
-func (mul MulLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (mul MulLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := mul.Left.Evaluate(input)
 	rightColumnVector := mul.Right.Evaluate(input)
 	return leftColumnVector.Mul(rightColumnVector, mul.String())
@@ -595,7 +595,7 @@ func (divide DivideLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.DivideOpType)
 }
 
-func (divide DivideLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (divide DivideLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := divide.Left.Evaluate(input)
 	rightColumnVector := divide.Right.Evaluate(input)
 	return leftColumnVector.Divide(rightColumnVector, divide.String())
@@ -688,7 +688,7 @@ func (mod ModLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.ModOpType)
 }
 
-func (mod ModLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (mod ModLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := mod.Left.Evaluate(input)
 	rightColumnVector := mod.Right.Evaluate(input)
 	return leftColumnVector.Mod(rightColumnVector, mod.String())
@@ -780,7 +780,7 @@ func (equal EqualLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.EqualOpType)
 }
 
-func (equal EqualLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (equal EqualLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := equal.Left.Evaluate(input)
 	rightColumnVector := equal.Right.Evaluate(input)
 	return leftColumnVector.Equal(rightColumnVector, equal.String())
@@ -871,7 +871,7 @@ func (is IsLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.IsOpType)
 }
 
-func (is IsLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (is IsLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := is.Left.Evaluate(input)
 	rightColumnVector := is.Right.Evaluate(input)
 	return leftColumnVector.Is(rightColumnVector, is.String())
@@ -974,7 +974,7 @@ func (notEqual NotEqualLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	return errors.New(fmt.Sprintf("%s doesn't match group by clause", notEqual))
 }
 
-func (notEqual NotEqualLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (notEqual NotEqualLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := notEqual.Left.Evaluate(input)
 	rightColumnVector := notEqual.Right.Evaluate(input)
 	return leftColumnVector.NotEqual(rightColumnVector, notEqual.String())
@@ -1054,7 +1054,7 @@ func (great GreatLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.GreatOpType)
 }
 
-func (great GreatLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (great GreatLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := great.Left.Evaluate(input)
 	rightColumnVector := great.Right.Evaluate(input)
 	return leftColumnVector.Great(rightColumnVector, great.String())
@@ -1145,7 +1145,7 @@ func (greatEqual GreatEqualLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.GreatEqualOpType)
 }
 
-func (greatEqual GreatEqualLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (greatEqual GreatEqualLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := greatEqual.Left.Evaluate(input)
 	rightColumnVector := greatEqual.Right.Evaluate(input)
 	return leftColumnVector.GreatEqual(rightColumnVector, greatEqual.String())
@@ -1237,7 +1237,7 @@ func (less LessLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.LessOpType)
 }
 
-func (less LessLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (less LessLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := less.Left.Evaluate(input)
 	rightColumnVector := less.Right.Evaluate(input)
 	return leftColumnVector.Less(rightColumnVector, less.String())
@@ -1327,7 +1327,7 @@ func (lessEqual LessEqualLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.LessEqualOpType)
 }
 
-func (lessEqual LessEqualLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (lessEqual LessEqualLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := lessEqual.Left.Evaluate(input)
 	rightColumnVector := lessEqual.Right.Evaluate(input)
 	return leftColumnVector.LessEqual(rightColumnVector, lessEqual.String())
@@ -1419,7 +1419,7 @@ func (and AndLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.AndOpType)
 }
 
-func (and AndLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (and AndLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := and.Left.Evaluate(input)
 	rightColumnVector := and.Right.Evaluate(input)
 	return leftColumnVector.And(rightColumnVector, and.String())
@@ -1509,7 +1509,7 @@ func (or OrLogicExpr) TypeCheck() error {
 	return field1.CanOp(field2, storage.OrOpType)
 }
 
-func (or OrLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (or OrLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	leftColumnVector := or.Left.Evaluate(input)
 	rightColumnVector := or.Right.Evaluate(input)
 	return leftColumnVector.Or(rightColumnVector, or.String())
@@ -1648,13 +1648,13 @@ func (orderBy OrderByLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 // 09, 2
 // 10, 1
 // 11, 3
-func (orderBy OrderByLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
-	ret := storage.ColumnVector{Field: storage.Field{Name: "order", TP: storage.Int}}
+func (orderBy OrderByLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
+	ret := &storage.ColumnVector{Field: storage.Field{Name: "order", TP: storage.Int}}
 	for i := 0; i < input.RowCount(); i++ {
 		val := storage.EncodeInt(int64(i))
 		ret.Values = append(ret.Values, val)
 	}
-	sortedVector := make([]storage.ColumnVector, len(orderBy.expr))
+	sortedVector := make([]*storage.ColumnVector, len(orderBy.expr))
 	asc := make([]bool, len(orderBy.expr))
 	for i, expr := range orderBy.expr {
 		columnVector := expr.Evaluate(input)
@@ -1713,13 +1713,13 @@ func (call FuncCallLogicExpr) TypeCheck() error {
 	return f.TypeCheck()
 }
 
-func (call FuncCallLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (call FuncCallLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	f := call.Fn
-	columnVectors := make([]storage.ColumnVector, len(call.Params))
+	columnVectors := make([]*storage.ColumnVector, len(call.Params))
 	for i, param := range call.Params {
 		columnVectors[i] = param.Evaluate(input)
 	}
-	ret := storage.ColumnVector{Field: storage.Field{Name: call.Name, TP: f.ReturnType()}}
+	ret := &storage.ColumnVector{Field: storage.Field{Name: call.Name, TP: f.ReturnType()}}
 	for i := 0; i < columnVectors[i].Size(); i++ {
 		params := make([][]byte, len(columnVectors))
 		for j, columnVector := range columnVectors {
@@ -1834,6 +1834,6 @@ func (as AsLogicExpr) TypeCheck() error {
 	return as.Expr.TypeCheck()
 }
 
-func (as AsLogicExpr) Evaluate(input *storage.RecordBatch) storage.ColumnVector {
+func (as AsLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	return as.Expr.Evaluate(input)
 }

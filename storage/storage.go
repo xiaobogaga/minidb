@@ -333,7 +333,7 @@ func (recordBatch *RecordBatch) Append(new *RecordBatch) {
 
 // columnVector represents the order of recordBatch. It's has just one row.
 // whose field Is Field{Name: "order", TP: storage.Int}.
-func (recordBatch *RecordBatch) OrderBy(columnVector ColumnVector) {
+func (recordBatch *RecordBatch) OrderBy(columnVector *ColumnVector) {
 	temp := &RecordBatch{Fields: recordBatch.Fields, Records: make([]*ColumnVector, len(recordBatch.Records))}
 	for i, col := range recordBatch.Records {
 		temp.Records[i] = &ColumnVector{
@@ -376,7 +376,7 @@ func (recordBatch *RecordBatch) Copy(src *RecordBatch, srcFrom, descFrom, size i
 }
 
 // selectedRows Is a bool column which represent each row in recordBatch Is selected Or not.
-func (recordBatch *RecordBatch) Filter(selectedRows ColumnVector) *RecordBatch {
+func (recordBatch *RecordBatch) Filter(selectedRows *ColumnVector) *RecordBatch {
 	ret := MakeEmptyRecordBatchFrom(recordBatch)
 	// now we copy the selected rows.
 	for i := 0; i < recordBatch.RowCount(); i++ {

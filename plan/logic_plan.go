@@ -8,7 +8,7 @@ import (
 )
 
 type LogicPlan interface {
-	Schema() storage.Schema
+	Schema() *storage.Schema
 	Child() []LogicPlan
 	String() string
 	TypeCheck() error
@@ -24,9 +24,9 @@ type ScanLogicPlan struct {
 }
 
 // Return a new schema with a possible new name named by alias
-func (scan *ScanLogicPlan) Schema() storage.Schema {
+func (scan *ScanLogicPlan) Schema() *storage.Schema {
 	originalSchema := scan.Input.Schema()
-	tableSchema := storage.SingleTableSchema{
+	tableSchema := &storage.SingleTableSchema{
 		TableName:  scan.Alias,
 		SchemaName: scan.SchemaName,
 	}
@@ -39,7 +39,7 @@ func (scan *ScanLogicPlan) Schema() storage.Schema {
 		}
 		tableSchema.AppendColumn(field)
 	}
-	return storage.Schema{Tables: []storage.SingleTableSchema{tableSchema}}
+	return &storage.Schema{Tables: []*storage.SingleTableSchema{tableSchema}}
 }
 
 func (scan *ScanLogicPlan) String() string {
@@ -69,7 +69,7 @@ type TableScan struct {
 	i          int
 }
 
-func (tableScan *TableScan) Schema() storage.Schema {
+func (tableScan *TableScan) Schema() *storage.Schema {
 	db := storage.GetStorage().GetDbInfo(tableScan.SchemaName)
 	table := db.GetTable(tableScan.Name)
 	return table.Schema
@@ -114,7 +114,7 @@ type JoinLogicPlan struct {
 	RightBatch     *storage.RecordBatch
 }
 
-func (join *JoinLogicPlan) Schema() storage.Schema {
+func (join *JoinLogicPlan) Schema() *storage.Schema {
 	leftSchema := join.LeftLogicPlan.Schema()
 	rightSchema := join.RightLogicPlan.Schema()
 	mergedSchema, _ := leftSchema.Merge(rightSchema)
@@ -198,7 +198,7 @@ type SelectionLogicPlan struct {
 	Expr  LogicExpr
 }
 
-func (sel *SelectionLogicPlan) Schema() storage.Schema {
+func (sel *SelectionLogicPlan) Schema() *storage.Schema {
 	// The schema is the same as the original schema
 	return sel.Input.Schema()
 }
@@ -231,18 +231,18 @@ func (sel *SelectionLogicPlan) TypeCheck() error {
 	return nil
 }
 
-func GetFieldsFromSchema(schema storage.Schema) (ret []storage.Field) {
+func GetFieldsFromSchema(schema *storage.Schema) (ret []storage.Field) {
 	for _, tableSchema := range schema.Tables {
 		ret = append(ret, tableSchema.Columns...)
 	}
 	return
 }
 
-func MakeEmptyRecordBatchFromSchema(schema storage.Schema) *storage.RecordBatch {
+func MakeEmptyRecordBatchFromSchema(schema *storage.Schema) *storage.RecordBatch {
 	fields := GetFieldsFromSchema(schema)
 	ret := &storage.RecordBatch{
 		Fields:  fields,
-		Records: make([]storage.ColumnVector, len(fields)),
+		Records: make([]*storage.ColumnVector, len(fields)),
 	}
 	for i, f := range fields {
 		ret.Records[i].Field = f
@@ -291,7 +291,7 @@ type OrderByLogicPlan struct {
 	index   int
 }
 
-func (orderBy *OrderByLogicPlan) Schema() storage.Schema {
+func (orderBy *OrderByLogicPlan) Schema() *storage.Schema {
 	// Should be the same as Expr
 	return orderBy.Input.Schema()
 }
@@ -358,7 +358,7 @@ type ProjectionLogicPlan struct {
 }
 
 // We don't support alias for now.
-func (proj *ProjectionLogicPlan) Schema() storage.Schema {
+func (proj *ProjectionLogicPlan) Schema() *storage.Schema {
 	if len(proj.Exprs) == 0 {
 		return proj.Input.Schema()
 	}
@@ -366,9 +366,9 @@ func (proj *ProjectionLogicPlan) Schema() storage.Schema {
 	// and the inputSchema can be either:
 	// * a pure single table schema.
 	// * a joined table schema with multiple sub tables internal.
-	table := storage.SingleTableSchema{}
-	ret := storage.Schema{
-		Tables: []storage.SingleTableSchema{table},
+	table := &storage.SingleTableSchema{}
+	ret := &storage.Schema{
+		Tables: []*storage.SingleTableSchema{table},
 		// Name:   "projection",
 	}
 	for _, expr := range proj.Exprs {
@@ -423,7 +423,7 @@ type LimitLogicPlan struct {
 	Index  int
 }
 
-func (limit *LimitLogicPlan) Schema() storage.Schema {
+func (limit *LimitLogicPlan) Schema() *storage.Schema {
 	return limit.Input.Schema()
 }
 

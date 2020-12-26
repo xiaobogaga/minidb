@@ -136,7 +136,7 @@ func TestRecordBatch_Slice(t *testing.T) {
 func TestRecordBatch_Filter(t *testing.T) {
 	recordBatch := makeRecordBatchForTesting(3)
 	// select 0, 2 row.
-	selectedRow := ColumnVector{
+	selectedRow := &ColumnVector{
 		Field: Field{TP: Bool},
 		Values: [][]byte{
 			EncodeBool(true),
@@ -160,7 +160,7 @@ func TestRecordBatch_Join(t *testing.T) {
 
 func TestRecordBatch_OrderBy(t *testing.T) {
 	record := makeRecordBatchForTesting(3)
-	orderByCol := ColumnVector{
+	orderByCol := &ColumnVector{
 		Field: Field{TP: Int},
 		Values: [][]byte{
 			EncodeInt(2),
