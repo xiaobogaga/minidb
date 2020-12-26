@@ -156,13 +156,13 @@ func (literal LiteralLogicExpr) Evaluate(input *storage.RecordBatch) *storage.Co
 		Field: storage.Field{Name: string(literal.Data), TP: storage.InferenceType(literal.Data)},
 	}
 	for i := 0; i < input.RowCount(); i++ {
-		ret.Append(literal.Data)
+		ret.Append(literal.Value())
 	}
 	return ret
 }
 
 func (literal LiteralLogicExpr) EvaluateRow(row int, input *storage.RecordBatch) []byte {
-	return literal.Data
+	return literal.Value()
 }
 
 func (literal LiteralLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
@@ -174,7 +174,7 @@ func (literal LiteralLogicExpr) Accumulate(row int, input *storage.RecordBatch) 
 }
 
 func (literal LiteralLogicExpr) AccumulateValue() []byte {
-	return literal.Data
+	return literal.Value()
 }
 
 func (literal LiteralLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
@@ -184,7 +184,15 @@ func (literal LiteralLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 func (literal LiteralLogicExpr) HasGroupFunc() bool { return false }
 
 func (literal LiteralLogicExpr) Compute() ([]byte, error) {
-	return literal.Data, nil
+	return literal.Value(), nil
+}
+
+// a little tricky.
+func (literal LiteralLogicExpr) Value() []byte {
+	if literal.Data[0] == '"' || literal.Data[0] == '\'' {
+		return literal.Data[1 : len(literal.Data)-1]
+	}
+	return literal.Data
 }
 
 type NegativeLogicExpr struct {

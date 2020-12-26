@@ -11,7 +11,7 @@ func (parser *Parser) resolveUseStm() (Stm, error) {
 	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	return UseDatabaseStm{DatabaseName: string(databaseName)}, nil
+	return &UseDatabaseStm{DatabaseName: string(databaseName)}, nil
 }
 
 func (parser *Parser) resolveShowStm() (Stm, error) {
@@ -22,7 +22,7 @@ func (parser *Parser) resolveShowStm() (Stm, error) {
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	stm := ShowStm{}
+	stm := &ShowStm{}
 	switch databaseOrTable.Tp {
 	case DATABASES:
 		stm.TP = ShowDatabaseTP

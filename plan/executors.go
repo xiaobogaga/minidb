@@ -9,33 +9,33 @@ import (
 
 func Exec(stm parser.Stm, currentDB string) (data *storage.RecordBatch, newUsingDB string, err error) {
 	switch stm.(type) {
-	case parser.CreateDatabaseStm:
+	case *parser.CreateDatabaseStm:
 		return nil, "", ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
-	case parser.DropDatabaseStm:
+	case *parser.DropDatabaseStm:
 		return nil, "", ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
-	case parser.CreateTableStm:
+	case *parser.CreateTableStm:
 		return nil, "", ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
-	case parser.DropTableStm:
+	case *parser.DropTableStm:
 		return nil, "", ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
-	case parser.InsertIntoStm:
+	case *parser.InsertIntoStm:
 		return nil, "", ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
-	case parser.UpdateStm:
+	case *parser.UpdateStm:
 		return nil, "", ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
-	case parser.MultiUpdateStm:
+	case *parser.MultiUpdateStm:
 		return nil, "", ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
-	case parser.SingleDeleteStm:
+	case *parser.SingleDeleteStm:
 		return nil, "", ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
-	case parser.MultiDeleteStm:
+	case *parser.MultiDeleteStm:
 		return nil, "", ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
-	case parser.TruncateStm:
+	case *parser.TruncateStm:
 		return nil, "", ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
-	case parser.SelectStm:
+	case *parser.SelectStm:
 		data, err = ExecuteSelectStm(stm.(*parser.SelectStm), currentDB)
 		return
-	case parser.ShowStm:
+	case *parser.ShowStm:
 		data, err = ExecuteShowStm(currentDB, stm.(*parser.ShowStm))
 		return
-	case parser.UseDatabaseStm:
+	case *parser.UseDatabaseStm:
 		err = ExecuteUseStm(stm.(*parser.UseDatabaseStm))
 		if err == nil {
 			newUsingDB = stm.(*parser.UseDatabaseStm).DatabaseName
@@ -80,6 +80,7 @@ func getSchemaTableName(schemaTable string, defaultSchemaName string) (schema st
 		table = arr[1]
 	case 1:
 		schema = defaultSchemaName
+		table = arr[0]
 	default:
 		err = errors.New("wrong table name format")
 	}
@@ -127,33 +128,27 @@ func columnDefToStorageColumn(col *parser.ColumnDefStm, tableName, schemaName st
 	return ret
 }
 
-func getSchema(stm *parser.CreateTableStm, dbInfo *storage.DbInfo) (*storage.Schema, error) {
+func getSchema(stm *parser.CreateTableStm, dbInfo *storage.DbInfo) (*storage.TableSchema, error) {
 	schemaName, tableName, _ := getSchemaTableName(stm.TableName, dbInfo.Name)
-	ret := &storage.Schema{
-		Tables: make([]*storage.SingleTableSchema, 1),
-	}
-	ret.Tables[0] = &storage.SingleTableSchema{
-		Columns:    make([]storage.Field, len(stm.Cols)+1),
-		TableName:  tableName,
-		SchemaName: schemaName,
+	ret := &storage.TableSchema{
+		Columns: make([]storage.Field, len(stm.Cols)+1),
 	}
 	// Add row index field.
-	ret.Tables[0].Columns[0] = storage.RowIndexField
+	ret.Columns[0] = storage.RowIndexField(schemaName, tableName)
 	hasPrimaryColumn := false
-	for i, col := range stm.Cols {
-		col := columnDefToStorageColumn(col, tableName, schemaName)
+	for i, colDef := range stm.Cols {
+		col := columnDefToStorageColumn(colDef, tableName, schemaName)
 		if hasPrimaryColumn && col.PrimaryKey {
 			return ret, errors.New("multi primary key defined")
 		}
 		hasPrimaryColumn = hasPrimaryColumn || col.PrimaryKey
-		ret.Tables[0].Columns[i+1] = col
+		ret.Columns[i+1] = col
 	}
-	if !hasPrimaryColumn {
-		// Add the default primary key column to the table.
-		primaryKeyCol := storage.DefaultPrimaryKeyColumn()
-		primaryKeyCol.TableName, primaryKeyCol.SchemaName = tableName, schemaName
-		ret.Tables[0].Columns = append([]storage.Field{primaryKeyCol}, ret.Tables[0].Columns...)
-	}
+	//if !hasPrimaryColumn {
+	//	// Add the default primary key column to the table.
+	//	primaryKeyCol := storage.DefaultPrimaryKeyColumn(schemaName, tableName)
+	//	ret.Columns = append([]storage.Field{primaryKeyCol}, ret.Columns...)
+	//}
 	return ret, nil
 }
 
@@ -171,10 +166,14 @@ func ExecuteCreateTableStm(stm *parser.CreateTableStm, currentDB string) error {
 		return err
 	}
 	table := &storage.TableInfo{
-		Schema:  tableSchema,
-		Charset: stm.Charset,
-		Collate: stm.Collate,
-		Engine:  stm.Engine,
+		TableSchema: tableSchema,
+		Charset:     stm.Charset,
+		Collate:     stm.Collate,
+		Engine:      stm.Engine,
+		Datas:       make([]*storage.ColumnVector, len(tableSchema.Columns)),
+	}
+	for i, col := range table.TableSchema.Columns {
+		table.Datas[i] = &storage.ColumnVector{Field: col}
 	}
 	dbInfo.AddTable(table)
 	return nil
@@ -273,7 +272,7 @@ func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch
 			Fields:  make([]storage.Field, 2),
 			Records: make([]*storage.ColumnVector, 2),
 		}
-		f1 := storage.RowIndexField
+		f1 := storage.RowIndexField("", "")
 		f2 := storage.Field{TP: storage.Text, Name: "tables"}
 		ret.Fields[0], ret.Fields[1] = f1, f2
 		ret.Records[0].Field, ret.Records[1].Field = f1, f2
@@ -290,7 +289,7 @@ func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch
 			Fields:  make([]storage.Field, 2),
 			Records: make([]*storage.ColumnVector, 2),
 		}
-		f1 := storage.RowIndexField
+		f1 := storage.RowIndexField("", "")
 		f2 := storage.Field{TP: storage.Text, Name: "databases"}
 		ret.Fields[0], ret.Fields[1] = f1, f2
 		ret.Records[0].Field, ret.Records[1].Field = f1, f2

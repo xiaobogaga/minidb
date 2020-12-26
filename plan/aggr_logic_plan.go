@@ -19,14 +19,11 @@ type GroupByLogicPlan struct {
 	index       int
 }
 
-func (groupBy GroupByLogicPlan) Schema() *storage.Schema {
-	retTable := &storage.SingleTableSchema{}
-	ret := &storage.Schema{
-		Tables: []*storage.SingleTableSchema{retTable},
-	}
+func (groupBy GroupByLogicPlan) Schema() *storage.TableSchema {
+	ret := &storage.TableSchema{}
 	for _, aggrExpr := range groupBy.AggrExprs {
 		f := aggrExpr.toField()
-		retTable.Columns = append(retTable.Columns, f)
+		ret.Columns = append(ret.Columns, f)
 	}
 	return ret
 }
@@ -146,7 +143,7 @@ type HavingLogicPlan struct {
 	Expr  LogicExpr
 }
 
-func (having HavingLogicPlan) Schema() *storage.Schema {
+func (having HavingLogicPlan) Schema() *storage.TableSchema {
 	// Should be the same schema as Expr.
 	return having.Input.Schema()
 }

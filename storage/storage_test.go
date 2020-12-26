@@ -9,8 +9,11 @@ import (
 
 func TestRecordBatch_JsonEncode(t *testing.T) {
 	record := RecordBatch{
-		Fields:  []Field{RowIndexField, {Name: "id", TP: Int, PrimaryKey: true}},
-		Records: make([]*ColumnVector, 2),
+		Fields: []Field{RowIndexField("test", "test1"), {Name: "id", TP: Int, PrimaryKey: true}},
+		Records: []*ColumnVector{
+			{},
+			{},
+		},
 	}
 	record.Records[0].Field = record.Fields[0]
 	record.Records[1].Field = record.Fields[1]
@@ -67,18 +70,12 @@ func TestField_InferenceType(t *testing.T) {
 	assert.Equal(t, Bool, intF.InferenceType(floatF, GreatEqualOpType))
 }
 
-func makeSchemaForTesting(dbName string, tableName string, fieldNames []string, fieldsTP []FieldTP) *Schema {
-	schema := &Schema{
-		Tables: []*SingleTableSchema{
-			{
-				SchemaName: dbName,
-				TableName:  tableName,
-				Columns:    make([]Field, len(fieldNames)),
-			},
-		},
+func makeSchemaForTesting(dbName string, tableName string, fieldNames []string, fieldsTP []FieldTP) *TableSchema {
+	schema := &TableSchema{
+		Columns: make([]Field, len(fieldNames)),
 	}
 	for i := 0; i < len(fieldNames); i++ {
-		schema.Tables[0].Columns[i] = Field{
+		schema.Columns[i] = Field{
 			TP:         fieldsTP[i],
 			Name:       fieldNames[i],
 			SchemaName: dbName,
@@ -92,10 +89,10 @@ func TestSchema_HasAmbiguousColumn(t *testing.T) {
 	schema := makeSchemaForTesting("test", "people", []string{"id", "name"}, []FieldTP{Int, VarChar})
 	assert.False(t, schema.HasAmbiguousColumn("", "", "id"))
 	assert.True(t, schema.HasColumn("", "", "id"))
-	assert.True(t, schema.HasSubTable("people"))
+	// assert.True(t, schema.HasSubTable("people"))
 	another := makeSchemaForTesting("test2", "people2", []string{"id", "location"}, []FieldTP{Int, VarChar})
 	mergedSchema, _ := schema.Merge(another)
-	assert.True(t, mergedSchema.HasSubTable("people2"))
+	// assert.True(t, mergedSchema.HasSubTable("people2"))
 	assert.True(t, mergedSchema.HasAmbiguousColumn("", "", "id"))
 	assert.False(t, mergedSchema.HasAmbiguousColumn("test2", "", "id"))
 	assert.False(t, mergedSchema.HasAmbiguousColumn("", "people", "id"))
@@ -278,7 +275,15 @@ func TestColumnVector_Sort(t *testing.T) {
 	}
 	ret = textF.Sort([]*ColumnVector{intF1, intF2}, []bool{true, false})
 	assert.Equal(t, 4, ret.Size())
-	for i := 0; i < 4; i++ {
-		assert.Equal(t, fmt.Sprintf("%d", i-1), ret.String(i))
-	}
+	assert.Equal(t, "-1", ret.String(0))
+	assert.Equal(t, "0", ret.String(1))
+	assert.Equal(t, "2", ret.String(2))
+	assert.Equal(t, "1", ret.String(3))
+	//	for i := 0; i < 4; i++ {
+	//		assert.Equal(t, fmt.Sprintf("%d", i-1), ret.String(i))
+	//	}
+}
+
+func TestTableInfo_FetchData(t *testing.T) {
+	// Todo
 }

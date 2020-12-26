@@ -22,7 +22,7 @@ func (storage *Storage) GetDbInfo(schema string) *DbInfo {
 }
 
 func (storage *Storage) CreateSchema(name, charset, collate string) {
-	schema := &DbInfo{Name: name, Charset: charset, Collate: collate}
+	schema := &DbInfo{Name: name, Charset: charset, Collate: collate, Tables: map[string]*TableInfo{}}
 	storage.Dbs[schema.Name] = schema
 }
 
@@ -61,7 +61,7 @@ func (dbs *DbInfo) GetTable(table string) *TableInfo {
 }
 
 func (dbs *DbInfo) AddTable(table *TableInfo) {
-	dbs.Tables[table.Schema.Tables[0].TableName] = table
+	dbs.Tables[table.TableSchema.TableName()] = table
 }
 
 func (dbs *DbInfo) RemoveTable(tableName string) {
@@ -69,46 +69,22 @@ func (dbs *DbInfo) RemoveTable(tableName string) {
 }
 
 type TableInfo struct {
-	Schema  *Schema
-	Charset string
-	Collate string
-	Engine  string
-	Datas   []*ColumnVector
-}
-
-// This Is for join, a schema might have multiple sub table schemas.
-type Schema struct {
-	Tables []*SingleTableSchema
-	// Name   string // Because this can support join tables. do we need name?
-}
-
-// A table format looks like this.
-// | rowIndex | cols ... | DefaultPrimaryKey (if cols doesn't have primary key column |
-// the rowIndex column has no content by default. But when the fetch data is called.
-// We will feed the row index value to the rowIndex column.
-
-// A SingleTableSchema is a list of Fields representing a temporal table format.
-// It can has multiple columns, each column has a DatabaseName, TableRef, ColumnName to allow
-// multiple columns coexist with same columnName but are from different database.
-type SingleTableSchema struct {
-	Columns    []Field
-	TableName  string
-	SchemaName string
-}
-
-func (schema *SingleTableSchema) AppendColumn(field Field) {
-	schema.Columns = append(schema.Columns, field)
+	TableSchema *TableSchema
+	Charset     string
+	Collate     string
+	Engine      string
+	Datas       []*ColumnVector
 }
 
 // FetchData returns the data starting at row index `rowIndex` And the batchSize Is batchSize.
 func (table *TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
 	// The records in the last column is the row index if needRowIndex is true.
 	ret := &RecordBatch{
-		Fields:  table.Schema.Tables[0].Columns,
-		Records: make([]*ColumnVector, len(table.Schema.Tables[0].Columns)),
+		Fields:  table.TableSchema.Columns,
+		Records: make([]*ColumnVector, len(table.TableSchema.Columns)),
 	}
-	ret.Fields = append(ret.Fields, RowIndexField)
-	ret.Records = append(ret.Records, &ColumnVector{Field: RowIndexField})
+	ret.Fields = append(ret.Fields, RowIndexField(table.TableSchema.SchemaName(), table.TableSchema.TableName()))
+	ret.Records = append(ret.Records, &ColumnVector{Field: RowIndexField(table.TableSchema.SchemaName(), table.TableSchema.TableName())})
 	if len(table.Datas) == 0 {
 		return ret
 	}
@@ -143,9 +119,14 @@ func (table *TableInfo) HasColumn(column string) bool {
 	return false
 }
 
-func DefaultPrimaryKeyColumn() Field {
-	return Field{Name: "_id", TP: Int, PrimaryKey: true, AutoIncrement: true, AllowNull: false}
-}
+const (
+	// DefaultPrimaryKeyName = "0_id"
+	DefaultRowKeyName = "0_row_id"
+)
+
+//func DefaultPrimaryKeyColumn(schemaName, tableName string) Field {
+//	return Field{SchemaName: schemaName, TableName: tableName, Name: DefaultPrimaryKeyName, TP: Int, PrimaryKey: true, AutoIncrement: true, AllowNull: false}
+//}
 
 // update tableInfo col to new value `value` at row index row.
 func (table *TableInfo) UpdateData(colName string, row int, value []byte) {
@@ -174,103 +155,136 @@ func (table *TableInfo) InsertData(cols []string, values [][]byte) {
 		for _, tableCol := range table.Datas {
 			if tableCol.Field.Name == col {
 				tableCol.Append(values[i])
+				break
 			}
 		}
 	}
 }
 
-func (schema *Schema) HasSubTable(tableName string) bool {
-	for _, table := range schema.Tables {
-		if table.TableName == tableName {
-			return true
-		}
-	}
-	return false
+// A table format looks like this.
+// | rowIndex | cols ... | DefaultPrimaryKey (if cols doesn't have primary key column |
+// the rowIndex column has no content by default. But when the fetch data is called.
+// We will feed the row index value to the rowIndex column.
+
+// A SingleTableSchema is a list of Fields representing a temporal table format.
+// It can has multiple columns, each column has a DatabaseName, TableRef, ColumnName to allow
+// multiple columns coexist with same columnName but are from different database.
+type TableSchema struct {
+	Columns []Field
 }
 
-func (schema *Schema) GetSubTableFromColumn(schemaName, tableName, col string) (*SingleTableSchema, error) {
-	for _, table := range schema.Tables {
-		// Schema can be empty
-		if schemaName == "" && table.TableName == tableName && schema.TableHasColumn(table.Columns, col) {
-			return table, nil
+func (schema *TableSchema) AppendColumn(field Field) {
+	schema.Columns = append(schema.Columns, field)
+}
+
+func (schema *TableSchema) TableName() string {
+	return schema.Columns[0].TableName
+}
+
+func (schema *TableSchema) SchemaName() string {
+	return schema.Columns[0].SchemaName
+}
+
+//func (schema *TableSchema) HasSubTable(tableName string) bool {
+//	for _, column := range schema.Columns {
+//		if column.TableName == tableName {
+//			return true
+//		}
+//	}
+//	return false
+//}
+
+func (schema *TableSchema) GetTableInfoFromColumn(schemaName, tableName, columnName string) (*TableInfo, error) {
+	var col Field
+	for _, column := range schema.Columns {
+		if schemaName == "" && column.TableName == tableName && column.Name == columnName {
+			col = column
 		}
-		if schemaName == "" && tableName == "" && schema.TableHasColumn(table.Columns, col) {
-			return table, nil
+		if schemaName == "" && tableName == "" && column.Name == columnName {
+			col = column
 		}
-		if schemaName != "" && (schemaName == table.SchemaName) && table.TableName == tableName &&
-			schema.TableHasColumn(table.Columns, col) {
-			return table, nil
+		if schemaName != "" && (schemaName == column.SchemaName) && tableName == "" &&
+			column.Name == columnName {
+			col = column
+		}
+		if schemaName != "" && (schemaName == column.SchemaName) && column.TableName == tableName &&
+			column.Name == columnName {
+			col = column
 		}
 	}
-	return nil, errors.New("cannot find such table")
+	schemaName = col.SchemaName
+	tableName = col.TableName
+	dbInfo := storage.GetDbInfo(schemaName)
+	if dbInfo == nil {
+		return nil, nil
+	}
+	return dbInfo.GetTable(tableName), nil
 }
 
 // HasColumn returns whether this schema has such schema, table And column.
 // schemaName, tableName can be empty, then it will iterate all db schema to find such column.
-func (schema *Schema) HasColumn(schemaName, tableName, columnName string) bool {
-	for _, table := range schema.Tables {
-		// Schema can be empty
-		if schemaName == "" && table.TableName == tableName && schema.TableHasColumn(table.Columns, columnName) {
+func (schema *TableSchema) HasColumn(schemaName, tableName, columnName string) bool {
+	for _, column := range schema.Columns {
+		// TableSchema can be empty
+		if schemaName == "" && column.TableName == tableName && column.Name == columnName {
 			return true
 		}
-		if schemaName == "" && tableName == "" && schema.TableHasColumn(table.Columns, columnName) {
+		if schemaName == "" && tableName == "" && column.Name == columnName {
 			return true
 		}
-		if schemaName != "" && (schemaName == table.SchemaName) && tableName == "" &&
-			schema.TableHasColumn(table.Columns, columnName) {
+		if schemaName != "" && (schemaName == column.SchemaName) && tableName == "" &&
+			column.Name == columnName {
 			return true
 		}
-		if schemaName != "" && (schemaName == table.SchemaName) && table.TableName == tableName &&
-			schema.TableHasColumn(table.Columns, columnName) {
-			return true
-		}
-	}
-	return false
-}
-
-func (schema *Schema) TableHasColumn(fields []Field, column string) bool {
-	for _, f := range fields {
-		if f.Name == column {
+		if schemaName != "" && (schemaName == column.SchemaName) && column.TableName == tableName &&
+			column.Name == columnName {
 			return true
 		}
 	}
 	return false
 }
 
-func (schema *Schema) HasAmbiguousColumn(schemaName, tableName, columnName string) bool {
+//func (schema *TableSchema) TableHasColumn(fields []Field, column string) bool {
+//	for _, f := range fields {
+//		if f.Name == column {
+//			return true
+//		}
+//	}
+//	return false
+//}
+
+func (schema *TableSchema) HasAmbiguousColumn(schemaName, tableName, columnName string) bool {
 	if schemaName != "" && tableName != "" {
 		return false
 	}
 	times := 0
-	for _, table := range schema.Tables {
-		if schemaName != "" && table.SchemaName != schemaName {
+	for _, column := range schema.Columns {
+		if schemaName != "" && column.SchemaName != schemaName {
 			continue
 		}
-		if tableName == "" && schema.TableHasColumn(table.Columns, columnName) {
+		if tableName == "" && column.Name == columnName {
 			times++
 		}
-		if tableName != "" && tableName == table.TableName && schema.TableHasColumn(table.Columns, columnName) {
+		if tableName != "" && tableName == column.TableName && column.Name == columnName {
 			times++
 		}
 	}
 	return times > 1
 }
 
-func (schema *Schema) GetField(columnName string) *Field {
-	for _, table := range schema.Tables {
-		for _, field := range table.Columns {
-			if field.Name == columnName {
-				return &field
-			}
+func (schema *TableSchema) GetField(columnName string) *Field {
+	for _, column := range schema.Columns {
+		if column.Name == columnName {
+			return &column
 		}
 	}
 	return nil
 }
 
-func (schema *Schema) Merge(right *Schema) (*Schema, error) {
-	ret := &Schema{} // Are we safe here.
-	ret.Tables = append(ret.Tables, schema.Tables...)
-	ret.Tables = append(ret.Tables, right.Tables...)
+func (schema *TableSchema) Merge(right *TableSchema) (*TableSchema, error) {
+	ret := &TableSchema{} // Are we safe here.
+	ret.Columns = append(ret.Columns, schema.Columns...)
+	ret.Columns = append(ret.Columns, right.Columns...)
 	return ret, nil
 }
 
@@ -441,6 +455,7 @@ func (recordBatch *RecordBatch) RowIndex(tableName string, row int) (int, error)
 type Field struct {
 	TP            FieldTP
 	Name          string
+	Alias         string
 	TableName     string
 	SchemaName    string
 	DefaultValue  []byte
@@ -519,9 +534,22 @@ func (f Field) CanOp(another Field, opType OpType) (err error) {
 	}
 }
 
-const rowIndexName = "_rowid"
+func (f Field) CanIgnoreInInsert() bool {
+	return f.Name == DefaultRowKeyName || f.AllowNull
+}
 
-var RowIndexField = Field{Name: rowIndexName, TP: Int, AllowNull: true, AutoIncrement: false, PrimaryKey: false}
+func RowIndexField(schemaName, tableName string) Field {
+	field := Field{
+		SchemaName:    schemaName,
+		TableName:     tableName,
+		Name:          DefaultRowKeyName,
+		TP:            Int,
+		AllowNull:     true,
+		AutoIncrement: false,
+		PrimaryKey:    false,
+	}
+	return field
+}
 
 type OpType byte
 

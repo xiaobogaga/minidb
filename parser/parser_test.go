@@ -602,6 +602,23 @@ func TestUpdateStm(t *testing.T) {
 	testSqls(t, sqls)
 }
 
+func TestUseStm(t *testing.T) {
+	sql := "use test;"
+	parser := NewParser()
+	_, err := parser.Parse([]byte(sql))
+	assert.Nil(t, err)
+}
+
+func TestShowStm(t *testing.T) {
+	sql := "show tables;"
+	parser := NewParser()
+	_, err := parser.Parse([]byte(sql))
+	assert.Nil(t, err)
+	sql = "show databases;"
+	_, err = parser.Parse([]byte(sql))
+	assert.Nil(t, err)
+}
+
 //func TestAlterStm(t *testing.T) {
 //	sqls := []testEntity{
 //		{

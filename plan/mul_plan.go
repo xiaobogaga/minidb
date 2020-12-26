@@ -2,6 +2,7 @@ package plan
 
 import (
 	"errors"
+	"fmt"
 	"simpleDb/parser"
 	"simpleDb/storage"
 	"strings"
@@ -11,8 +12,7 @@ type Insert struct {
 	Schema string
 	Table  string
 	Cols   []string
-	Exprs  []LogicExpr
-	Values [][]byte
+	Values []LogicExpr
 }
 
 func MakeInsertPlan(stm *parser.InsertIntoStm, currentDB string) Insert {
@@ -22,8 +22,7 @@ func MakeInsertPlan(stm *parser.InsertIntoStm, currentDB string) Insert {
 		Schema: schemaName,
 		Table:  tableName,
 		Cols:   stm.Cols,
-		Exprs:  logicExprs,
-		Values: make([][]byte, len(logicExprs)),
+		Values: logicExprs,
 	}
 }
 
@@ -31,12 +30,68 @@ func (insert Insert) Execute() error {
 	// Now we save the values to the table.
 	dbInfo := storage.GetStorage().GetDbInfo(insert.Schema)
 	tableInfo := dbInfo.GetTable(insert.Table)
-	realCols := make([]string, len(insert.Cols))
-	for i, col := range insert.Cols {
-		_, _, realCols[i] = getSchemaTableColumnName(col)
+	// Prepare the columns we need to insert.
+	var realCols []string
+	if len(insert.Cols) == 0 {
+		// The cols should be the table columns.
+		realCols = make([]string, len(tableInfo.TableSchema.Columns)-1)
+		for i, col := range tableInfo.TableSchema.Columns {
+			// skip row index column.
+			if i == 0 {
+				continue
+			}
+			realCols[i-1] = col.Name
+		}
+	} else {
+		realCols = make([]string, len(insert.Cols))
+		for i, col := range insert.Cols {
+			_, _, realCols[i] = getSchemaTableColumnName(col)
+		}
 	}
-	tableInfo.InsertData(realCols, insert.Values)
+	// Now we compute the values and then insert.
+	values := make([][]byte, len(insert.Values))
+	for i, expr := range insert.Values {
+		v, err := expr.Compute()
+		if err != nil {
+			return err
+		}
+		values[i] = v
+	}
+	tableInfo.InsertData(realCols, values)
 	return nil
+}
+
+func (insert Insert) TypeCheckForNoCols() error {
+	dbInfo := storage.GetStorage().GetDbInfo(insert.Schema)
+	tableInfo := dbInfo.GetTable(insert.Table)
+	// One extra row index column
+	if len(insert.Values) != len(tableInfo.TableSchema.Columns)-1 {
+		return errors.New("values doesn't match table columns")
+	}
+	// Now we check col, expr match one by one
+	for i, value := range insert.Values {
+		err := value.TypeCheck()
+		if err != nil {
+			return err
+		}
+		colInfo := tableInfo.TableSchema.Columns[i+1]
+		// Expr type must match to column type.
+		err = colInfo.CanOp(value.toField(), storage.EqualOpType)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (insert Insert) HasColumn(colName string) bool {
+	for _, col := range insert.Cols {
+		_, _, realCol := getSchemaTableColumnName(col)
+		if realCol == colName {
+			return true
+		}
+	}
+	return false
 }
 
 func (insert Insert) TypeCheck() error {
@@ -47,30 +102,40 @@ func (insert Insert) TypeCheck() error {
 	if !dbInfo.HasTable(insert.Table) {
 		return errors.New("table doesn't exist")
 	}
-	// Todo: if a column is auto increment, do we need to skip this checking.
-	if len(insert.Cols) != 0 && len(insert.Cols) != len(insert.Exprs) {
-		return errors.New("columns doesn't match")
+	if len(insert.Cols) != 0 && len(insert.Cols) != len(insert.Values) {
+		return errors.New("insert columns doesn't match")
 	}
-	for _, expr := range insert.Exprs {
-		err := expr.TypeCheck()
+	if len(insert.Cols) == 0 {
+		// when no cols in insert. then means the data must be inserted according to the column defined order.
+		return insert.TypeCheckForNoCols()
+	}
+	// Now cols are not empty.
+	// some columns cannot be missing.
+	tableInfo := dbInfo.GetTable(insert.Table)
+	for _, col := range tableInfo.TableSchema.Columns {
+		if col.CanIgnoreInInsert() {
+			continue
+		}
+		if !insert.HasColumn(col.Name) {
+			return errors.New(fmt.Sprintf("cannot missing column %s", col.Name))
+		}
+	}
+
+	// Now we check whether the column type match expr type.
+	for i, col := range insert.Cols {
+		err := insert.Values[i].TypeCheck()
 		if err != nil {
 			return err
 		}
-	}
-	// Now we check whether the column type match expr type, and compute expr value.
-	tableInfo := dbInfo.GetTable(insert.Table)
-	for i, col := range insert.Cols {
 		_, _, realCol := getSchemaTableColumnName(col)
 		colInfo := tableInfo.GetColumnInfo(realCol)
-		err := colInfo.CanOp(insert.Exprs[i].toField(), storage.EqualOpType)
+		if colInfo == nil {
+			return errors.New("unknown column")
+		}
+		err = colInfo.CanOp(insert.Values[i].toField(), storage.EqualOpType)
 		if err != nil {
 			return err
 		}
-		v, err := insert.Exprs[i].Compute()
-		if err != nil {
-			return err
-		}
-		insert.Values[i] = v
 	}
 	return nil
 }
@@ -192,10 +257,9 @@ func updateTableData(data *storage.RecordBatch, assignments []AssignmentExpr, in
 		for _, assign := range assignments {
 			ret := assign.Expr.EvaluateRow(i, data)
 			schemaName, table, col := getSchemaTableColumnName(assign.Col)
-			tableSchema, _ := schema.GetSubTableFromColumn(schemaName, table, col)
+			tableInfo, _ := schema.GetTableInfoFromColumn(schemaName, table, col)
 			index, _ := data.RowIndex(table, i)
-			dbInfo := storage.GetStorage().GetDbInfo(tableSchema.SchemaName)
-			dbInfo.GetTable(tableSchema.TableName).UpdateData(assign.Col, index, ret)
+			tableInfo.UpdateData(assign.Col, index, ret)
 		}
 	}
 }

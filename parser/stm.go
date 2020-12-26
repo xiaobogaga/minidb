@@ -335,7 +335,7 @@ var (
 //type ExpressionInExpressionsStm struct {
 //	Expr  *ExpressionStm
 //	In    bool
-//	Exprs []*ExpressionStm
+//	Values []*ExpressionStm
 //}
 //
 //type ExpressionInSubQueryStm struct {
@@ -559,6 +559,7 @@ const (
 	LockInShareModeTp
 )
 
+// use dataBaseName;
 type UseDatabaseStm struct {
 	DatabaseName string
 }
