@@ -272,7 +272,7 @@ func ReadResp(conn net.Conn, packetCounter byte, readTimeout time.Duration) Msg 
 	switch packet[0] {
 	case OkMsgType:
 		msg := decodeOkMsg(packet)
-		return Msg{TP: ErrMsgType, Msg: msg}
+		return Msg{TP: OkMsgType, Msg: msg}
 	case ErrMsgType:
 		msg := decodeErrMsg(packet)
 		return Msg{TP: ErrMsgType, Msg: msg}
@@ -312,7 +312,7 @@ func decodeErrMsg(packet []byte) ErrMsg {
 	messageLen := BytesToInt4(packet[2:6])
 	ret := ErrMsg{
 		errCode: ErrCodeType(errCode),
-		Msg:     string(packet[7 : 7+messageLen]),
+		Msg:     string(packet[6 : 6+messageLen]),
 	}
 	return ret
 }
@@ -362,7 +362,7 @@ func (msg Msg) IsFatal() bool {
 	}
 	errMsg := msg.Msg.(ErrMsg)
 	switch errMsg.errCode {
-	case ErrorOk, ErrorNetTimeout, ErrorNetPacketOutOfOrder, ErrMsgFormat, ErrPacketType:
+	case ErrorOk, ErrorNetTimeout, ErrorNetPacketOutOfOrder, ErrMsgFormat, ErrPacketType, ErrSyntax, ErrQuery:
 		return false
 	default:
 		return true

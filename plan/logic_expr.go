@@ -189,10 +189,7 @@ func (literal LiteralLogicExpr) Compute() ([]byte, error) {
 
 // a little tricky.
 func (literal LiteralLogicExpr) Value() []byte {
-	if literal.Data[0] == '"' || literal.Data[0] == '\'' {
-		return literal.Data[1 : len(literal.Data)-1]
-	}
-	return literal.Data
+	return storage.Encode(literal.Data)
 }
 
 type NegativeLogicExpr struct {

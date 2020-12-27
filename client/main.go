@@ -126,7 +126,7 @@ func printRecord(record *storage.RecordBatch, needPrintHeader bool, columnWidths
 	if needPrintHeader {
 		printHeader(record, columnWidths)
 	}
-	for i := 0; i < record.ColumnCount(); i++ {
+	for i := 0; i < record.RowCount(); i++ {
 		printTail(record, columnWidths)
 		printRow(record, i, columnWidths)
 	}
@@ -138,7 +138,7 @@ func printMsg(msg protocol.Msg, printHeader bool, columnWidths []int) {
 	case protocol.OkMsgType:
 		println("server: ok")
 	case protocol.ErrMsgType:
-		println("server: err: %v", msg.Msg.(protocol.ErrMsg).Msg)
+		fmt.Printf("server: err: %v\n", msg.Msg.(protocol.ErrMsg).Msg)
 	case protocol.DataMsgType:
 		printRecord(msg.Msg.(*storage.RecordBatch), printHeader, columnWidths)
 	default:
@@ -223,8 +223,8 @@ func main() {
 	go interact(cancel, log, con)
 	select {
 	case <-sig:
-		log.InfoF("bye")
+		println("bye")
 	case <-ctx.Done():
-		log.InfoF("bye")
+		println("bye")
 	}
 }

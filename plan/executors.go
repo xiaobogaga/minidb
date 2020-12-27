@@ -7,42 +7,43 @@ import (
 	"strings"
 )
 
-func Exec(stm parser.Stm, currentDB string) (data *storage.RecordBatch, newUsingDB string, err error) {
+func Exec(stm parser.Stm, db *string) (data *storage.RecordBatch, finish bool, err error) {
+	currentDB := *db
 	switch stm.(type) {
 	case *parser.CreateDatabaseStm:
-		return nil, "", ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
+		return nil, true, ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
 	case *parser.DropDatabaseStm:
-		return nil, "", ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
+		return nil, true, ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
 	case *parser.CreateTableStm:
-		return nil, "", ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
+		return nil, true, ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
 	case *parser.DropTableStm:
-		return nil, "", ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
+		return nil, true, ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
 	case *parser.InsertIntoStm:
-		return nil, "", ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
+		return nil, true, ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
 	case *parser.UpdateStm:
-		return nil, "", ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
+		return nil, true, ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
 	case *parser.MultiUpdateStm:
-		return nil, "", ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
+		return nil, true, ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
 	case *parser.SingleDeleteStm:
-		return nil, "", ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
+		return nil, true, ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
 	case *parser.MultiDeleteStm:
-		return nil, "", ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
+		return nil, true, ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
 	case *parser.TruncateStm:
-		return nil, "", ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
+		return nil, true, ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
 	case *parser.SelectStm:
 		data, err = ExecuteSelectStm(stm.(*parser.SelectStm), currentDB)
 		return
 	case *parser.ShowStm:
 		data, err = ExecuteShowStm(currentDB, stm.(*parser.ShowStm))
-		return
+		return data, true, err
 	case *parser.UseDatabaseStm:
 		err = ExecuteUseStm(stm.(*parser.UseDatabaseStm))
 		if err == nil {
-			newUsingDB = stm.(*parser.UseDatabaseStm).DatabaseName
+			*db = stm.(*parser.UseDatabaseStm).DatabaseName
 		}
-		return
+		return nil, true, nil
 	default:
-		return nil, "", errors.New("unsupported statement")
+		return nil, true, errors.New("unsupported statement")
 	}
 }
 
@@ -265,17 +266,22 @@ func ExecuteUseStm(stm *parser.UseDatabaseStm) error {
 func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch, error) {
 	switch stm.TP {
 	case parser.ShowTableTP:
+		// Prepare show table resp format.
+		// | rowId | tables |
 		if currentDB == "" {
 			return nil, errors.New("please select db first")
 		}
 		ret := &storage.RecordBatch{
-			Fields:  make([]storage.Field, 2),
-			Records: make([]*storage.ColumnVector, 2),
+			Fields: []storage.Field{
+				storage.RowIndexField("", ""),
+				{TP: storage.Text, Name: "tables"},
+			},
+			Records: []*storage.ColumnVector{
+				{},
+				{},
+			},
 		}
-		f1 := storage.RowIndexField("", "")
-		f2 := storage.Field{TP: storage.Text, Name: "tables"}
-		ret.Fields[0], ret.Fields[1] = f1, f2
-		ret.Records[0].Field, ret.Records[1].Field = f1, f2
+		ret.Records[0].Field, ret.Records[1].Field = ret.Fields[0], ret.Fields[1]
 		dbInfo := storage.GetStorage().GetDbInfo(currentDB)
 		i := 0
 		for table := range dbInfo.Tables {
@@ -285,14 +291,19 @@ func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch
 		}
 		return ret, nil
 	case parser.ShowDatabaseTP:
+		// Prepare show database resp format
+		// | rowId | databases |
 		ret := &storage.RecordBatch{
-			Fields:  make([]storage.Field, 2),
-			Records: make([]*storage.ColumnVector, 2),
+			Fields: []storage.Field{
+				storage.RowIndexField("", ""),
+				{TP: storage.Text, Name: "databases"},
+			},
+			Records: []*storage.ColumnVector{
+				{},
+				{},
+			},
 		}
-		f1 := storage.RowIndexField("", "")
-		f2 := storage.Field{TP: storage.Text, Name: "databases"}
-		ret.Fields[0], ret.Fields[1] = f1, f2
-		ret.Records[0].Field, ret.Records[1].Field = f1, f2
+		ret.Records[0].Field, ret.Records[1].Field = ret.Fields[0], ret.Fields[1]
 		i := 0
 		for db := range storage.GetStorage().Dbs {
 			ret.Records[0].Append(storage.EncodeInt(int64(i)))

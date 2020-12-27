@@ -101,19 +101,15 @@ func (c ComQuery) Do(conn *connectionWrapper, packet []byte) (bool, ErrMsg) {
 
 func (c ComQuery) HandleOneStm(stm parser.Stm, conn *connectionWrapper) ErrMsg {
 	for {
-		data, newUsingDB, err := plan.Exec(stm, conn.session.CurrentDB)
+		data, finish, err := plan.Exec(stm, &conn.session.CurrentDB)
 		if err != nil {
 			return makeErrMsg(ErrQuery, err.Error())
 		}
-		if newUsingDB != "" {
-			conn.session.CurrentDB = newUsingDB
+		if data != nil {
+			conn.SendQueryResult(data)
 		}
-		if data == nil {
+		if finish {
 			return OkMsg
-		}
-		errMsg := conn.SendQueryResult(data)
-		if !errMsg.IsOk() {
-			return errMsg
 		}
 	}
 }

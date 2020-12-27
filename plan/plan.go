@@ -205,7 +205,7 @@ func ExprTermStmToLogicExpr(exprTerm *parser.ExpressionTerm, input LogicPlan) Lo
 	case parser.FuncCallExpressionTermTP:
 		logicExpr = FuncCallExprToLogicExpr(exprTerm.RealExprTerm.(parser.FunctionCallExpressionStm), input)
 	case parser.SubExpressionTermTP:
-		logicExpr = SubExprTermToLogicExpr(exprTerm.RealExprTerm.(parser.SubExpressionTerm), input)
+		logicExpr = ExprStmToLogicExpr(exprTerm.RealExprTerm.(*parser.ExpressionStm), input)
 	default:
 		panic("unknown expr term type")
 	}

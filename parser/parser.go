@@ -24,7 +24,7 @@ type SyntaxError struct {
 }
 
 func (s SyntaxError) Error() string {
-	return fmt.Sprintf("syntax err near %s at %d line", s.ErrData, s.LineNumber)
+	return fmt.Sprintf("syntax err near '%s'", s.ErrData)
 }
 
 func (parser *Parser) MakeSyntaxError(lineNumber, startPos int) error {

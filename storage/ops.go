@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 )
 
 func Add(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
@@ -317,6 +318,41 @@ func DecodeBool(value []byte) bool {
 
 func DecodeInt(value []byte) int64 {
 	return int64(binary.BigEndian.Uint64(value))
+}
+
+func Encode(value []byte) []byte {
+	tp := InferenceType(value)
+	switch tp {
+	case Int:
+		val, _ := strconv.ParseInt(string(value), 10, 64)
+		return EncodeInt(val)
+	case Float:
+		val, _ := strconv.ParseFloat(string(value), 64)
+		return EncodeFloat(val)
+	case Bool:
+		if strings.ToUpper(string(value)) == "TRUE" {
+			return EncodeBool(true)
+		}
+		return EncodeBool(false)
+	default:
+		return value
+	}
+}
+
+func DecodeToString(value []byte, tp FieldTP) string {
+	switch tp {
+	case Int:
+		return fmt.Sprintf("%d", DecodeInt(value))
+	case Float:
+		return fmt.Sprintf("%f", DecodeFloat(value))
+	case Bool:
+		if DecodeBool(value) {
+			return "true"
+		}
+		return "false"
+	default:
+		return string(value)
+	}
 }
 
 // func DecodeBigInt(value []byte) string {}

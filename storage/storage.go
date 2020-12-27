@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type Storage struct {
@@ -88,7 +89,7 @@ func (table *TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
 	if len(table.Datas) == 0 {
 		return ret
 	}
-	for i := rowIndex; i < batchSize && i < table.Datas[0].Size(); i++ {
+	for i := rowIndex; i < batchSize && i < table.Datas[1].Size(); i++ {
 		for j, col := range table.Datas {
 			if j == 0 {
 				// The first row is the row index.
@@ -660,7 +661,7 @@ func (f Field) InferenceType(another Field, op OpType) FieldTP {
 }
 
 func InferenceType(data []byte) FieldTP {
-	if string(data) == "true" || string(data) == "false" {
+	if strings.ToUpper(string(data)) == "TRUE" || strings.ToUpper(string(data)) == "FALSE" {
 		return Bool
 	}
 	if data[0] >= '0' && data[0] <= '9' {
@@ -932,7 +933,7 @@ func (column *ColumnVector) Int(row int) int64 {
 }
 
 func (column *ColumnVector) String(row int) string {
-	return string(column.RawValue(row))
+	return DecodeToString(column.RawValue(row), column.Field.TP)
 }
 
 func (column *ColumnVector) Float(row int) float64 {
