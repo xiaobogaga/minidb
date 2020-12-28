@@ -162,6 +162,9 @@ func ExecuteCreateTableStm(stm *parser.CreateTableStm, currentDB string) error {
 		return nil
 	}
 	dbInfo := storage.GetStorage().GetDbInfo(schemaName)
+	if dbInfo == nil {
+		return errors.New("cannot find such db")
+	}
 	tableSchema, err := getSchema(stm, dbInfo)
 	if err != nil {
 		return err

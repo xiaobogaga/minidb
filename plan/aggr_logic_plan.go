@@ -10,9 +10,9 @@ import (
 // For groupBy exprs.
 // HashGroupBy.
 type GroupByLogicPlan struct {
-	Input       LogicPlan
-	GroupByExpr []LogicExpr
-	AggrExprs   []LogicExpr
+	Input       LogicPlan            `json:"group_by_inpu"`
+	GroupByExpr []LogicExpr          `json:"group_by_expr"`
+	AggrExprs   []LogicExpr          `json:"aggrs"`
 	data        *storage.RecordBatch // All record batch from the input.
 	keys        *storage.RecordBatch // The keys from groupBy clause
 	retData     *storage.RecordBatch // The data will return by the AggrExprs
@@ -139,8 +139,8 @@ func (groupBy GroupByLogicPlan) Reset() {
 
 // For Having condition
 type HavingLogicPlan struct {
-	Input GroupByLogicPlan
-	Expr  LogicExpr
+	Input GroupByLogicPlan `json:"having_input"`
+	Expr  LogicExpr        `json:"expr"`
 }
 
 func (having HavingLogicPlan) Schema() *storage.TableSchema {
@@ -205,7 +205,10 @@ func MakeAggreLogicPlan(input LogicPlan, ast *parser.SelectStm) (LogicPlan, erro
 	return limitLogicPlan, limitLogicPlan.TypeCheck()
 }
 
-func makeHavingLogicPlan(input GroupByLogicPlan, having parser.HavingStm) HavingLogicPlan {
+func makeHavingLogicPlan(input GroupByLogicPlan, having parser.HavingStm) LogicPlan {
+	if having == nil {
+		return input
+	}
 	return HavingLogicPlan{
 		Input: input,
 		Expr:  ExprStmToLogicExpr(having, input),

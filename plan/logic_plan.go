@@ -17,10 +17,10 @@ type LogicPlan interface {
 }
 
 type ScanLogicPlan struct {
-	Input      *TableScan
-	Name       string
-	Alias      string
-	SchemaName string
+	Input      *TableScan `json:"table_scan"`
+	Name       string     `json:"scan_name"`
+	Alias      string     `json:"scan_alias"`
+	SchemaName string     `json:"schema_name"`
 }
 
 // Return a new schema with a possible new name named by alias
@@ -61,8 +61,8 @@ func (scan *ScanLogicPlan) Reset() {
 }
 
 type TableScan struct {
-	Name       string
-	SchemaName string
+	Name       string `json:"table_name"`
+	SchemaName string `json:"schema_name"`
 	i          int
 }
 
@@ -104,11 +104,19 @@ func (tableScan *TableScan) Reset() {
 }
 
 type JoinLogicPlan struct {
-	LeftLogicPlan  LogicPlan
-	JoinType       parser.JoinType
-	RightLogicPlan LogicPlan
+	LeftLogicPlan  LogicPlan       `json:"left"`
+	JoinType       parser.JoinType `json:"type"`
+	RightLogicPlan LogicPlan       `json:"right"`
 	LeftBatch      *storage.RecordBatch
 	RightBatch     *storage.RecordBatch
+}
+
+func NewJoinLogicPlan(left, right LogicPlan, tp parser.JoinType) *JoinLogicPlan {
+	return &JoinLogicPlan{
+		LeftLogicPlan:  left,
+		JoinType:       tp,
+		RightLogicPlan: right,
+	}
 }
 
 func (join *JoinLogicPlan) Schema() *storage.TableSchema {
@@ -191,8 +199,8 @@ func (join JoinLogicPlan) Reset() {
 
 // For where where_condition
 type SelectionLogicPlan struct {
-	Input LogicPlan
-	Expr  LogicExpr
+	Input LogicPlan `json:"select_input"`
+	Expr  LogicExpr `json:"where"`
 }
 
 func (sel *SelectionLogicPlan) Schema() *storage.TableSchema {
@@ -259,14 +267,6 @@ func (sel *SelectionLogicPlan) Execute() (ret *storage.RecordBatch) {
 		selectedRecords := recordBatch.Filter(selectedRows)
 		ret.Append(selectedRecords)
 		i += selectedRecords.RowCount()
-		//for row := 0; row < selectedRows.Size(); row++ {
-		//	if !selectedRows.Bool(row) {
-		//		continue
-		//	}
-		//	// Now row is selected
-		//	ret.AppendRecord(recordBatch, row)
-		//	i++
-		//}
 	}
 	return
 }
@@ -279,9 +279,9 @@ func (sel *SelectionLogicPlan) Reset() {
 
 // orderBy orderByExpr
 type OrderByLogicPlan struct {
-	Input   LogicPlan
-	OrderBy OrderByLogicExpr
-	IsAggr  bool
+	Input   LogicPlan        `json:"order_input"`
+	OrderBy OrderByLogicExpr `json:"order_by"`
+	IsAggr  bool             `json:"is_aggr"`
 	data    *storage.RecordBatch
 	index   int
 }
@@ -348,8 +348,8 @@ func (orderBy *OrderByLogicPlan) Reset() {
 }
 
 type ProjectionLogicPlan struct {
-	Input LogicPlan
-	Exprs []AsLogicExpr
+	Input LogicPlan     `json:"projection_input"`
+	Exprs []AsLogicExpr `json:"exprs"`
 }
 
 // We don't support alias for now.
@@ -408,9 +408,9 @@ func (proj *ProjectionLogicPlan) Reset() {
 }
 
 type LimitLogicPlan struct {
-	Input  LogicPlan
-	Count  int
-	Offset int // start from 0
+	Input  LogicPlan `json:"limit_input"`
+	Count  int       `json:"count"`
+	Offset int       `json:"offset"`
 	Index  int
 }
 

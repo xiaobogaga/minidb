@@ -11,16 +11,12 @@ func MakeLogicPlan(ast *parser.SelectStm, currentDB string) (LogicPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	joinLogicPlan := scanLogicPlans[0]
-	if len(scanLogicPlans) >= 2 {
-		joinLogicPlan = makeJoinLogicPlan(scanLogicPlans)
-	}
-	selectLogicPlan := makeSelectLogicPlan(joinLogicPlan, ast.Where)
+	logicPlan := makeJoinLogicPlan(scanLogicPlans)
+	selectLogicPlan := makeSelectLogicPlan(logicPlan, ast.Where)
 	if ast.Groupby != nil {
 		return MakeAggreLogicPlan(selectLogicPlan, ast)
 	}
 	orderByLogicPlan := makeOrderByLogicPlan(selectLogicPlan, ast.OrderBy, false)
-
 	projectionsLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, ast.SelectExpressions)
 	limitLogicPlan := makeLimitLogicPlan(projectionsLogicPlan, ast.LimitStm)
 	return limitLogicPlan, limitLogicPlan.TypeCheck()
@@ -76,11 +72,18 @@ func makeScanLogicPlan(tableRefTableFactorStm parser.TableReferenceTableFactorSt
 
 func splitSchemaAndTableName(schemaTable string) (schema, table string, err error) {
 	splits := strings.Split(schemaTable, ".")
-	if len(splits) >= 3 || len(splits[0]) == 0 || len(splits[1]) == 0 {
+	if len(splits) >= 3 {
 		err = errors.New("wrong table or schema format")
 		return
 	}
-	return splits[0], splits[1], nil
+	switch len(splits) {
+	case 1:
+		table = splits[0]
+	case 2:
+		schema = splits[0]
+		table = splits[1]
+	}
+	return
 }
 
 func makeScanLogicPlanForJoin(joinTableStm parser.JoinedTableStm, currentDB string) (LogicPlan, error) {
@@ -93,11 +96,7 @@ func makeScanLogicPlanForJoin(joinTableStm parser.JoinedTableStm, currentDB stri
 	if err != nil {
 		return nil, err
 	}
-	return &JoinLogicPlan{
-		LeftLogicPlan:  leftLogicPlan,
-		RightLogicPlan: rightLogicPlan,
-		JoinType:       joinTableStm.JoinTp,
-	}, nil
+	return NewJoinLogicPlan(leftLogicPlan, rightLogicPlan, joinTableStm.JoinTp), nil
 }
 
 func buildLogicPlanForTableReferenceStm(tableRef parser.TableReferenceStm, currentDB string) (LogicPlan, error) {
@@ -114,19 +113,20 @@ func buildLogicPlanForTableReferenceStm(tableRef parser.TableReferenceStm, curre
 
 // len(tableRefs) >= 2
 func makeJoinLogicPlan(input []LogicPlan) LogicPlan {
+	if len(input) <= 1 {
+		return input[0]
+	}
 	leftLogicPlan := input[0]
 	for i := 1; i < len(input); i++ {
-		rightLogicPlan := input[i]
-		leftLogicPlan = &JoinLogicPlan{
-			LeftLogicPlan:  leftLogicPlan,
-			RightLogicPlan: rightLogicPlan,
-			JoinType:       parser.InnerJoin,
-		}
+		leftLogicPlan = NewJoinLogicPlan(leftLogicPlan, input[i], parser.InnerJoin)
 	}
 	return leftLogicPlan
 }
 
-func makeSelectLogicPlan(input LogicPlan, whereStm parser.WhereStm) *SelectionLogicPlan {
+func makeSelectLogicPlan(input LogicPlan, whereStm parser.WhereStm) LogicPlan {
+	if whereStm == nil {
+		return input
+	}
 	return &SelectionLogicPlan{
 		Input: input,
 		Expr:  ExprStmToLogicExpr(whereStm, input),
@@ -134,6 +134,9 @@ func makeSelectLogicPlan(input LogicPlan, whereStm parser.WhereStm) *SelectionLo
 }
 
 func ExprStmToLogicExpr(expr *parser.ExpressionStm, input LogicPlan) LogicExpr {
+	if expr == nil {
+		return nil
+	}
 	var leftLogicExpr, rightLogicExpr LogicExpr
 	_, isLeftExprExprStm := expr.LeftExpr.(*parser.ExpressionStm)
 	if isLeftExprExprStm {
@@ -246,7 +249,10 @@ func OrderedExpressionToOrderedExprs(orderedExprs []*parser.OrderedExpressionStm
 	return ret
 }
 
-func makeOrderByLogicPlan(input LogicPlan, orderBy *parser.OrderByStm, isAggr bool) *OrderByLogicPlan {
+func makeOrderByLogicPlan(input LogicPlan, orderBy *parser.OrderByStm, isAggr bool) LogicPlan {
+	if orderBy == nil {
+		return input
+	}
 	return &OrderByLogicPlan{
 		Input:   input,
 		OrderBy: OrderedExpressionToOrderedExprs(orderBy.Expressions, input),
@@ -254,7 +260,10 @@ func makeOrderByLogicPlan(input LogicPlan, orderBy *parser.OrderByStm, isAggr bo
 	}
 }
 
-func makeLimitLogicPlan(input LogicPlan, limitStm *parser.LimitStm) *LimitLogicPlan {
+func makeLimitLogicPlan(input LogicPlan, limitStm *parser.LimitStm) LogicPlan {
+	if limitStm == nil {
+		return input
+	}
 	return &LimitLogicPlan{
 		Input:  input,
 		Count:  limitStm.Count,
