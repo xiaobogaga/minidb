@@ -10,7 +10,7 @@ import (
 // For groupBy exprs.
 // HashGroupBy.
 type GroupByLogicPlan struct {
-	Input       LogicPlan            `json:"group_by_inpu"`
+	Input       LogicPlan            `json:"group_by_input"`
 	GroupByExpr []LogicExpr          `json:"group_by_expr"`
 	AggrExprs   []LogicExpr          `json:"aggrs"`
 	data        *storage.RecordBatch // All record batch from the input.

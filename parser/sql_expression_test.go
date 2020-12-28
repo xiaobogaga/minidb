@@ -24,6 +24,6 @@ func testOneExpression(t *testing.T, data []byte) {
 func TestParser_Expression(t *testing.T) {
 	sql := "(a + b) * c + min(a, b, sum(c, 10))"
 	testOneExpression(t, []byte(sql))
-	sql = "a > b and (c == 1) + d"
+	sql = "a > b and (c = 1) + d"
 	testOneExpression(t, []byte(sql))
 }

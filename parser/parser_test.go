@@ -193,7 +193,7 @@ func TestInsertStm(t *testing.T) {
 func TestDeleteStm(t *testing.T) {
 	sqls := []testEntity{
 		{
-			"delete from tb_1 where age==10 AND sex==true;",
+			"delete from tb_1 where age=10 AND sex=true;",
 			&SingleDeleteStm{
 				TableRef: TableReferenceStm{
 					Tp: TableReferenceTableFactorTp,
@@ -362,7 +362,7 @@ func TestSelectStm(t *testing.T) {
 			},
 		},
 		{
-			"select name+5 as name1, age * 4, count from tb_1 where id==1 order by name desc limit 1;",
+			"select name+5 as name1, age * 4, count from tb_1 where id=1 order by name desc limit 1;",
 			&SelectStm{
 				Tp: SelectAllTp,
 				SelectExpressions: &SelectExpressionStm{

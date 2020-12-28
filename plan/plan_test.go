@@ -7,9 +7,7 @@ import (
 	"testing"
 )
 
-func TestLogicPlan(t *testing.T) {
-	initTestStorage(t)
-	sql := "select * from test1;"
+func verifyTestPlan(t *testing.T, sql string) {
 	p := parser.NewParser()
 	stm, err := p.Parse([]byte(sql))
 	assert.Nil(t, err)
@@ -18,4 +16,14 @@ func TestLogicPlan(t *testing.T) {
 	data, err := json.MarshalIndent(plan, "", "\t")
 	assert.Nil(t, err)
 	println(string(data))
+}
+
+func TestMakeProjectionScanLogicPlan(t *testing.T) {
+	initTestStorage(t)
+	sql := "select * from test1;"
+	verifyTestPlan(t, sql)
+	sql = "select id, name from test1;"
+	verifyTestPlan(t, sql)
+	sql = "select id, name from test1 where id == 1;"
+	verifyTestPlan(t, sql)
 }

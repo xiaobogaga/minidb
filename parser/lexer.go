@@ -397,13 +397,8 @@ func (l *Lexer) readSpecialCharacters() error {
 		l.pos += 2
 		l.Tokens = append(l.Tokens, Token{Tp: NOTEQUAL, StartPos: l.pos - 2, EndPos: l.pos})
 	case '=':
-		if l.matchToken('=') {
-			l.pos += 2
-			l.Tokens = append(l.Tokens, Token{Tp: EQUAL, StartPos: l.pos - 2, EndPos: l.pos})
-		} else {
-			l.pos++
-			l.Tokens = append(l.Tokens, Token{Tp: EQUAL, StartPos: l.pos - 1, EndPos: l.pos})
-		}
+		l.pos++
+		l.Tokens = append(l.Tokens, Token{Tp: EQUAL, StartPos: l.pos - 1, EndPos: l.pos})
 	case '>':
 		// > or >=
 		if l.matchToken('=') {
