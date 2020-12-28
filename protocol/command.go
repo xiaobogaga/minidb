@@ -2,9 +2,9 @@ package protocol
 
 import (
 	"fmt"
-	"simpleDb/parser"
-	"simpleDb/plan"
-	"simpleDb/util"
+	"minidb/parser"
+	"minidb/plan"
+	"minidb/util"
 	"strings"
 )
 

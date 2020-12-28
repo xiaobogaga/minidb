@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"minidb/storage"
+	"minidb/util"
 	"net"
 	"os"
-	"simpleDb/storage"
-	"simpleDb/util"
 	"time"
 )
 

@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"minidb/protocol"
+	"minidb/util"
 	"os"
 	"os/signal"
-	"simpleDb/protocol"
-	"simpleDb/util"
 	"syscall"
 	"time"
 )

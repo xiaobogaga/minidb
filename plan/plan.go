@@ -2,7 +2,7 @@ package plan
 
 import (
 	"errors"
-	"simpleDb/parser"
+	"minidb/parser"
 	"strings"
 )
 
@@ -232,10 +232,10 @@ func FuncCallExprToLogicExpr(funcCallExpr parser.FunctionCallExpressionStm, inpu
 	return funcCallLogicExpr
 }
 
-func SubExprTermToLogicExpr(subExpr parser.SubExpressionTerm, input LogicPlan) LogicExpr {
-	expr := parser.ExpressionTerm(subExpr)
-	return ExprTermStmToLogicExpr(&expr, input)
-}
+//func SubExprTermToLogicExpr(subExpr parser.SubExpressionTerm, input LogicPlan) LogicExpr {
+//	expr := parser.ExpressionTerm(subExpr)
+//	return ExprTermStmToLogicExpr(&expr, input)
+//}
 
 func OrderedExpressionToOrderedExprs(orderedExprs []*parser.OrderedExpressionStm, input LogicPlan) OrderByLogicExpr {
 	ret := OrderByLogicExpr{}

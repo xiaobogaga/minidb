@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"simpleDb/storage"
+	"minidb/storage"
 	"strings"
 )
 

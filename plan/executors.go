@@ -2,8 +2,8 @@ package plan
 
 import (
 	"errors"
-	"simpleDb/parser"
-	"simpleDb/storage"
+	"minidb/parser"
+	"minidb/storage"
 	"strings"
 )
 
@@ -67,7 +67,7 @@ func ExecuteCreateDatabaseStm(stm *parser.CreateDatabaseStm) error {
 
 func ExecuteDropDatabaseStm(stm *parser.DropDatabaseStm) error {
 	if !storage.GetStorage().HasSchema(stm.DatabaseName) {
-		return nil
+		return errors.New("database doesn't exist")
 	}
 	storage.GetStorage().RemoveSchema(stm.DatabaseName)
 	return nil
@@ -187,6 +187,9 @@ func ExecuteDropTableStm(stm *parser.DropTableStm, currentDB string) error {
 			return err
 		}
 		dbInfo := storage.GetStorage().GetDbInfo(schemaName)
+		if dbInfo == nil || !dbInfo.HasTable(tableName) {
+			return errors.New("cannot found such table")
+		}
 		dbInfo.RemoveTable(tableName)
 	}
 	return nil

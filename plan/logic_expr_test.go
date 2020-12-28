@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"simpleDb/parser"
-	"simpleDb/storage"
+	"minidb/parser"
+	"minidb/storage"
 	"testing"
 )
 
@@ -93,17 +93,13 @@ func initTestStorage(t *testing.T) {
 		assert.True(t, finish)
 		assert.Nil(t, err)
 	}
-	printTestStorage(t)
-}
-
-func deleteTestStore(t *testing.T) {
-
-}
-
-func updateTestStore(t *testing.T) {
-
+	// printTestStorage(t)
 }
 
 func TestLogicExpr(t *testing.T) {
 	initTestStorage(t)
+}
+
+func TestAddLogicExpr_TypeCheck(t *testing.T) {
+
 }

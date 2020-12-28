@@ -3,8 +3,8 @@ package plan
 import (
 	"errors"
 	"fmt"
-	"simpleDb/parser"
-	"simpleDb/storage"
+	"minidb/parser"
+	"minidb/storage"
 )
 
 // For groupBy exprs.

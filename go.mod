@@ -1,4 +1,4 @@
-module simpleDb
+module minidb
 
 go 1.12
 

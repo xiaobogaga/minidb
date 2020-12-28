@@ -3,8 +3,8 @@ package plan
 import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
-	"simpleDb/parser"
-	"simpleDb/storage"
+	"minidb/parser"
+	"minidb/storage"
 	"testing"
 )
 
@@ -59,9 +59,36 @@ func TestExecuteShowStm(t *testing.T) {
 }
 
 func TestExecuteDropDatabaseStm(t *testing.T) {
-
+	initTestStorage(t)
+	dropStm := &parser.DropDatabaseStm{
+		DatabaseName: "db",
+	}
+	err := ExecuteDropDatabaseStm(dropStm)
+	assert.NotNil(t, err)
+	dropStm.DatabaseName = "db1"
+	err = ExecuteDropDatabaseStm(dropStm)
+	assert.Nil(t, err)
+	dropStm.DatabaseName = "db2"
+	err = ExecuteDropDatabaseStm(dropStm)
+	assert.Nil(t, err)
+	printTestStorage(t)
 }
 
 func TestExecuteDropTableStm(t *testing.T) {
+	initTestStorage(t)
+	dropTableStm := &parser.DropTableStm{
+		IfExists:   false,
+		TableNames: []string{"testtttt"},
+	}
+	err := ExecuteDropTableStm(dropTableStm, "")
+	assert.NotNil(t, err)
+	dropTableStm.TableNames = []string{"test1"}
+	err = ExecuteDropTableStm(dropTableStm, "db1")
+	assert.Nil(t, err)
+	printTestStorage(t)
 
+	dropTableStm.TableNames = []string{"test2"}
+	err = ExecuteDropTableStm(dropTableStm, "db2")
+	assert.Nil(t, err)
+	printTestStorage(t)
 }

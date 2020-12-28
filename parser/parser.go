@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-	"simpleDb/util"
+	"minidb/util"
 	"strconv"
 )
 

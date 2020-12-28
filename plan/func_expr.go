@@ -3,7 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
-	"simpleDb/storage"
+	"minidb/storage"
 	"strings"
 )
 
