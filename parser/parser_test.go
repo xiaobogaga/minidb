@@ -15,7 +15,7 @@ func testSqls(t *testing.T, sqls []testEntity) {
 	for _, sql := range sqls {
 		stm, err := parser.Parse([]byte(sql.sql))
 		assert.Nil(t, err, sql)
-		assert.Equal(t, sql.stm, stm[0], sql)
+		assert.Equal(t, sql.stm, stm, sql)
 	}
 }
 

@@ -6,16 +6,16 @@ package parser
 
 func (parser *Parser) resolveUpdateStm() (Stm, error) {
 	if !parser.matchTokenTypes(false, UPDATE) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var tableRefs []TableReferenceStm
 	for {
 		tableRef, err := parser.parseTableReferenceStm()
 		if err != nil {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		if tableRef.Tp != TableReferenceTableFactorTp || tableRef.TableReference.(TableReferenceTableFactorStm).Tp != TableReferencePureTableNameTp {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		tableRefs = append(tableRefs, tableRef)
 		if !parser.matchTokenTypes(true, COMMA) {
@@ -23,14 +23,14 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, SET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 
 	var assignments []*AssignmentStm
 	for {
 		assignment, err := parser.parseAssignmentStm()
 		if err != nil {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		assignments = append(assignments, assignment)
 		if !parser.matchTokenTypes(true, COMMA) {
@@ -53,7 +53,7 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 		return nil, err
 	}
 	if !parser.matchTokenTypes(false, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &UpdateStm{
 		TableRefs:   tableRefs[0],
@@ -67,7 +67,7 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 func (parser *Parser) resolveMultiUpdateStm(tableRefs []TableReferenceStm, assignments []*AssignmentStm) (Stm, error) {
 	where, _ := parser.ResolveWhereStm()
 	if !parser.matchTokenTypes(false, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return MultiUpdateStm{
 		TableRefs:   tableRefs,

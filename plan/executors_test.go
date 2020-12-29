@@ -49,11 +49,13 @@ func TestExecuteShowStm(t *testing.T) {
 	err := ExecuteUseStm(useStm)
 	assert.Nil(t, err)
 	showStm := &parser.ShowStm{TP: parser.ShowDatabaseTP}
-	ret, err := ExecuteShowStm("db1", showStm)
+	showPlan := &Show{}
+	ret, err := showPlan.Execute("db1", showStm)
 	assert.Nil(t, err)
 	printTestRecordBatch(ret)
 	showStm.TP = parser.ShowTableTP
-	ret, err = ExecuteShowStm("db1", showStm)
+	showPlan = &Show{}
+	ret, err = showPlan.Execute("db1", showStm)
 	assert.Nil(t, err)
 	printTestRecordBatch(ret)
 }
@@ -97,12 +99,14 @@ func toTestStm(t *testing.T, sql string) parser.Stm {
 	parser := parser.NewParser()
 	stm, err := parser.Parse([]byte(sql))
 	assert.Nil(t, err)
-	return stm[0]
+	return stm
 }
 
 func testSelect(t *testing.T, sql string) {
 	stm := toTestStm(t, sql)
-	ret, err := ExecuteSelectStm(stm.(*parser.SelectStm), "db1")
+	db := "db1"
+	exec, err := MakeExecutor(stm.(*parser.SelectStm), &db)
+	ret, err := exec.Exec()
 	assert.Nil(t, err)
 	printTestRecordBatch(ret)
 }

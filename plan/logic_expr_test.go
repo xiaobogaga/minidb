@@ -84,8 +84,9 @@ func initTestStorage(t *testing.T) {
 	for _, sql := range sqls {
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
-		_, finish, err := Exec(stm[0], &currentDB)
-		assert.True(t, finish)
+		exec, err := MakeExecutor(stm, &currentDB)
+		assert.Nil(t, err)
+		_, err = exec.Exec()
 		assert.Nil(t, err)
 	}
 	currentDB = "db1"
@@ -94,14 +95,16 @@ func initTestStorage(t *testing.T) {
 		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, i)
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
-		_, finish, err := Exec(stm[0], &currentDB)
-		assert.True(t, finish)
+		exec, err := MakeExecutor(stm, &currentDB)
+		assert.Nil(t, err)
+		_, err = exec.Exec()
 		assert.Nil(t, err)
 		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, i)
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
-		_, finish, err = Exec(stm[0], &currentDB)
-		assert.True(t, finish)
+		exec, err = MakeExecutor(stm, &currentDB)
+		assert.Nil(t, err)
+		_, err = exec.Exec()
 		assert.Nil(t, err)
 	}
 	currentDB = "db2"
@@ -110,14 +113,16 @@ func initTestStorage(t *testing.T) {
 		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, i)
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
-		_, finish, err := Exec(stm[0], &currentDB)
-		assert.True(t, finish)
+		exec, err := MakeExecutor(stm, &currentDB)
+		assert.Nil(t, err)
+		_, err = exec.Exec()
 		assert.Nil(t, err)
 		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, i)
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
-		_, finish, err = Exec(stm[0], &currentDB)
-		assert.True(t, finish)
+		exec, err = MakeExecutor(stm, &currentDB)
+		assert.Nil(t, err)
+		_, err = exec.Exec()
 		assert.Nil(t, err)
 	}
 }

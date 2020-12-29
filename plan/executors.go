@@ -7,53 +7,76 @@ import (
 	"strings"
 )
 
-func Exec(stm parser.Stm, db *string) (data *storage.RecordBatch, finish bool, err error) {
-	currentDB := *db
+type Executor struct {
+	Plan      interface{}
+	Stm       parser.Stm
+	CurrentDB *string
+}
+
+func MakeExecutor(stm parser.Stm, currentDB *string) (*Executor, error) {
+	exec := &Executor{Stm: stm, CurrentDB: currentDB}
+	switch stm.(type) {
+	case *parser.SelectStm:
+		ret, err := MakeSelectPlan(stm.(*parser.SelectStm), *currentDB)
+		if err != nil {
+			return nil, err
+		}
+		exec.Plan = ret
+	case *parser.ShowStm:
+		exec.Plan = &Show{}
+	default:
+	}
+	return exec, nil
+}
+
+func (exec *Executor) Exec() (data *storage.RecordBatch, err error) {
+	currentDB := *exec.CurrentDB
+	stm := exec.Stm
 	switch stm.(type) {
 	case *parser.CreateDatabaseStm:
-		return nil, true, ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
+		return nil, ExecuteCreateDatabaseStm(stm.(*parser.CreateDatabaseStm))
 	case *parser.DropDatabaseStm:
-		return nil, true, ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
+		return nil, ExecuteDropDatabaseStm(stm.(*parser.DropDatabaseStm))
 	case *parser.CreateTableStm:
-		return nil, true, ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
+		return nil, ExecuteCreateTableStm(stm.(*parser.CreateTableStm), currentDB)
 	case *parser.DropTableStm:
-		return nil, true, ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
+		return nil, ExecuteDropTableStm(stm.(*parser.DropTableStm), currentDB)
 	case *parser.InsertIntoStm:
-		return nil, true, ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
+		return nil, ExecuteInsertStm(stm.(*parser.InsertIntoStm), currentDB)
 	case *parser.UpdateStm:
-		return nil, true, ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
+		return nil, ExecuteUpdateStm(stm.(*parser.UpdateStm), currentDB)
 	case *parser.MultiUpdateStm:
-		return nil, true, ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
+		return nil, ExecuteMultiUpdateStm(stm.(*parser.MultiUpdateStm), currentDB)
 	case *parser.SingleDeleteStm:
-		return nil, true, ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
+		return nil, ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), currentDB)
 	case *parser.MultiDeleteStm:
-		return nil, true, ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
+		return nil, ExecuteMultiDeleteStm(stm.(*parser.MultiDeleteStm), currentDB)
 	case *parser.TruncateStm:
-		return nil, true, ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
+		return nil, ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
 	case *parser.SelectStm:
-		data, err = ExecuteSelectStm(stm.(*parser.SelectStm), currentDB)
-		return
+		data = exec.Plan.(LogicPlan).Execute()
+		return data, nil
 	case *parser.ShowStm:
-		data, err = ExecuteShowStm(currentDB, stm.(*parser.ShowStm))
-		return data, true, err
+		data, err = exec.Plan.(*Show).Execute(currentDB, stm.(*parser.ShowStm))
+		return data, err
 	case *parser.UseDatabaseStm:
 		err = ExecuteUseStm(stm.(*parser.UseDatabaseStm))
 		if err == nil {
-			*db = stm.(*parser.UseDatabaseStm).DatabaseName
+			*exec.CurrentDB = stm.(*parser.UseDatabaseStm).DatabaseName
 		}
-		return nil, true, nil
+		return nil, nil
 	default:
-		return nil, true, errors.New("unsupported statement")
+		return nil, errors.New("unsupported statement")
 	}
 }
 
-func ExecuteSelectStm(stm *parser.SelectStm, currentDB string) (*storage.RecordBatch, error) {
+func MakeSelectPlan(stm *parser.SelectStm, currentDB string) (LogicPlan, error) {
 	// we need to generate a logic plan for this selectStm.
 	plan, err := MakeLogicPlan(stm, currentDB)
 	if err != nil {
 		return nil, err
 	}
-	return plan.Execute(), nil
+	return plan, nil
 }
 
 func ExecuteCreateDatabaseStm(stm *parser.CreateDatabaseStm) error {
@@ -267,57 +290,4 @@ func ExecuteUseStm(stm *parser.UseDatabaseStm) error {
 		return nil
 	}
 	return errors.New("schema doesn't found")
-}
-
-func ExecuteShowStm(currentDB string, stm *parser.ShowStm) (*storage.RecordBatch, error) {
-	switch stm.TP {
-	case parser.ShowTableTP:
-		// Prepare show table resp format.
-		// | rowId | tables |
-		if currentDB == "" {
-			return nil, errors.New("please select db first")
-		}
-		ret := &storage.RecordBatch{
-			Fields: []storage.Field{
-				storage.RowIndexField("", ""),
-				{TP: storage.Text, Name: "tables"},
-			},
-			Records: []*storage.ColumnVector{
-				{},
-				{},
-			},
-		}
-		ret.Records[0].Field, ret.Records[1].Field = ret.Fields[0], ret.Fields[1]
-		dbInfo := storage.GetStorage().GetDbInfo(currentDB)
-		i := 0
-		for table := range dbInfo.Tables {
-			ret.Records[0].Append(storage.EncodeInt(int64(i)))
-			ret.Records[1].Append([]byte(table))
-			i++
-		}
-		return ret, nil
-	case parser.ShowDatabaseTP:
-		// Prepare show database resp format
-		// | rowId | databases |
-		ret := &storage.RecordBatch{
-			Fields: []storage.Field{
-				storage.RowIndexField("", ""),
-				{TP: storage.Text, Name: "databases"},
-			},
-			Records: []*storage.ColumnVector{
-				{},
-				{},
-			},
-		}
-		ret.Records[0].Field, ret.Records[1].Field = ret.Fields[0], ret.Fields[1]
-		i := 0
-		for db := range storage.GetStorage().Dbs {
-			ret.Records[0].Append(storage.EncodeInt(int64(i)))
-			ret.Records[1].Append([]byte(db))
-			i++
-		}
-		return ret, nil
-	default:
-		panic("unknown show tp")
-	}
 }

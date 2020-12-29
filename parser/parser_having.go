@@ -8,7 +8,7 @@ func (parser *Parser) parseHavingStm() (HavingStm, error) {
 	}
 	expressionStm, err := parser.resolveExpression()
 	if err != nil {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return expressionStm, nil
 }

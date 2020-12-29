@@ -5,14 +5,14 @@ package parser
 
 func (parser *Parser) resolveInsertStm() (Stm, error) {
 	if !parser.matchTokenTypes(false, INSERT) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if !parser.matchTokenTypes(false, INTO) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	// () is optional
 	var colNames []string
@@ -20,7 +20,7 @@ func (parser *Parser) resolveInsertStm() (Stm, error) {
 		for {
 			colName, ret := parser.parseIdentOrWord(false)
 			if !ret {
-				return nil, parser.MakeSyntaxError(1, parser.pos-1)
+				return nil, parser.MakeSyntaxError(parser.pos - 1)
 			}
 			colNames = append(colNames, string(colName))
 			if !parser.matchTokenTypes(true, COMMA) {
@@ -29,12 +29,12 @@ func (parser *Parser) resolveInsertStm() (Stm, error) {
 		}
 		// should be a )
 		if !parser.matchTokenTypes(true, RIGHTBRACKET) {
-			return nil, parser.MakeSyntaxError(1, parser.pos)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 	}
 	// should be values (
 	if !parser.matchTokenTypes(false, VALUES, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-2)
+		return nil, parser.MakeSyntaxError(parser.pos - 2)
 	}
 	var valueExpressions []*ExpressionStm
 	for {
@@ -48,7 +48,7 @@ func (parser *Parser) resolveInsertStm() (Stm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-2)
+		return nil, parser.MakeSyntaxError(parser.pos - 2)
 	}
 	return &InsertIntoStm{TableName: string(tableName), Cols: colNames, Values: valueExpressions}, nil
 }

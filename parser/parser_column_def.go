@@ -8,11 +8,11 @@ package parser
 func (parser *Parser) parseColumnDef() (*ColumnDefStm, error) {
 	columnName, ret := parser.parseIdentOrWord(false)
 	if !ret {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	colType, success := parser.parseColumnType(false)
 	if !success {
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	col := &ColumnDefStm{ColName: string(columnName), ColumnType: colType}
 	if parser.matchTokenTypes(true, NULL) {
@@ -23,7 +23,7 @@ func (parser *Parser) parseColumnDef() (*ColumnDefStm, error) {
 	if parser.matchTokenTypes(true, DEFAULT) {
 		colValue, success := parser.parseValue(false)
 		if !success {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		col.ColDefaultValue = colValue
 	}

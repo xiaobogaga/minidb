@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"minidb/util"
 	"strconv"
@@ -19,23 +20,23 @@ func NewParser() *Parser {
 }
 
 type SyntaxError struct {
-	LineNumber int
-	ErrData    string
+	ErrData string
 }
 
 func (s SyntaxError) Error() string {
 	return fmt.Sprintf("syntax err near '%s'", s.ErrData)
 }
 
-func (parser *Parser) MakeSyntaxError(lineNumber, startPos int) error {
-	// Todo, make sure whether lineNumber can be 1.
+func (parser *Parser) MakeSyntaxError(startPos int) error {
+	if startPos >= len(parser.Tokens) {
+		startPos = len(parser.Tokens) - 1
+	}
 	return SyntaxError{
-		LineNumber: lineNumber,
-		ErrData:    string(parser.Data[parser.Tokens[startPos].StartPos:]),
+		ErrData: string(parser.Data[parser.Tokens[startPos].StartPos:]),
 	}
 }
 
-func (parser *Parser) Parse(data []byte) (stms []Stm, err error) {
+func (parser *Parser) Parse(data []byte) (stm Stm, err error) {
 	lex := NewLexer()
 	tokens, err := lex.Lex(data)
 	if err != nil {
@@ -44,53 +45,52 @@ func (parser *Parser) Parse(data []byte) (stms []Stm, err error) {
 	parser.Tokens = tokens
 	parser.Data = data
 	parser.pos = 0
-	var stm Stm
-	for {
-		token, ok := parser.NextToken()
-		if !ok {
-			break
-		}
-		switch token.Tp {
-		case CREATE:
-			parser.UnReadToken()
-			stm, err = parser.resolveCreateStm()
-		case DROP:
-			parser.UnReadToken()
-			stm, err = parser.parseDropStm()
-		case RENAME:
-			parser.UnReadToken()
-			stm, err = parser.resolveRenameStm()
-		case ALTER:
-			parser.UnReadToken()
-			stm, err = parser.resolveAlterStm()
-		case TRUNCATE:
-			parser.UnReadToken()
-			stm, err = parser.resolveTruncate()
-		case INSERT:
-			parser.UnReadToken()
-			stm, err = parser.resolveInsertStm()
-		case DELETE:
-			parser.UnReadToken()
-			stm, err = parser.resolveDeleteStm()
-		case UPDATE:
-			parser.UnReadToken()
-			stm, err = parser.resolveUpdateStm()
-		case SELECT:
-			parser.UnReadToken()
-			stm, err = parser.resolveSelectStm(true)
-		case USE:
-			parser.UnReadToken()
-			stm, err = parser.resolveUseStm()
-		case SHOW:
-			parser.UnReadToken()
-			stm, err = parser.resolveShowStm()
-		default:
-			err = parser.MakeSyntaxError(1, parser.pos-1)
-		}
-		if err != nil {
-			return nil, err
-		}
-		stms = append(stms, stm)
+	token, ok := parser.NextToken()
+	if !ok {
+		return nil, errors.New("syntax err: please input query")
+	}
+	switch token.Tp {
+	case CREATE:
+		parser.UnReadToken()
+		stm, err = parser.resolveCreateStm()
+	case DROP:
+		parser.UnReadToken()
+		stm, err = parser.parseDropStm()
+	case RENAME:
+		parser.UnReadToken()
+		stm, err = parser.resolveRenameStm()
+	case ALTER:
+		parser.UnReadToken()
+		stm, err = parser.resolveAlterStm()
+	case TRUNCATE:
+		parser.UnReadToken()
+		stm, err = parser.resolveTruncate()
+	case INSERT:
+		parser.UnReadToken()
+		stm, err = parser.resolveInsertStm()
+	case DELETE:
+		parser.UnReadToken()
+		stm, err = parser.resolveDeleteStm()
+	case UPDATE:
+		parser.UnReadToken()
+		stm, err = parser.resolveUpdateStm()
+	case SELECT:
+		parser.UnReadToken()
+		stm, err = parser.resolveSelectStm(true)
+	case USE:
+		parser.UnReadToken()
+		stm, err = parser.resolveUseStm()
+	case SHOW:
+		parser.UnReadToken()
+		stm, err = parser.resolveShowStm()
+	default:
+		err = parser.MakeSyntaxError(parser.pos - 1)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if parser.pos < len(parser.Tokens) {
+		return nil, parser.MakeSyntaxError(parser.pos)
 	}
 	return
 }

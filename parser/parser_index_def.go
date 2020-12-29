@@ -7,14 +7,14 @@ package parser
 // * doesn't support index option and index type, cannot specify col length.
 func (parser *Parser) parseIndexDef() (*IndexDefStm, error) {
 	if !parser.matchTokenTypes(true, INDEX) && !parser.matchTokenTypes(true, KEY) {
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	indexName, _ := parser.parseIdentOrWord(true)
 	var colNames []string
 	for {
 		colName, ok := parser.parseIdentOrWord(false)
 		if !ok {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		colNames = append(colNames, string(colName))
 		if !parser.matchTokenTypes(true, COMMA) {

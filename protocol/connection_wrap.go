@@ -13,6 +13,12 @@ import (
 	"time"
 )
 
+type ConnectionWrapperInterface interface {
+	CurrentDB() *string
+	SendErrMsg(msg ErrMsg)
+	SendQueryResult(ret *storage.RecordBatch) ErrMsg
+}
+
 var connectionWrapperLog = util.GetLog("ConnectionWrapper")
 
 type connectionWrapper struct {
@@ -37,6 +43,7 @@ type ErrCodeType byte
 
 const (
 	ErrorOk ErrCodeType = iota
+	ErrorOkQuery
 	ErrorNetUnknown
 	ErrorNetTimeout
 	ErrorNetClosed
@@ -140,7 +147,7 @@ const (
 func (wrap *connectionWrapper) sendOk(okMsg ErrMsg) ErrMsg {
 	buf := bytes.Buffer{}
 	buf.WriteByte(OkMsgType)
-	message := ErrCodeMsgMap[okMsg.errCode]
+	message := okMsg.Msg
 	buf.Write(int4ToBytes(uint32(len(message))))
 	buf.Write([]byte(message))
 	connectionWrapperLog.InfoF("send ok packet.")
@@ -165,6 +172,7 @@ func (wrap *connectionWrapper) sendErr(err ErrMsg) ErrMsg {
 
 var ErrCodeMsgMap = map[ErrCodeType]string{
 	ErrorOk:                  "Ok",
+	ErrorOkQuery:             "OK: no more data.",
 	ErrorNetPacketOutOfOrder: "protocol read an unexpected order packet",
 	ErrUnknownCommand:        "protocol reads an unknown command",
 	ErrSyntax:                "parser: %s",
@@ -210,6 +218,10 @@ func (wrap *connectionWrapper) SendErrMsg(msg ErrMsg) {
 		wrap.sendErr(msg)
 	}
 	wrap.packetCounter++
+}
+
+func (wrap *connectionWrapper) CurrentDB() *string {
+	return &wrap.session.CurrentDB
 }
 
 var emptyCommand = Command{}
@@ -334,7 +346,7 @@ type ErrMsg struct {
 }
 
 func (msg ErrMsg) IsOk() bool {
-	return msg.errCode == ErrorOk
+	return msg.errCode == ErrorOk || msg.errCode == ErrorOkQuery
 }
 
 func (msg ErrMsg) IsTimeout() bool {

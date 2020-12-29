@@ -1624,7 +1624,7 @@ func (orderBy OrderByLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 // 1
 // 0
 // 2
-// so the orderBy Plan can change the input to:
+// so the orderBy Executor can change the input to:
 // 09, 2
 // 10, 1
 // 11, 3

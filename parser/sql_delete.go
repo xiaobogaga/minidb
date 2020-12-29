@@ -6,7 +6,7 @@ package parser
 
 func (parser *Parser) resolveDeleteStm() (stm Stm, err error) {
 	if !parser.matchTokenTypes(false, DELETE) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if parser.matchTokenTypes(true, FROM) {
 		return parser.parseDeleteSingleTableStm()
@@ -17,7 +17,7 @@ func (parser *Parser) resolveDeleteStm() (stm Stm, err error) {
 func (parser *Parser) parseDeleteSingleTableStm() (stm *SingleDeleteStm, err error) {
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	whereStm, err := parser.ResolveWhereStm()
 	if err != nil {
@@ -32,7 +32,7 @@ func (parser *Parser) parseDeleteSingleTableStm() (stm *SingleDeleteStm, err err
 		return nil, err
 	}
 	if !parser.matchTokenTypes(false, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &SingleDeleteStm{
 		TableRef: TableReferenceStm{
@@ -55,7 +55,7 @@ func (parser *Parser) parseDeleteMultiTableStm() (stm *MultiDeleteStm, err error
 	for {
 		tableName, ok := parser.parseIdentOrWord(false)
 		if !ok {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		tableNames = append(tableNames, string(tableName))
 		if !parser.matchTokenTypes(true, COMMA) {
@@ -63,7 +63,7 @@ func (parser *Parser) parseDeleteMultiTableStm() (stm *MultiDeleteStm, err error
 		}
 	}
 	if !parser.matchTokenTypes(false, FROM) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var tableRefs []TableReferenceStm
 	for {
@@ -81,7 +81,7 @@ func (parser *Parser) parseDeleteMultiTableStm() (stm *MultiDeleteStm, err error
 		return nil, err
 	}
 	if !parser.matchTokenTypes(false, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &MultiDeleteStm{
 		TableNames:      tableNames,

@@ -9,11 +9,11 @@ package parser
 
 func (parser *Parser) resolveSelectStm(needCheckSemicolon bool) (stm Stm, err error) {
 	if !parser.matchTokenTypes(false, SELECT) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	token, ok := parser.NextToken()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	selectTp := SelectAllTp
 	switch token.Tp {
@@ -56,7 +56,7 @@ func (parser *Parser) parseExprSelectExpression() (*SelectExpressionStm, error) 
 		if parser.matchTokenTypes(true, AS) {
 			ret, ok := parser.parseIdentOrWord(false)
 			if !ok {
-				return nil, parser.MakeSyntaxError(1, parser.pos-1)
+				return nil, parser.MakeSyntaxError(parser.pos - 1)
 			}
 			alias = string(ret)
 		}
@@ -74,7 +74,7 @@ func (parser *Parser) parseExprSelectExpression() (*SelectExpressionStm, error) 
 
 func (parser *Parser) resolveRemainingSelectStm(selectTp SelectTp, expr *SelectExpressionStm, needCheckSemicolon bool) (*SelectStm, error) {
 	if !parser.matchTokenTypes(false, FROM) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var tables []TableReferenceStm
 	for {
@@ -108,7 +108,7 @@ func (parser *Parser) resolveRemainingSelectStm(selectTp SelectTp, expr *SelectE
 		return nil, err
 	}
 	if needCheckSemicolon && !parser.matchTokenTypes(false, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	lockTp := NoneLockTp
 	if parser.matchTokenTypes(true, FOR, UPDATE) {

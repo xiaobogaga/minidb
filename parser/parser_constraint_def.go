@@ -12,7 +12,7 @@ func (parser *Parser) parseConstraintDef() (*ConstraintDefStm, error) {
 	parser.matchTokenTypes(true, CONSTRAINT)
 	token, ok := parser.NextToken()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	switch token.Tp {
 	case PRIMARY:
@@ -22,22 +22,22 @@ func (parser *Parser) parseConstraintDef() (*ConstraintDefStm, error) {
 	case FOREIGN:
 		return parser.parseForeignKeyDef()
 	}
-	return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	return nil, parser.MakeSyntaxError(parser.pos - 1)
 }
 
 // * [Constraint] primary key (col_name [,col_name...)
 func (parser *Parser) parsePrimaryKeyDef() (*ConstraintDefStm, error) {
 	if !parser.matchTokenTypes(false, KEY) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if !parser.matchTokenTypes(false, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var colNames []string
 	for {
 		colName, ok := parser.parseIdentOrWord(false)
 		if !ok {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		colNames = append(colNames, string(colName))
 		if !parser.matchTokenTypes(true, COMMA) {
@@ -45,7 +45,7 @@ func (parser *Parser) parsePrimaryKeyDef() (*ConstraintDefStm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &ConstraintDefStm{
 		Tp:         PrimaryKeyConstraintTp,
@@ -56,17 +56,17 @@ func (parser *Parser) parsePrimaryKeyDef() (*ConstraintDefStm, error) {
 // * [Constraint] unique {index|key} index_name (col_name [,col_name...)
 func (parser *Parser) parseUniqueKeyDef() (*ConstraintDefStm, error) {
 	if !parser.matchTokenTypes(true, INDEX) && !parser.matchTokenTypes(true, KEY) {
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	indexName, _ := parser.parseIdentOrWord(true)
 	if !parser.matchTokenTypes(false, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var colNames []string
 	for {
 		colName, ok := parser.parseIdentOrWord(false)
 		if !ok {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		colNames = append(colNames, string(colName))
 		if !parser.matchTokenTypes(true, COMMA) {
@@ -74,7 +74,7 @@ func (parser *Parser) parseUniqueKeyDef() (*ConstraintDefStm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &ConstraintDefStm{
 		Tp:         UniqueKeyConstraintTp,
@@ -86,17 +86,17 @@ func (parser *Parser) parseUniqueKeyDef() (*ConstraintDefStm, error) {
 //   reference_option is like: {restrict | cascade | set null | no action | set default}, and restrict is default.
 func (parser *Parser) parseForeignKeyDef() (*ConstraintDefStm, error) {
 	if !parser.matchTokenTypes(true, KEY) {
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	indexName, _ := parser.parseIdentOrWord(true)
 	if !parser.matchTokenTypes(false, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var colNames []string
 	for {
 		colName, ok := parser.parseIdentOrWord(false)
 		if !ok {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		colNames = append(colNames, string(colName))
 		if !parser.matchTokenTypes(true, COMMA) {
@@ -104,23 +104,23 @@ func (parser *Parser) parseForeignKeyDef() (*ConstraintDefStm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if !parser.matchTokenTypes(false, REFERENCES) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	tableName, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if !parser.matchTokenTypes(false, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var keyNames []string
 	for {
 		keyName, ok := parser.parseIdentOrWord(false)
 		if !ok {
-			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		keyNames = append(keyNames, string(keyName))
 		if !parser.matchTokenTypes(true, COMMA) {
@@ -128,7 +128,7 @@ func (parser *Parser) parseForeignKeyDef() (*ConstraintDefStm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	deleteRefOption, updateRefOption := RefOptionRestrict, RefOptionRestrict
 	if parser.matchTokenTypes(true, ON, DELETE) {

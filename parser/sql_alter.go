@@ -25,7 +25,7 @@ package parser
 
 func (parser *Parser) resolveAlterStm() (stm Stm, err error) {
 	if !parser.matchTokenTypes(false, ALTER) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if parser.matchTokenTypes(true, DATABASE) || parser.matchTokenTypes(true, SCHEMA) {
 		return parser.parseAlterDatabaseStm()
@@ -33,11 +33,11 @@ func (parser *Parser) resolveAlterStm() (stm Stm, err error) {
 	parser.matchTokenTypes(true, TABLE)
 	tableName, ret := parser.parseIdentOrWord(false)
 	if !ret {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	t, ok := parser.NextToken()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	switch t.Tp {
 	case ENGINE:
@@ -48,7 +48,7 @@ func (parser *Parser) resolveAlterStm() (stm Stm, err error) {
 		stm, err = parser.parseAlterColumnOrIndexConstraintStm(t.Tp, string(tableName))
 	}
 	if !parser.matchTokenTypes(false, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return
 }
@@ -58,11 +58,11 @@ func (parser *Parser) resolveAlterStm() (stm Stm, err error) {
 func (parser *Parser) parseAlterDatabaseStm() (Stm, error) {
 	dbName, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	charset, collate, ok := parser.parseCharsetAndCollate()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &AlterDatabaseStm{DatabaseName: string(dbName), Charset: charset, Collate: collate}, nil
 }
@@ -82,7 +82,7 @@ func (parser *Parser) parseAlterDatabaseStm() (Stm, error) {
 func (parser *Parser) parseAlterColumnOrIndexConstraintStm(alterTp TokenType, tableName string) (Stm, error) {
 	token, ok := parser.NextToken()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	switch token.Tp {
 	case INDEX, KEY, PRIMARY, UNIQUE, FOREIGN, CONSTRAINT:
@@ -121,7 +121,7 @@ func (parser *Parser) parseAlterIndexOrConstraintStm(alterTp, indexOrConstraintT
 			return parser.parseAlterTableDropForeignKeyStm(tableName)
 		}
 	}
-	return nil, parser.MakeSyntaxError(1, parser.pos-1)
+	return nil, parser.MakeSyntaxError(parser.pos - 1)
 }
 
 func (parser *Parser) parseAlterTableAddIndexDefStm(tableName string) (*AlterTableAddIndexOrConstraintStm, error) {
@@ -145,7 +145,7 @@ func (parser *Parser) parseAlterTableAddConstraintStm(tableName string) (*AlterT
 func (parser *Parser) parseAlterTableDropForeignKeyStm(tableName string) (*AlterTableDropIndexOrConstraintStm, error) {
 	indexName, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &AlterTableDropIndexOrConstraintStm{Tp: IndexTp, TableName: tableName, IndexOrKeyName: string(indexName)}, nil
 }
@@ -153,7 +153,7 @@ func (parser *Parser) parseAlterTableDropForeignKeyStm(tableName string) (*Alter
 // drop primary key
 func (parser *Parser) parseAlterTableDropPrimaryKeyStm(tableName string) (*AlterTableDropIndexOrConstraintStm, error) {
 	if !parser.matchTokenTypes(false, KEY) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &AlterTableDropIndexOrConstraintStm{Tp: PrimaryKeyTp, TableName: tableName}, nil
 }
@@ -161,11 +161,11 @@ func (parser *Parser) parseAlterTableDropPrimaryKeyStm(tableName string) (*Alter
 // drop foreign key key_name
 func (parser *Parser) parseAlterTableDropIndexStm(tableName string) (*AlterTableDropIndexOrConstraintStm, error) {
 	if !parser.matchTokenTypes(false, KEY) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	keyName, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &AlterTableDropIndexOrConstraintStm{Tp: ForeignKeyTp, TableName: tableName, IndexOrKeyName: string(keyName)}, nil
 }
@@ -189,7 +189,7 @@ func (parser *Parser) parseAlterColumnStm(alterTp TokenType, tableName string) (
 		alterColumnTp = DropColumnTp
 		colName, ok = parser.parseIdentOrWord(false)
 		if !ok {
-			err = parser.MakeSyntaxError(1, parser.pos-1)
+			err = parser.MakeSyntaxError(parser.pos - 1)
 		}
 	case MODIFY:
 		alterColumnTp = ModifyColumnTp
@@ -198,13 +198,13 @@ func (parser *Parser) parseAlterColumnStm(alterTp TokenType, tableName string) (
 		alterColumnTp = ChangeColumnTp
 		colName, ok = parser.parseIdentOrWord(false)
 		if !ok {
-			err = parser.MakeSyntaxError(1, parser.pos-1)
+			err = parser.MakeSyntaxError(parser.pos - 1)
 		}
 		if err == nil {
 			colDef, err = parser.parseColumnDef()
 		}
 	default:
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func (parser *Parser) parseAlterColumnStm(alterTp TokenType, tableName string) (
 func (parser *Parser) parseAlterEngineStm(tableName string) (*AlterTableAlterEngineStm, error) {
 	engine, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &AlterTableAlterEngineStm{TableName: tableName, Engine: string(engine)}, nil
 }
@@ -231,7 +231,7 @@ func (parser *Parser) parseAlterEngineStm(tableName string) (*AlterTableAlterEng
 func (parser *Parser) parseAlterCharsetCollateStm(tableName string) (*AlterTableCharsetCollateStm, error) {
 	charset, collate, ok := parser.parseCharsetAndCollate()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &AlterTableCharsetCollateStm{TableName: tableName, Charset: charset, Collate: collate}, nil
 }

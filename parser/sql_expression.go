@@ -138,7 +138,7 @@ func (parser *Parser) makeNewExpression(leftExpr interface{}, rightExpr interfac
 func (parser *Parser) parseExpressionTerm() (expr *ExpressionTerm, err error) {
 	token, ok := parser.NextToken()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	switch token.Tp {
 	case IDENT:
@@ -162,14 +162,14 @@ func (parser *Parser) parseExpressionTerm() (expr *ExpressionTerm, err error) {
 	case LEFTBRACKET:
 		expr, err = parser.parseSubExpressionTerm()
 	default:
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return
 }
 
 func (parser *Parser) parseUnaryExpressionTerm() (expr *ExpressionTerm, err error) {
 	if parser.matchTokenTypes(false, MINUS) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	exprTerm, err := parser.parseExpressionTerm()
 	exprTerm.UnaryOp = NegativeUnaryOpTp
@@ -196,7 +196,7 @@ func (parser *Parser) parseSubExpressionTerm() (expr *ExpressionTerm, err error)
 		return nil, err
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &ExpressionTerm{
 		UnaryOp:      NoneUnaryOpTp,
@@ -219,7 +219,7 @@ func isTokenAOpe(token Token) bool {
 func (parser *Parser) parseLiteralExpressionTerm() (*ExpressionTerm, error) {
 	value, ok := parser.parseValue(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &ExpressionTerm{
 		UnaryOp:      NoneUnaryOpTp,
@@ -231,7 +231,7 @@ func (parser *Parser) parseLiteralExpressionTerm() (*ExpressionTerm, error) {
 func (parser *Parser) parseIdentifierExpressionTerm() (*ExpressionTerm, error) {
 	name, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &ExpressionTerm{
 		UnaryOp:      NoneUnaryOpTp,
@@ -243,10 +243,10 @@ func (parser *Parser) parseIdentifierExpressionTerm() (*ExpressionTerm, error) {
 func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 	funcName, ok := parser.parseIdentOrWord(false)
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if !parser.matchTokenTypes(false, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var params []*ExpressionStm
 	for {
@@ -260,7 +260,7 @@ func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	return &ExpressionTerm{
 		UnaryOp: NoneUnaryOpTp,
@@ -285,14 +285,14 @@ func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 //	case lexer.LIKE:
 //		expr, err = parser.parseLikeExpression(true, leftExpr)
 //	default:
-//		return nil, parser.MakeSyntaxError(1, parser.pos)
+//		return nil, parser.MakeSyntaxError(parser.pos)
 //	}
 //	return
 //}
 //
 //func (parser *Parser) parseInExpression(in bool, leftExpr *ast.ExpressionStm) (*ast.ExpressionStm, error) {
 //	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
-//		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+//		return nil, parser.MakeSyntaxError(parser.pos-1)
 //	}
 //	if parser.matchTokenTypes(true, lexer.SELECT) {
 //		parser.UnReadToken()
@@ -301,7 +301,7 @@ func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 //			return nil, err
 //		}
 //		if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
-//			return nil, parser.MakeSyntaxError(1, parser.pos-1)
+//			return nil, parser.MakeSyntaxError(parser.pos-1)
 //		}
 //		return &ast.ExpressionStm{
 //			Tp: ast.ExpressionInSubqueryTp,
@@ -324,7 +324,7 @@ func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 //		}
 //	}
 //	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
-//		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+//		return nil, parser.MakeSyntaxError(parser.pos-1)
 //	}
 //	return &ast.ExpressionStm{
 //		Tp: ast.ExpressionInExpressionsTp,
@@ -377,17 +377,17 @@ func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 //func (parser *Parser) parseExistsSubQueryExpression() (*ast.ExpressionStm, error) {
 //	nonExists := parser.matchTokenTypes(true, lexer.NOT)
 //	if !parser.matchTokenTypes(true, lexer.EXIST) {
-//		return nil, parser.MakeSyntaxError(1, parser.pos)
+//		return nil, parser.MakeSyntaxError(parser.pos)
 //	}
 //	if !parser.matchTokenTypes(false, lexer.LEFTBRACKET) {
-//		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+//		return nil, parser.MakeSyntaxError(parser.pos-1)
 //	}
 //	query, err := parser.resolveSelectStm(false)
 //	if err != nil {
 //		return nil, err
 //	}
 //	if !parser.matchTokenTypes(false, lexer.RIGHTBRACKET) {
-//		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+//		return nil, parser.MakeSyntaxError(parser.pos-1)
 //	}
 //	return &ast.ExpressionStm{
 //		Tp: ast.VariableExpressionTp,

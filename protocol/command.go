@@ -16,7 +16,8 @@ type Command struct {
 	arg     []byte
 }
 
-var OkMsg = ErrMsg{errCode: ErrorOk}
+var OkMsg = ErrMsg{errCode: ErrorOk, Msg: "OK"}
+var OkQueryMsg = ErrMsg{errCode: ErrorOk, Msg: "OK. no more data"}
 
 func decodeCommand(packet []byte) (Command, ErrMsg) {
 	switch CommandType(packet[0]) {
@@ -31,14 +32,14 @@ func decodeCommand(packet []byte) (Command, ErrMsg) {
 	}
 }
 
-func (c Command) Do(con *connectionWrapper) (exit bool, msg ErrMsg) {
+func (c Command) Do(con ConnectionWrapperInterface) (exit bool, msg ErrMsg) {
 	return c.Command.Do(con, c.arg)
 }
 
 type CommandInterface interface {
 	// Do is used to do command and return an bool flag to indicate whether close
 	// this connection and an errCode.
-	Do(con *connectionWrapper, packet []byte) (bool, ErrMsg)
+	Do(con ConnectionWrapperInterface, packet []byte) (bool, ErrMsg)
 	// Encode returns the encoded bytes of this command which would be sent to the other side..
 	Encode() []byte
 }
@@ -55,7 +56,7 @@ const (
 type ComQuit string
 
 // ComQuit just return true to indicate exit.
-func (c ComQuit) Do(_ *connectionWrapper, _ []byte) (bool, ErrMsg) {
+func (c ComQuit) Do(_ ConnectionWrapperInterface, _ []byte) (bool, ErrMsg) {
 	commandLog.InfoF("ComQuit: exiting.")
 	return true, OkMsg
 }
@@ -66,7 +67,7 @@ func (c ComQuit) Encode() []byte {
 
 type ComPing string
 
-func (c ComPing) Do(_ *connectionWrapper, _ []byte) (bool, ErrMsg) {
+func (c ComPing) Do(_ ConnectionWrapperInterface, _ []byte) (bool, ErrMsg) {
 	commandLog.InfoF("ComPing: we are alive.")
 	return false, OkMsg
 }
@@ -77,38 +78,41 @@ func (c ComPing) Encode() []byte {
 
 type ComQuery string
 
-func (c ComQuery) Do(conn *connectionWrapper, packet []byte) (bool, ErrMsg) {
+func (c ComQuery) Do(conn ConnectionWrapperInterface, packet []byte) (bool, ErrMsg) {
 	// Parse a query and execute it.
 	query := string(packet)
 	commandLog.InfoF("ComQuery: try to do a query: %s", query)
 	parser := parser.NewParser()
-	stms, err := parser.Parse(packet)
+	stm, err := parser.Parse(packet)
 	if err != nil {
 		return false, makeErrMsg(ErrSyntax, err.Error())
 	}
-	var msg ErrMsg
-	for i, stm := range stms {
-		msg = c.HandleOneStm(stm, conn)
-		if i == len(stms)-1 {
-			// stm is the last stm.
-			break
-		}
-		// Todo: do we need to check msg status.
-		conn.SendErrMsg(msg)
-	}
+	msg := c.HandleOneStm(stm, conn)
 	return false, msg
 }
 
-func (c ComQuery) HandleOneStm(stm parser.Stm, conn *connectionWrapper) ErrMsg {
+func isSelect(stm parser.Stm) bool {
+	_, ok := stm.(*parser.SelectStm)
+	return ok
+}
+
+func (c ComQuery) HandleOneStm(stm parser.Stm, conn ConnectionWrapperInterface) ErrMsg {
+	exec, err := plan.MakeExecutor(stm, conn.CurrentDB())
+	if err != nil {
+		return makeErrMsg(ErrQuery, err.Error())
+	}
 	for {
-		data, finish, err := plan.Exec(stm, &conn.session.CurrentDB)
+		data, err := exec.Exec()
 		if err != nil {
 			return makeErrMsg(ErrQuery, err.Error())
 		}
 		if data != nil {
 			conn.SendQueryResult(data)
 		}
-		if finish {
+		if data == nil && isSelect(stm) {
+			return OkQueryMsg
+		}
+		if data == nil {
 			return OkMsg
 		}
 	}

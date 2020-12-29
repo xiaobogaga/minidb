@@ -135,10 +135,8 @@ func printRecord(record *storage.RecordBatch, needPrintHeader bool, columnWidths
 
 func printMsg(msg protocol.Msg, printHeader bool, columnWidths []int) {
 	switch msg.TP {
-	case protocol.OkMsgType:
-		println("server: ok")
-	case protocol.ErrMsgType:
-		fmt.Printf("server: err: %v\n", msg.Msg.(protocol.ErrMsg).Msg)
+	case protocol.OkMsgType, protocol.ErrMsgType:
+		println("server: ", msg.Msg.(protocol.ErrMsg).Msg)
 	case protocol.DataMsgType:
 		printRecord(msg.Msg.(*storage.RecordBatch), printHeader, columnWidths)
 	default:
