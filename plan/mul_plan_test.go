@@ -1,1 +1,54 @@
 package plan
+
+import (
+	"github.com/stretchr/testify/assert"
+	"minidb/parser"
+	"testing"
+)
+
+func testInsert(t *testing.T, sql string) {
+	stm := toTestStm(t, sql)
+	err := ExecuteInsertStm(stm.(*parser.InsertIntoStm), "db1")
+	assert.Nil(t, err)
+	printTestStorage(t)
+}
+
+func TestInsert_Execute(t *testing.T) {
+	initTestStorage(t)
+	sql := "insert into db1.test1 values(10, 'xiaobo', 10.0);"
+	testInsert(t, sql)
+}
+
+func testUpdate(t *testing.T, sql string) {
+	stm := toTestStm(t, sql)
+	err := ExecuteUpdateStm(stm.(*parser.UpdateStm), "db1")
+	assert.Nil(t, err)
+	printTestStorage(t)
+}
+
+func TestUpdate_Execute(t *testing.T) {
+	initTestStorage(t)
+	sql := "update db1.test1 set name='xxxxx' where id = 1 or id = 2;"
+	testUpdate(t, sql)
+}
+
+func TestMultiUpdate_Execute(t *testing.T) {
+
+}
+
+func testDelete(t *testing.T, sql string) {
+	stm := toTestStm(t, sql)
+	err := ExecuteDeleteStm(stm.(*parser.SingleDeleteStm), "db1")
+	assert.Nil(t, err)
+	printTestStorage(t)
+}
+
+func TestDelete_Execute(t *testing.T) {
+	initTestStorage(t)
+	sql := "delete from db1.test1 where id = 1 or id = 2;"
+	testDelete(t, sql)
+}
+
+func TestMultiDelete_Execute(t *testing.T) {
+
+}

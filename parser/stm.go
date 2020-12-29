@@ -318,7 +318,7 @@ var (
 	OperationMinus      = &ExpressionOp{Tp: MINUS, Priority: 1}
 	OperationMul        = &ExpressionOp{Tp: MUL, Priority: 2}
 	OperationDivide     = &ExpressionOp{Tp: DIVIDE, Priority: 2}
-	OperationMod        = &ExpressionOp{Tp: MOD, Priority: 1}
+	OperationMod        = &ExpressionOp{Tp: MOD, Priority: 2}
 	OperationEqual      = &ExpressionOp{Tp: EQUAL, Priority: 1}
 	OperationIs         = &ExpressionOp{Tp: IS, Priority: 1}
 	OperationNotEqual   = &ExpressionOp{Tp: NOTEQUAL, Priority: 1}

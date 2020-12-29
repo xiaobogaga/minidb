@@ -40,11 +40,11 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 	if len(tableRefs) > 1 {
 		return parser.resolveMultiUpdateStm(tableRefs, assignments)
 	}
-	where, _ := parser.resolveWhereStm()
+	where, _ := parser.ResolveWhereStm()
 	if len(tableRefs) > 1 {
 		return parser.resolveMultiUpdateStm(tableRefs, assignments)
 	}
-	order, err := parser.parseOrderByStm()
+	order, err := parser.ParseOrderByStm()
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (parser *Parser) resolveUpdateStm() (Stm, error) {
 }
 
 func (parser *Parser) resolveMultiUpdateStm(tableRefs []TableReferenceStm, assignments []*AssignmentStm) (Stm, error) {
-	where, _ := parser.resolveWhereStm()
+	where, _ := parser.ResolveWhereStm()
 	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}

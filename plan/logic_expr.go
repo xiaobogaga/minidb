@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"minidb/storage"
-	"strings"
 )
 
 type LogicExpr interface {
@@ -25,17 +24,16 @@ type LogicExpr interface {
 // can be a.b.c or a.b or a
 type IdentifierLogicExpr struct {
 	Ident       []byte
-	Schema      string
-	Table       string
-	Column      string
 	accumulator []byte // put accumulator here is not a good idea. It's better to separate.
 	input       LogicPlan
+	Str         string // For debug only
 }
 
 func (ident IdentifierLogicExpr) toField() storage.Field {
 	// The column must be unique in the input schema.
 	schema := ident.input.Schema()
-	return *schema.GetField(ident.Column)
+	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
+	return *schema.GetField(columnName)
 }
 
 func (ident IdentifierLogicExpr) String() string {
@@ -43,36 +41,26 @@ func (ident IdentifierLogicExpr) String() string {
 }
 
 func (ident IdentifierLogicExpr) TypeCheck() error {
-	word := string(ident.Ident)
-	splits := strings.Split(word, ".")
-	switch len(splits) {
-	case 3:
-		ident.Schema = splits[0]
-		ident.Table = splits[1]
-		ident.Column = splits[2]
-	case 2:
-		ident.Table = splits[0]
-		ident.Column = splits[1]
-	case 1:
-		ident.Column = splits[0]
-	}
+	schemaName, table, column := getSchemaTableColumnName(string(ident.Ident))
 	schema := ident.input.Schema()
 	// Now we check whether we can find such column.
-	if !schema.HasColumn(ident.Schema, ident.Table, ident.Column) {
-		return errors.New(fmt.Sprintf("column %s cannot find", ident.Column))
+	if !schema.HasColumn(schemaName, table, column) {
+		return errors.New(fmt.Sprintf("column %s cannot find", column))
 	}
-	if schema.HasAmbiguousColumn(ident.Schema, ident.Table, ident.Column) {
-		return errors.New(fmt.Sprintf("column %s is ambiguous", ident.Column))
+	if schema.HasAmbiguousColumn(schemaName, table, column) {
+		return errors.New(fmt.Sprintf("column %s is ambiguous", column))
 	}
 	return nil
 }
 
 func (ident IdentifierLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
-	return input.GetColumnValue(ident.Column)
+	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
+	return input.GetColumnValue(columnName)
 }
 
 func (ident IdentifierLogicExpr) EvaluateRow(row int, input *storage.RecordBatch) []byte {
-	return input.GetColumnValue(ident.Column).RawValue(row)
+	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
+	return input.GetColumnValue(columnName).RawValue(row)
 }
 
 func (ident IdentifierLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
@@ -98,12 +86,7 @@ func (ident IdentifierLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 }
 
 func (ident IdentifierLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
-	ret := IdentifierLogicExpr{
-		Ident:  ident.Ident,
-		Schema: ident.Schema,
-		Table:  ident.Table,
-		Column: ident.Column,
-	}
+	ret := IdentifierLogicExpr{Ident: ident.Ident, Str: string(ident.Ident)}
 	if cloneAccumulate {
 		ret.accumulator = ident.accumulator
 	}
@@ -111,7 +94,8 @@ func (ident IdentifierLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
 }
 
 func (ident IdentifierLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
-	col := input.GetColumnValue(ident.Column)
+	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
+	col := input.GetColumnValue(columnName)
 	ident.accumulator = col.Values[row]
 }
 
@@ -135,6 +119,7 @@ type LiteralLogicExpr struct {
 	// But we will use a strict type. True cannot be transformed to 1.
 	// For Blob, they must be a string 'xxx' or "xxx".
 	Data []byte
+	Str  string // For debug only
 }
 
 func (literal LiteralLogicExpr) toField() storage.Field {
@@ -193,9 +178,8 @@ func (literal LiteralLogicExpr) Value() []byte {
 }
 
 type NegativeLogicExpr struct {
-	Expr  LogicExpr
-	Name  string
-	Alias string
+	Expr LogicExpr
+	Name string
 }
 
 func (negative NegativeLogicExpr) toField() storage.Field {
@@ -259,9 +243,8 @@ func (negative NegativeLogicExpr) AccumulateValue() []byte {
 
 func (negative NegativeLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 	return NegativeLogicExpr{
-		Expr:  negative.Expr.Clone(cloneAccumulator),
-		Name:  negative.Name,
-		Alias: negative.Alias,
+		Expr: negative.Expr.Clone(cloneAccumulator),
+		Name: negative.Name,
 	}
 }
 
@@ -277,12 +260,11 @@ func (negative NegativeLogicExpr) Compute() ([]byte, error) {
 	return storage.Negative(negative.toField().TP, val), nil
 }
 
-// Math expr
+// Math Expr
 type AddLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
 	Name  string
-	Alias string
 }
 
 func (add AddLogicExpr) toField() storage.Field {
@@ -359,7 +341,6 @@ func (add AddLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 		Left:  add.Left.Clone(cloneAccumulator),
 		Right: add.Right.Clone(cloneAccumulator),
 		Name:  add.Name,
-		Alias: add.Alias,
 	}
 }
 
@@ -383,7 +364,6 @@ type MinusLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
 	Name  string
-	Alias string
 }
 
 func (minus MinusLogicExpr) toField() storage.Field {
@@ -453,7 +433,6 @@ func (minus MinusLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 		Left:  minus.Left.Clone(cloneAccumulator),
 		Right: minus.Right.Clone(cloneAccumulator),
 		Name:  minus.Name,
-		Alias: minus.Alias,
 	}
 }
 
@@ -477,7 +456,6 @@ type MulLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
 	Name  string
-	Alias string
 }
 
 func (mul MulLogicExpr) toField() storage.Field {
@@ -547,7 +525,6 @@ func (mul MulLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 		Left:  mul.Left.Clone(cloneAccumulator),
 		Right: mul.Right.Clone(cloneAccumulator),
 		Name:  mul.Name,
-		Alias: mul.Alias,
 	}
 }
 
@@ -571,7 +548,6 @@ type DivideLogicExpr struct {
 	Left  LogicExpr
 	Right LogicExpr
 	Name  string
-	Alias string
 }
 
 func (divide DivideLogicExpr) toField() storage.Field {
@@ -641,7 +617,6 @@ func (divide DivideLogicExpr) Clone(cloneAccumulator bool) LogicExpr {
 		Left:  divide.Left.Clone(cloneAccumulator),
 		Right: divide.Right.Clone(cloneAccumulator),
 		Name:  divide.Name,
-		Alias: divide.Alias,
 	}
 }
 
@@ -1574,8 +1549,8 @@ func (or OrLogicExpr) Compute() ([]byte, error) {
 }
 
 type OrderByLogicExpr struct {
-	expr []LogicExpr
-	asc  []bool
+	Expr []LogicExpr
+	Asc  []bool
 }
 
 func (orderBy OrderByLogicExpr) toField(input LogicPlan) storage.Field {
@@ -1585,13 +1560,13 @@ func (orderBy OrderByLogicExpr) toField(input LogicPlan) storage.Field {
 func (orderBy OrderByLogicExpr) String() string {
 	buf := bytes.Buffer{}
 	buf.WriteString("orderBy(")
-	for i, expr := range orderBy.expr {
-		asc := "asc"
-		if !orderBy.asc[i] {
+	for i, expr := range orderBy.Expr {
+		asc := "Asc"
+		if !orderBy.Asc[i] {
 			asc = "desc"
 		}
 		buf.WriteString(fmt.Sprintf("[%s, %s]", expr, asc))
-		if i != len(orderBy.expr)-1 {
+		if i != len(orderBy.Expr)-1 {
 			buf.WriteString(",")
 		}
 	}
@@ -1600,13 +1575,13 @@ func (orderBy OrderByLogicExpr) String() string {
 
 func (orderBy OrderByLogicExpr) TypeCheck() error {
 	// only numerical or string type can be orderBy, aka comparable type.
-	for _, expr := range orderBy.expr {
+	for _, expr := range orderBy.Expr {
 		err := expr.TypeCheck()
 		if err != nil {
 			return err
 		}
 		// Todo: do we need this?
-		//if !expr.toField(input).IsComparable() {
+		//if !Expr.toField(input).IsComparable() {
 		//	return errors.New("order by cannot be applied to")
 		//}
 	}
@@ -1615,7 +1590,7 @@ func (orderBy OrderByLogicExpr) TypeCheck() error {
 
 func (orderBy OrderByLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	found := false
-	for _, orderByExpr := range orderBy.expr {
+	for _, orderByExpr := range orderBy.Expr {
 		if orderByExpr.AggrTypeCheck(groupByExpr) != nil {
 			found = true
 		}
@@ -1623,7 +1598,7 @@ func (orderBy OrderByLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 	if !found {
 		return nil
 	}
-	for _, orderByExpr := range orderBy.expr {
+	for _, orderByExpr := range orderBy.Expr {
 		found := false
 		for _, expr := range groupByExpr {
 			if orderByExpr.String() == expr.String() {
@@ -1659,12 +1634,12 @@ func (orderBy OrderByLogicExpr) Evaluate(input *storage.RecordBatch) *storage.Co
 		val := storage.EncodeInt(int64(i))
 		ret.Values = append(ret.Values, val)
 	}
-	sortedVector := make([]*storage.ColumnVector, len(orderBy.expr))
-	asc := make([]bool, len(orderBy.expr))
-	for i, expr := range orderBy.expr {
+	sortedVector := make([]*storage.ColumnVector, len(orderBy.Expr))
+	asc := make([]bool, len(orderBy.Expr))
+	for i, expr := range orderBy.Expr {
 		columnVector := expr.Evaluate(input)
 		sortedVector[i] = columnVector
-		asc[i] = orderBy.asc[i]
+		asc[i] = orderBy.Asc[i]
 	}
 	return ret.Sort(sortedVector, asc)
 }
@@ -1679,7 +1654,7 @@ type FuncCallLogicExpr struct {
 	FuncName string
 	Params   []LogicExpr
 	Name     string
-	Fn       FuncInterface
+	Fn       FuncInterface `json:"-"`
 }
 
 func (call FuncCallLogicExpr) toField() storage.Field {
@@ -1828,7 +1803,7 @@ type AsLogicExpr struct {
 
 func (as AsLogicExpr) toField() storage.Field {
 	exprField := as.Expr.toField()
-	f := storage.Field{Name: as.Alias, TP: exprField.TP}
+	f := storage.Field{Name: exprField.Name, Alias: as.Alias, TP: exprField.TP}
 	return f
 }
 

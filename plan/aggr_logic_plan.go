@@ -140,7 +140,7 @@ func (groupBy GroupByLogicPlan) Reset() {
 // For Having condition
 type HavingLogicPlan struct {
 	Input GroupByLogicPlan `json:"having_input"`
-	Expr  LogicExpr        `json:"expr"`
+	Expr  LogicExpr        `json:"Expr"`
 }
 
 func (having HavingLogicPlan) Schema() *storage.TableSchema {
@@ -195,10 +195,10 @@ func (having HavingLogicPlan) Reset() {
 
 func MakeAggreLogicPlan(input LogicPlan, ast *parser.SelectStm) (LogicPlan, error) {
 	groupByLogicPlan := makeGroupByLogicPlan(input, ast.Groupby)
-	// Having similar to projections for aggregation, the expr must be either included in the group by expr.
+	// Having similar to projections for aggregation, the Expr must be either included in the group by Expr.
 	// or must be an aggregation function.
 	havingLogicPlan := makeHavingLogicPlan(groupByLogicPlan, ast.Having)
-	// Order by similar to projections for aggregation, the expr must be either included in the group by expr,
+	// Order by similar to projections for aggregation, the Expr must be either included in the group by Expr,
 	// or must be an aggregation function.
 	orderByLogicPlan := makeOrderByLogicPlan(havingLogicPlan, ast.OrderBy, true)
 	limitLogicPlan := makeLimitLogicPlan(orderByLogicPlan, ast.LimitStm)

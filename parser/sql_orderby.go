@@ -2,7 +2,7 @@ package parser
 
 // order by expressions [asc|desc],...
 
-func (parser *Parser) parseOrderByStm() (*OrderByStm, error) {
+func (parser *Parser) ParseOrderByStm() (*OrderByStm, error) {
 	if !parser.matchTokenTypes(true, ORDER, BY) {
 		return nil, nil
 	}

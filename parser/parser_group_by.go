@@ -4,7 +4,7 @@ var emptyGroupByStm = GroupByStm{}
 
 // group by {expressions [asc|desc]}...
 
-func (parser *Parser) parseGroupByStm() (*GroupByStm, error) {
+func (parser *Parser) ParseGroupByStm() (*GroupByStm, error) {
 	if !parser.matchTokenTypes(true, GROUP, BY) {
 		return nil, nil
 	}
@@ -25,5 +25,8 @@ func (parser *Parser) parseGroupByStm() (*GroupByStm, error) {
 
 // Return desc if matched, or return asc (true as default) otherwise.
 func (parser *Parser) parseAscOrDesc() bool {
+	if parser.matchTokenTypes(true, ASC) {
+		return true
+	}
 	return !parser.matchTokenTypes(true, DESC)
 }

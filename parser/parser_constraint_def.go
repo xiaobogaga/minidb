@@ -12,7 +12,7 @@ func (parser *Parser) parseConstraintDef() (*ConstraintDefStm, error) {
 	parser.matchTokenTypes(true, CONSTRAINT)
 	token, ok := parser.NextToken()
 	if !ok {
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	switch token.Tp {
 	case PRIMARY:
@@ -22,7 +22,7 @@ func (parser *Parser) parseConstraintDef() (*ConstraintDefStm, error) {
 	case FOREIGN:
 		return parser.parseForeignKeyDef()
 	}
-	return nil, parser.MakeSyntaxError(1, parser.pos)
+	return nil, parser.MakeSyntaxError(1, parser.pos-1)
 }
 
 // * [Constraint] primary key (col_name [,col_name...)

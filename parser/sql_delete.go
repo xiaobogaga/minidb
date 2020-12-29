@@ -19,11 +19,11 @@ func (parser *Parser) parseDeleteSingleTableStm() (stm *SingleDeleteStm, err err
 	if !ret {
 		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	whereStm, err := parser.resolveWhereStm()
+	whereStm, err := parser.ResolveWhereStm()
 	if err != nil {
 		return nil, err
 	}
-	orderByStm, err := parser.parseOrderByStm()
+	orderByStm, err := parser.ParseOrderByStm()
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (parser *Parser) parseDeleteMultiTableStm() (stm *MultiDeleteStm, err error
 			break
 		}
 	}
-	whereStm, err := parser.resolveWhereStm()
+	whereStm, err := parser.ResolveWhereStm()
 	if err != nil {
 		return nil, err
 	}

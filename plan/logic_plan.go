@@ -96,7 +96,9 @@ const BatchSize = 1 << 10
 func (tableScan *TableScan) Execute() *storage.RecordBatch {
 	dbInfo := storage.GetStorage().GetDbInfo(tableScan.SchemaName)
 	table := dbInfo.GetTable(tableScan.Name)
-	return table.FetchData(tableScan.i, BatchSize)
+	ret := table.FetchData(tableScan.i, BatchSize)
+	tableScan.i += ret.RowCount()
+	return ret
 }
 
 func (tableScan *TableScan) Reset() {
@@ -248,7 +250,7 @@ func MakeEmptyRecordBatchFromSchema(schema *storage.TableSchema) *storage.Record
 		Records: make([]*storage.ColumnVector, len(fields)),
 	}
 	for i, f := range fields {
-		ret.Records[i].Field = f
+		ret.Records[i] = &storage.ColumnVector{Field: f}
 	}
 	return ret
 }
@@ -318,6 +320,9 @@ func (orderBy *OrderByLogicPlan) Execute() *storage.RecordBatch {
 	if orderBy.data == nil {
 		orderBy.InitializeAndSort()
 	}
+	if orderBy.data == nil {
+		return nil
+	}
 	ret := orderBy.data.Slice(orderBy.index, BatchSize)
 	orderBy.index += BatchSize
 	return ret
@@ -328,16 +333,16 @@ func (orderBy OrderByLogicPlan) InitializeAndSort() {
 		return
 	}
 	batch := orderBy.Input.Execute()
+	if batch == nil {
+		return
+	}
 	ret := MakeEmptyRecordBatchFromSchema(orderBy.Schema())
-	for {
-		if batch == nil {
-			columnVector := orderBy.OrderBy.Evaluate(ret)
-			ret.OrderBy(columnVector)
-			break
-		}
+	for batch != nil {
 		batch = orderBy.Input.Execute()
 		ret.Append(batch)
 	}
+	columnVector := orderBy.OrderBy.Evaluate(ret)
+	ret.OrderBy(columnVector)
 	orderBy.data = ret
 }
 
@@ -361,7 +366,9 @@ func (proj *ProjectionLogicPlan) Schema() *storage.TableSchema {
 	// and the inputSchema can be either:
 	// * a pure single table schema.
 	// * a joined table schema with multiple sub tables internal.
-	table := &storage.TableSchema{}
+	table := &storage.TableSchema{
+		Columns: []storage.Field{storage.RowIndexField("", "")},
+	}
 	for _, expr := range proj.Exprs {
 		f := expr.toField()
 		table.AppendColumn(f)
@@ -392,11 +399,19 @@ func (proj *ProjectionLogicPlan) TypeCheck() error {
 }
 
 func (proj *ProjectionLogicPlan) Execute() *storage.RecordBatch {
-	ret := MakeEmptyRecordBatchFromSchema(proj.Schema())
 	records := proj.Input.Execute()
+	if records == nil {
+		return nil
+	}
+	ret := MakeEmptyRecordBatchFromSchema(proj.Schema())
 	for i, expr := range proj.Exprs {
 		colVector := expr.Evaluate(records)
-		ret.SetColumnValue(i, colVector)
+		// Note: the row index column
+		ret.SetColumnValue(i+1, colVector)
+	}
+	if len(proj.Exprs) == 0 {
+		// Must be select all.
+		return records
 	}
 	// Now we copy the row index.
 	ret.Records[0].Appends(records.Records[0].Values)
@@ -431,13 +446,16 @@ func (limit *LimitLogicPlan) TypeCheck() error {
 }
 
 func (limit *LimitLogicPlan) Execute() *storage.RecordBatch {
-	ret := MakeEmptyRecordBatchFromSchema(limit.Schema())
 	if limit.Count <= 0 || limit.Index-limit.Offset >= limit.Count {
 		return nil
 	}
-	batch := limit.Execute()
+	batch := limit.Input.Execute()
+	if batch == nil {
+		return nil
+	}
+	ret := MakeEmptyRecordBatchFromSchema(limit.Schema())
 	// Move index to close to offset first.
-	for batch != nil && limit.Index+batch.RowCount() < limit.Offset {
+	for limit.Index+batch.RowCount() < limit.Offset {
 		limit.Index += batch.RowCount()
 		batch = limit.Execute()
 	}

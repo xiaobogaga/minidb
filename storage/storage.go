@@ -77,29 +77,38 @@ type TableInfo struct {
 	Datas       []*ColumnVector
 }
 
-// FetchData returns the data starting at row index `rowIndex` And the batchSize Is batchSize.
-func (table *TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
-	// The records in the last column is the row index if needRowIndex is true.
+func createRecordBatchFromColumns(columns []Field) *RecordBatch {
 	ret := &RecordBatch{
-		Fields:  table.TableSchema.Columns,
-		Records: make([]*ColumnVector, len(table.TableSchema.Columns)),
+		Fields:  columns,
+		Records: make([]*ColumnVector, len(columns)),
 	}
-	ret.Fields = append(ret.Fields, RowIndexField(table.TableSchema.SchemaName(), table.TableSchema.TableName()))
-	ret.Records = append(ret.Records, &ColumnVector{Field: RowIndexField(table.TableSchema.SchemaName(), table.TableSchema.TableName())})
-	if len(table.Datas) == 0 {
-		return ret
-	}
-	for i := rowIndex; i < batchSize && i < table.Datas[1].Size(); i++ {
-		for j, col := range table.Datas {
-			if j == 0 {
-				// The first row is the row index.
-				ret.Records[0].Append(EncodeInt(int64(rowIndex)))
-				continue
-			}
-			ret.Records[j].Append(col.Values[i])
-		}
+	for i, column := range ret.Fields {
+		ret.Records[i] = &ColumnVector{Field: column}
 	}
 	return ret
+}
+
+// FetchData returns the data starting at row index `rowIndex` And the batchSize Is batchSize.
+func (table *TableInfo) FetchData(rowIndex, batchSize int) *RecordBatch {
+	if len(table.Datas) == 0 || rowIndex >= table.Datas[1].Size() {
+		return nil
+	}
+	ret := createRecordBatchFromColumns(table.TableSchema.Columns)
+	for i := rowIndex; i < batchSize && i < table.Datas[1].Size(); i++ {
+		table.FillRowInfo(ret, i)
+	}
+	return ret
+}
+
+func (table *TableInfo) FillRowInfo(ret *RecordBatch, row int) {
+	for j, col := range table.Datas {
+		// The first row is the row index.
+		if j == 0 {
+			ret.Records[j].Append(EncodeInt(int64(row)))
+		} else {
+			ret.Records[j].Append(col.Values[row])
+		}
+	}
 }
 
 func (table *TableInfo) GetColumnInfo(column string) *Field {
@@ -122,7 +131,7 @@ func (table *TableInfo) HasColumn(column string) bool {
 
 const (
 	// DefaultPrimaryKeyName = "0_id"
-	DefaultRowKeyName = "0_row_id"
+	DefaultRowKeyName = ""
 )
 
 //func DefaultPrimaryKeyColumn(schemaName, tableName string) Field {
@@ -140,8 +149,8 @@ func (table *TableInfo) UpdateData(colName string, row int, value []byte) {
 }
 
 func (table *TableInfo) DeleteRow(row int) {
-	for i := 0; i < len(table.Datas); i++ {
-		table.Datas[i].Values = append(table.Datas[i].Values[:i], table.Datas[i].Values[i+1:]...)
+	for i := 1; i < len(table.Datas); i++ {
+		table.Datas[i].Values = append(table.Datas[i].Values[:row], table.Datas[i].Values[row+1:]...)
 	}
 }
 
@@ -295,10 +304,10 @@ type RecordBatch struct {
 }
 
 func (recordBatch *RecordBatch) RowCount() int {
-	for _, r := range recordBatch.Records {
-		return r.Size()
+	if recordBatch == nil {
+		return 0
 	}
-	return 0
+	return recordBatch.Records[0].Size()
 }
 
 func (recordBatch *RecordBatch) GetColumnValue(colName string) *ColumnVector {

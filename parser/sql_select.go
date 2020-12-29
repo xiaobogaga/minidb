@@ -87,11 +87,11 @@ func (parser *Parser) resolveRemainingSelectStm(selectTp SelectTp, expr *SelectE
 			break
 		}
 	}
-	whereStm, err := parser.resolveWhereStm()
+	whereStm, err := parser.ResolveWhereStm()
 	if err != nil {
 		return nil, err
 	}
-	groupByStm, err := parser.parseGroupByStm()
+	groupByStm, err := parser.ParseGroupByStm()
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (parser *Parser) resolveRemainingSelectStm(selectTp SelectTp, expr *SelectE
 	if err != nil {
 		return nil, err
 	}
-	orderByStm, err := parser.parseOrderByStm()
+	orderByStm, err := parser.ParseOrderByStm()
 	if err != nil {
 		return nil, err
 	}

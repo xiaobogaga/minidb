@@ -2,7 +2,7 @@ package parser
 
 // A where statement is like: Where expressionStm
 
-func (parser *Parser) resolveWhereStm() (WhereStm, error) {
+func (parser *Parser) ResolveWhereStm() (WhereStm, error) {
 	if !parser.matchTokenTypes(true, WHERE) {
 		return nil, nil
 	}

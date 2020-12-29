@@ -61,7 +61,7 @@ func (parser *Parser) parseSubTableRefOrTableSubQuery() (stm TableReferenceTable
 	}
 	token, ok := parser.NextToken()
 	if !ok {
-		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos)
+		return emptyTableRefTableFactorStm, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	switch token.Tp {
 	case SELECT:
@@ -208,6 +208,6 @@ func (parser *Parser) parseJoinSpecification() (JoinSpecification, error) {
 		parser.UnReadToken()
 		return parser.parseUsingJoinSpec()
 	default:
-		return emptyJoinSepc, parser.MakeSyntaxError(1, parser.pos)
+		return emptyJoinSepc, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 }

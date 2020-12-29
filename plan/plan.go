@@ -159,33 +159,33 @@ func ExprStmToLogicExpr(expr *parser.ExpressionStm, input LogicPlan) LogicExpr {
 func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op *parser.ExpressionOp) LogicExpr {
 	switch op.Tp {
 	case parser.ADD:
-		return AddLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return AddLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "+"}
 	case parser.MINUS:
-		return MinusLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return MinusLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "-"}
 	case parser.MUL:
-		return MulLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return MulLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "*"}
 	case parser.DIVIDE:
-		return DivideLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return DivideLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "/"}
 	case parser.MOD:
-		return ModLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return ModLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "%"}
 	case parser.EQUAL:
-		return EqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return EqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "="}
 	case parser.IS:
-		return IsLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return IsLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "is"}
 	case parser.NOTEQUAL:
-		return NotEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return NotEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "!="}
 	case parser.GREAT:
-		return GreatLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return GreatLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: ">"}
 	case parser.GREATEQUAL:
-		return GreatEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return GreatEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: ">="}
 	case parser.LESS:
-		return LessLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return LessLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "<"}
 	case parser.LESSEQUAL:
-		return LessEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return LessEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "<="}
 	case parser.AND:
-		return AndLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return AndLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "and"}
 	case parser.OR:
-		return OrLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
+		return OrLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "or"}
 		// case lexer.DOT:
 		// For DotLogicExpr, the leftLogicExpr must be a IdentifierLogicAggrExpr and rightLogicExpt must be
 		// a DotLogicExpr or IdentifierLogicAggrExpr.
@@ -210,7 +210,7 @@ func ExprTermStmToLogicExpr(exprTerm *parser.ExpressionTerm, input LogicPlan) Lo
 	case parser.SubExpressionTermTP:
 		logicExpr = ExprStmToLogicExpr(exprTerm.RealExprTerm.(*parser.ExpressionStm), input)
 	default:
-		panic("unknown expr term type")
+		panic("unknown Expr term type")
 	}
 	if exprTerm.UnaryOp == parser.NegativeUnaryOpTp {
 		return NegativeLogicExpr{Expr: logicExpr}
@@ -219,11 +219,13 @@ func ExprTermStmToLogicExpr(exprTerm *parser.ExpressionTerm, input LogicPlan) Lo
 }
 
 func LiteralExprToLiteralLogicExpr(literalExprStm parser.LiteralExpressionStm) LogicExpr {
-	return LiteralLogicExpr{Data: literalExprStm}
+	ret := LiteralLogicExpr{Data: literalExprStm}
+	ret.Str = ret.String()
+	return ret
 }
 
 func IdentifierExprToIdentifierLogicExpr(identifierExpr parser.IdentifierExpression, input LogicPlan) LogicExpr {
-	return IdentifierLogicExpr{Ident: identifierExpr, input: input}
+	return IdentifierLogicExpr{Ident: identifierExpr, input: input, Str: string(identifierExpr)}
 }
 
 func FuncCallExprToLogicExpr(funcCallExpr parser.FunctionCallExpressionStm, input LogicPlan) LogicExpr {
@@ -236,15 +238,15 @@ func FuncCallExprToLogicExpr(funcCallExpr parser.FunctionCallExpressionStm, inpu
 }
 
 //func SubExprTermToLogicExpr(subExpr parser.SubExpressionTerm, input LogicPlan) LogicExpr {
-//	expr := parser.ExpressionTerm(subExpr)
-//	return ExprTermStmToLogicExpr(&expr, input)
+//	Expr := parser.ExpressionTerm(subExpr)
+//	return ExprTermStmToLogicExpr(&Expr, input)
 //}
 
 func OrderedExpressionToOrderedExprs(orderedExprs []*parser.OrderedExpressionStm, input LogicPlan) OrderByLogicExpr {
 	ret := OrderByLogicExpr{}
 	for _, expr := range orderedExprs {
-		ret.expr = append(ret.expr, ExprStmToLogicExpr(expr.Expression, input))
-		ret.asc = append(ret.asc, expr.Asc)
+		ret.Expr = append(ret.Expr, ExprStmToLogicExpr(expr.Expression, input))
+		ret.Asc = append(ret.Asc, expr.Asc)
 	}
 	return ret
 }

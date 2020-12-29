@@ -34,7 +34,7 @@ func (parser *Parser) resolveInsertStm() (Stm, error) {
 	}
 	// should be values (
 	if !parser.matchTokenTypes(false, VALUES, LEFTBRACKET) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(1, parser.pos-2)
 	}
 	var valueExpressions []*ExpressionStm
 	for {
@@ -48,7 +48,7 @@ func (parser *Parser) resolveInsertStm() (Stm, error) {
 		}
 	}
 	if !parser.matchTokenTypes(false, RIGHTBRACKET, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(1, parser.pos-1)
+		return nil, parser.MakeSyntaxError(1, parser.pos-2)
 	}
 	return &InsertIntoStm{TableName: string(tableName), Cols: colNames, Values: valueExpressions}, nil
 }

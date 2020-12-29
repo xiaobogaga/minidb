@@ -6,12 +6,9 @@ func (parser *Parser) parseHavingStm() (HavingStm, error) {
 	if !parser.matchTokenTypes(true, HAVING) {
 		return nil, nil
 	}
-	whereStm, err := parser.resolveWhereStm()
+	expressionStm, err := parser.resolveExpression()
 	if err != nil {
-		return nil, err
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	if whereStm == nil {
-		return nil, parser.MakeSyntaxError(1, parser.pos)
-	}
-	return HavingStm(whereStm), nil
+	return expressionStm, nil
 }

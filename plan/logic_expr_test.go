@@ -2,6 +2,7 @@ package plan
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"minidb/parser"
@@ -65,25 +66,19 @@ func printTestStorage(t *testing.T) {
 	}
 }
 
+const testDataSize = 4
+
 func initTestStorage(t *testing.T) {
 	parser := parser.NewParser()
 	sqls := []string{
 		"create database db1;",
 		"use db1;",
-		"create table test1(id int primary key, name varchar(20));",
-		"create table test2(id int primary key, name varchar(20));",
-		"insert into test1 values(1, 'hello');",
-		"insert into test2 values(2, 'hi');",
-		"insert into test1(id, name) values(2, 'hi');",
-		"insert into test1 values(1 * 2 + (2 * 3 + 3), 'hi');",
+		"create table test1(id int primary key, name varchar(20), age float);",
+		"create table test2(id int primary key, name varchar(20), age float);",
 		"create database db2;",
 		"use db2;",
-		"create table test1(id int primary key, name varchar(20));",
-		"create table test2(id int primary key, name varchar(20));",
-		"insert into test1 values(1, 'hello');",
-		"insert into test2 values(2, 'hi');",
-		"insert into test1(id, name) values(2, 'hi');",
-		"insert into test1 values(1 * 2 + (2 * 3 + 3), 'hi');",
+		"create table test1(id int primary key, name varchar(20), age float);",
+		"create table test2(id int primary key, name varchar(20), age float);",
 	}
 	currentDB := ""
 	for _, sql := range sqls {
@@ -93,13 +88,62 @@ func initTestStorage(t *testing.T) {
 		assert.True(t, finish)
 		assert.Nil(t, err)
 	}
-	// printTestStorage(t)
+	currentDB = "db1"
+	// insert some data to db1 tables.
+	for i := 0; i < testDataSize; i++ {
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, i)
+		stm, err := parser.Parse([]byte(sql))
+		assert.Nil(t, err)
+		_, finish, err := Exec(stm[0], &currentDB)
+		assert.True(t, finish)
+		assert.Nil(t, err)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, i)
+		stm, err = parser.Parse([]byte(sql))
+		assert.Nil(t, err)
+		_, finish, err = Exec(stm[0], &currentDB)
+		assert.True(t, finish)
+		assert.Nil(t, err)
+	}
+	currentDB = "db2"
+	// insert some data to db2 tables.
+	for i := 0; i < testDataSize; i++ {
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, i)
+		stm, err := parser.Parse([]byte(sql))
+		assert.Nil(t, err)
+		_, finish, err := Exec(stm[0], &currentDB)
+		assert.True(t, finish)
+		assert.Nil(t, err)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, i)
+		stm, err = parser.Parse([]byte(sql))
+		assert.Nil(t, err)
+		_, finish, err = Exec(stm[0], &currentDB)
+		assert.True(t, finish)
+		assert.Nil(t, err)
+	}
 }
 
-func TestLogicExpr(t *testing.T) {
-	initTestStorage(t)
+func verifyTestExpr(t *testing.T, sql string) {
+	parser := parser.NewParser()
+	parser.Set([]byte(sql))
+	stm, err := parser.ResolveWhereStm()
+	assert.Nil(t, err)
+	expr := ExprStmToLogicExpr(stm, nil)
+	data, err := json.MarshalIndent(expr, "", "\t")
+	assert.Nil(t, err)
+	println(string(data))
 }
 
-func TestAddLogicExpr_TypeCheck(t *testing.T) {
+func TestMakeLogicExpr(t *testing.T) {
+	sql := "where id=1 * name + c % 1"
+	verifyTestExpr(t, sql)
+	sql = "where max(id, age, sum(name)) + max(id) + id * 5"
+	verifyTestExpr(t, sql)
+}
+
+func TestLogicExpr_TypeCheck(t *testing.T) {
+
+}
+
+func TestLogicExpr_Execute(t *testing.T) {
 
 }

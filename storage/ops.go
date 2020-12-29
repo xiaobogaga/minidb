@@ -335,7 +335,7 @@ func Encode(value []byte) []byte {
 		}
 		return EncodeBool(false)
 	default:
-		return value
+		return value[1 : len(value)-1]
 	}
 }
 

@@ -68,7 +68,7 @@ func (insert Insert) TypeCheckForNoCols() error {
 	if len(insert.Values) != len(tableInfo.TableSchema.Columns)-1 {
 		return errors.New("values doesn't match table columns")
 	}
-	// Now we check col, expr match one by one
+	// Now we check col, Expr match one by one
 	for i, value := range insert.Values {
 		err := value.TypeCheck()
 		if err != nil {
@@ -121,7 +121,7 @@ func (insert Insert) TypeCheck() error {
 		}
 	}
 
-	// Now we check whether the column type match expr type.
+	// Now we check whether the column type match Expr type.
 	for i, col := range insert.Cols {
 		err := insert.Values[i].TypeCheck()
 		if err != nil {
@@ -141,8 +141,10 @@ func (insert Insert) TypeCheck() error {
 }
 
 type Update struct {
-	Input       LogicPlan
-	Assignments []AssignmentExpr
+	DefaultSchema string
+	TableName     string
+	Input         LogicPlan
+	Assignments   []AssignmentExpr
 }
 
 type AssignmentExpr struct {
@@ -174,6 +176,9 @@ func MakeUpdatePlan(stm *parser.UpdateStm, currentDB string) Update {
 	projectionLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, &selectAllExpr)
 	limitLogicPlan := makeLimitLogicPlan(projectionLogicPlan, stm.Limit)
 	return Update{
+		DefaultSchema: currentDB,
+		TableName: stm.TableRefs.TableReference.(parser.TableReferenceTableFactorStm).
+			TableFactorReference.(parser.TableReferencePureTableRefStm).TableName,
 		Input:       limitLogicPlan,
 		Assignments: AssignmentStmToAssignmentExprs(stm.Assignments, limitLogicPlan),
 	}
@@ -185,7 +190,7 @@ func (update Update) Execute() error {
 		if data == nil {
 			return nil
 		}
-		updateTableData(data, update.Assignments, update.Input)
+		updateTableData(update.DefaultSchema, update.TableName, data, update.Assignments)
 	}
 	return nil
 }
@@ -206,8 +211,9 @@ func (update Update) TypeCheck() error {
 }
 
 type MultiUpdate struct {
-	Assignments []AssignmentExpr
-	Input       LogicPlan
+	DefaultSchema string
+	Assignments   []AssignmentExpr
+	Input         LogicPlan
 }
 
 func MakeMultiUpdatePlan(stm *parser.MultiUpdateStm, currentDB string) MultiUpdate {
@@ -219,8 +225,9 @@ func MakeMultiUpdatePlan(stm *parser.MultiUpdateStm, currentDB string) MultiUpda
 	}
 	projectionLogicPlan := makeProjectionLogicPlan(selectLogicPlan, &selectAllExpr)
 	return MultiUpdate{
-		Input:       projectionLogicPlan,
-		Assignments: AssignmentStmToAssignmentExprs(stm.Assignments, projectionLogicPlan),
+		DefaultSchema: currentDB,
+		Input:         projectionLogicPlan,
+		Assignments:   AssignmentStmToAssignmentExprs(stm.Assignments, projectionLogicPlan),
 	}
 }
 
@@ -247,18 +254,19 @@ func (update MultiUpdate) Execute() error {
 		if data == nil {
 			return nil
 		}
-		updateTableData(data, update.Assignments, update.Input)
+		// Todo
+		updateTableData(update.DefaultSchema, "", data, update.Assignments)
 	}
 }
 
-func updateTableData(data *storage.RecordBatch, assignments []AssignmentExpr, input LogicPlan) {
-	schema := input.Schema()
+func updateTableData(schemaName, tableName string, data *storage.RecordBatch, assignments []AssignmentExpr) {
+	schemaName, tableName, _ = getSchemaTableName(tableName, schemaName)
+	// schema := input.Schema()
 	for i := 0; i < data.RowCount(); i++ {
 		for _, assign := range assignments {
 			ret := assign.Expr.EvaluateRow(i, data)
-			schemaName, table, col := getSchemaTableColumnName(assign.Col)
-			tableInfo, _ := schema.GetTableInfoFromColumn(schemaName, table, col)
-			index, _ := data.RowIndex(table, i)
+			index, _ := data.RowIndex(tableName, i)
+			tableInfo := storage.GetStorage().GetDbInfo(schemaName).GetTable(tableName)
 			tableInfo.UpdateData(assign.Col, index, ret)
 		}
 	}
@@ -269,8 +277,9 @@ func (update MultiUpdate) TypeCheck() error {
 }
 
 type Delete struct {
-	TableName string
-	Input     LogicPlan
+	DefaultSchemaName string
+	TableName         string
+	Input             LogicPlan
 }
 
 func MakeDeletePlan(stm *parser.SingleDeleteStm, currentDB string) Delete {
@@ -283,8 +292,10 @@ func MakeDeletePlan(stm *parser.SingleDeleteStm, currentDB string) Delete {
 	projectionLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, &selectAllExpr)
 	limitLogicPlan := makeLimitLogicPlan(projectionLogicPlan, stm.Limit)
 	return Delete{
-		Input:     limitLogicPlan,
-		TableName: stm.TableRef.TableReference.(parser.TableReferenceTableFactorStm).TableFactorReference.(string),
+		DefaultSchemaName: currentDB,
+		Input:             limitLogicPlan,
+		TableName: stm.TableRef.TableReference.(parser.TableReferenceTableFactorStm).
+			TableFactorReference.(parser.TableReferencePureTableRefStm).TableName,
 	}
 }
 
@@ -294,25 +305,26 @@ func (delete Delete) Execute() error {
 		if data == nil {
 			return nil
 		}
-		deleteTableData(data, delete.TableName)
+		deleteTableData(data, delete.DefaultSchemaName, delete.TableName)
 	}
 	return nil
 }
 
 func deleteTableData(data *storage.RecordBatch, defaultDB string, tables ...string) {
 	for _, table := range tables {
+		schemaName, tableName, _ := getSchemaTableName(table, defaultDB)
 		for i := 0; i < data.RowCount(); i++ {
-			index, _ := data.RowIndex(table, i)
-			schemaName, tableName, _ := getSchemaTableName(table, defaultDB)
+			index, _ := data.RowIndex(tableName, i)
 			dbInfo := storage.GetStorage().GetDbInfo(schemaName)
-			table := dbInfo.GetTable(tableName)
-			table.DeleteRow(index)
+			tableInfo := dbInfo.GetTable(tableName)
+			// after remove one row. we need to decrease row index.
+			tableInfo.DeleteRow(index - i)
 		}
 	}
 }
 
 func (delete Delete) TypeCheck() error {
-	return delete.TypeCheck()
+	return delete.Input.TypeCheck()
 }
 
 type MultiDelete struct {

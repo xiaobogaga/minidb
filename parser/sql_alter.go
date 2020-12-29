@@ -121,7 +121,7 @@ func (parser *Parser) parseAlterIndexOrConstraintStm(alterTp, indexOrConstraintT
 			return parser.parseAlterTableDropForeignKeyStm(tableName)
 		}
 	}
-	return nil, parser.MakeSyntaxError(1, parser.pos)
+	return nil, parser.MakeSyntaxError(1, parser.pos-1)
 }
 
 func (parser *Parser) parseAlterTableAddIndexDefStm(tableName string) (*AlterTableAddIndexOrConstraintStm, error) {
@@ -204,7 +204,7 @@ func (parser *Parser) parseAlterColumnStm(alterTp TokenType, tableName string) (
 			colDef, err = parser.parseColumnDef()
 		}
 	default:
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	if err != nil {
 		return nil, err

@@ -92,3 +92,42 @@ func TestExecuteDropTableStm(t *testing.T) {
 	assert.Nil(t, err)
 	printTestStorage(t)
 }
+
+func toTestStm(t *testing.T, sql string) parser.Stm {
+	parser := parser.NewParser()
+	stm, err := parser.Parse([]byte(sql))
+	assert.Nil(t, err)
+	return stm[0]
+}
+
+func testSelect(t *testing.T, sql string) {
+	stm := toTestStm(t, sql)
+	ret, err := ExecuteSelectStm(stm.(*parser.SelectStm), "db1")
+	assert.Nil(t, err)
+	printTestRecordBatch(ret)
+}
+
+func TestExecuteSelectStm(t *testing.T) {
+	initTestStorage(t)
+	sql := "select * from test1;"
+	testSelect(t, sql)
+
+	sql = "select * from test1 where id = 0;"
+	testSelect(t, sql)
+
+	sql = "select * from test1 where id = 1;"
+	testSelect(t, sql)
+
+	sql = "select * from test1 where (id = 2 or id = 1);"
+	testSelect(t, sql)
+
+	sql = "select * from test1 where (id = 2 or id = 1) and name='hello';"
+	testSelect(t, sql)
+
+	sql = "select id from test1 where (id = 2 or id = 1) and name='hello';"
+	testSelect(t, sql)
+}
+
+func TestExecuteSelectStmWithJoin(t *testing.T) {
+
+}

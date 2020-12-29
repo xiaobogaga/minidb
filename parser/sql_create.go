@@ -34,7 +34,7 @@ func (parser *Parser) resolveCreateStm() (stm Stm, err error) {
 	case DATABASE, SCHEMA:
 		stm, err = parser.parseCreateDatabaseStm()
 	default:
-		err = parser.MakeSyntaxError(1, parser.pos)
+		err = parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func (parser *Parser) parseCreateTableStm() (stm Stm, err error) {
 	ifNotExist := parser.matchTokenTypes(true, IF, NOT, EXIST)
 	tableName, ret := parser.parseIdentOrWord(true)
 	if !ret || isTableNameEmpty(tableName) {
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	token, ok := parser.NextToken()
 	if !ok {
@@ -66,7 +66,7 @@ func (parser *Parser) parseCreateTableStm() (stm Stm, err error) {
 	case LEFTBRACKET:
 		stm, err = parser.parseClassicCreateTableStm(ifNotExist, tableName)
 	default:
-		return nil, parser.MakeSyntaxError(1, parser.pos)
+		return nil, parser.MakeSyntaxError(1, parser.pos-1)
 	}
 	return stm, err
 }
@@ -113,10 +113,10 @@ func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []by
 			parser.UnReadToken()
 			constraint, err = parser.parseConstraintDef()
 		default:
-			return nil, parser.MakeSyntaxError(1, parser.pos)
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		if err != nil {
-			return nil, parser.MakeSyntaxError(1, parser.pos)
+			return nil, parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		if constraint != nil {
 			constraints = append(constraints, constraint)

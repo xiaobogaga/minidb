@@ -24,6 +24,32 @@ func TestMakeProjectionScanLogicPlan(t *testing.T) {
 	verifyTestPlan(t, sql)
 	sql = "select id, name from test1;"
 	verifyTestPlan(t, sql)
-	sql = "select id, name from test1 where id == 1;"
+	sql = "select id, name from test1 where id = 1;"
+	verifyTestPlan(t, sql)
+	sql = "select id, name from test1 where id = 1 * 2 + 3;"
+	verifyTestPlan(t, sql)
+	sql = "select name from test1 where name = 'hello';"
+	verifyTestPlan(t, sql)
+}
+
+func TestMakeOrderByLogicPlan(t *testing.T) {
+	initTestStorage(t)
+	sql := "select * from test1 order by id + id asc;"
+	verifyTestPlan(t, sql)
+	sql = "select id from test1 order by id + id desc;"
+	verifyTestPlan(t, sql)
+}
+
+func TestMakeJoinLogicPlan(t *testing.T) {
+
+}
+
+func TestMakeGroupByPlan(t *testing.T) {
+
+}
+
+func TestMakeLimitLogicPlan(t *testing.T) {
+	initTestStorage(t)
+	sql := "select * from test1 limit 5;"
 	verifyTestPlan(t, sql)
 }

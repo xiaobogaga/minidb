@@ -27,7 +27,7 @@ func (parser *Parser) parseOnJoinSpec() (JoinSpecification, error) {
 	if !parser.matchTokenTypes(false, ON) {
 		return emptyJoinSepc, parser.MakeSyntaxError(1, parser.pos-1)
 	}
-	whereStm, err := parser.resolveWhereStm()
+	whereStm, err := parser.ResolveWhereStm()
 	if err != nil {
 		return emptyJoinSepc, err
 	}

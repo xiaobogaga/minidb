@@ -85,7 +85,7 @@ func (parser *Parser) Parse(data []byte) (stms []Stm, err error) {
 			parser.UnReadToken()
 			stm, err = parser.resolveShowStm()
 		default:
-			err = parser.MakeSyntaxError(1, parser.pos)
+			err = parser.MakeSyntaxError(1, parser.pos-1)
 		}
 		if err != nil {
 			return nil, err
@@ -93,6 +93,18 @@ func (parser *Parser) Parse(data []byte) (stms []Stm, err error) {
 		stms = append(stms, stm)
 	}
 	return
+}
+
+func (parser *Parser) Set(data []byte) error {
+	lexer := NewLexer()
+	tokens, err := lexer.Lex(data)
+	if err != nil {
+		return err
+	}
+	parser.Tokens = tokens
+	parser.Data = data
+	parser.pos = 0
+	return nil
 }
 
 func (parser *Parser) NextToken() (Token, bool) {
