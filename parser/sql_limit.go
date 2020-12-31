@@ -11,7 +11,7 @@ func (parser *Parser) parseLimit() (*LimitStm, error) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	value, ok := DecodeInt(ret)
-	if !ok {
+	if !ok || value < 0 {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if parser.matchTokenTypes(true, COMMA) {
@@ -20,7 +20,7 @@ func (parser *Parser) parseLimit() (*LimitStm, error) {
 			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		rowCounter, ok := DecodeInt(ret)
-		if !ok {
+		if !ok || rowCounter < 0 {
 			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		return &LimitStm{Offset: value, Count: rowCounter}, nil
@@ -31,7 +31,7 @@ func (parser *Parser) parseLimit() (*LimitStm, error) {
 			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		offset, ok := DecodeInt(ret)
-		if !ok {
+		if !ok || offset < 0 {
 			return nil, parser.MakeSyntaxError(parser.pos - 1)
 		}
 		return &LimitStm{Count: value, Offset: offset}, nil

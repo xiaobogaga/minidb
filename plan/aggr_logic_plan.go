@@ -12,7 +12,7 @@ import (
 type GroupByLogicPlan struct {
 	Input       LogicPlan            `json:"group_by_input"`
 	GroupByExpr []LogicExpr          `json:"group_by_expr"`
-	AggrExprs   []LogicExpr          `json:"aggrs"`
+	AggrExprs   []AsLogicExpr        `json:"aggrs"`
 	data        *storage.RecordBatch // All record batch from the input.
 	keys        *storage.RecordBatch // The keys from groupBy clause
 	retData     *storage.RecordBatch // The data will return by the AggrExprs
@@ -194,7 +194,7 @@ func (having HavingLogicPlan) Reset() {
 }
 
 func MakeAggreLogicPlan(input LogicPlan, ast *parser.SelectStm) (LogicPlan, error) {
-	groupByLogicPlan := makeGroupByLogicPlan(input, ast.Groupby)
+	groupByLogicPlan := makeGroupByLogicPlan(input, ast.Groupby, ast.SelectExpressions)
 	// Having similar to projections for aggregation, the Expr must be either included in the group by Expr.
 	// or must be an aggregation function.
 	havingLogicPlan := makeHavingLogicPlan(groupByLogicPlan, ast.Having)
@@ -215,11 +215,17 @@ func makeHavingLogicPlan(input GroupByLogicPlan, having parser.HavingStm) LogicP
 	}
 }
 
-func makeGroupByLogicPlan(input LogicPlan, groupBy *parser.GroupByStm) GroupByLogicPlan {
-	return GroupByLogicPlan{
+func makeGroupByLogicPlan(input LogicPlan, groupBy *parser.GroupByStm, selectExprStm *parser.SelectExpressionStm) GroupByLogicPlan {
+	ret := GroupByLogicPlan{
 		Input:       input,
 		GroupByExpr: ExprStmsToLogicExprs(*groupBy, input),
 	}
+	switch selectExprStm.Tp {
+	case parser.StarSelectExpressionTp:
+	case parser.ExprSelectExpressionTp:
+		ret.AggrExprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*parser.SelectExpr), input)
+	}
+	return ret
 }
 
 func ExprStmsToLogicExprs(expressions []*parser.ExpressionStm, input LogicPlan) (ret []LogicExpr) {

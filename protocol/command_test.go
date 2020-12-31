@@ -85,6 +85,9 @@ func printTestRecordBatchRowData(record *storage.RecordBatch, row int) {
 }
 
 func printTestRecordBatch(record *storage.RecordBatch) {
+	if record == nil {
+		return
+	}
 	// Print header first.
 	printTestRecordBatchHeader(record)
 	for i := 0; i < record.RowCount(); i++ {

@@ -45,7 +45,13 @@ func TestMakeJoinLogicPlan(t *testing.T) {
 }
 
 func TestMakeGroupByPlan(t *testing.T) {
-
+	initTestStorage(t)
+	sql := "select id from test1 group by id;"
+	verifyTestPlan(t, sql)
+	sql = "select id, count(sum) from test1 group by id;"
+	verifyTestPlan(t, sql)
+	sql = "select id, count(sum) from test1 group by id, name;"
+	verifyTestPlan(t, sql)
 }
 
 func TestMakeLimitLogicPlan(t *testing.T) {

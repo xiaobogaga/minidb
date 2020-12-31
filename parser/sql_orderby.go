@@ -1,6 +1,6 @@
 package parser
 
-// order by expressions [asc|desc],...
+// order by expressions,...
 
 func (parser *Parser) ParseOrderByStm() (*OrderByStm, error) {
 	if !parser.matchTokenTypes(true, ORDER, BY) {

@@ -165,16 +165,16 @@ func TestInsertStm(t *testing.T) {
 			},
 		},
 		{
-			"insert into tb_1(name1, `col2`) values(1, \"hello\");",
+			"insert into tb_1(name1, `col2`) values(-1.1, \"hello\");",
 			&InsertIntoStm{
 				TableName: "tb_1",
 				Cols:      []string{"name1", "col2"},
 				Values: []*ExpressionStm{
 					{
 						LeftExpr: &ExpressionTerm{
-							UnaryOp:      NoneUnaryOpTp,
+							UnaryOp:      NegativeUnaryOpTp,
 							Tp:           LiteralExpressionTermTP,
-							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
+							RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1.1"))),
 						},
 					},
 					{
@@ -236,7 +236,7 @@ func TestDeleteStm(t *testing.T) {
 			},
 		},
 		{
-			"delete from tb_1 where id > 1 order by sex, age limit 5;",
+			"delete from tb_1 where id > -1 order by sex, age limit 5;",
 			&SingleDeleteStm{
 				TableRef: TableReferenceStm{
 					Tp: TableReferenceTableFactorTp,
@@ -255,7 +255,7 @@ func TestDeleteStm(t *testing.T) {
 					},
 					Op: OperationGreat,
 					RightExpr: &ExpressionTerm{
-						UnaryOp:      NoneUnaryOpTp,
+						UnaryOp:      NegativeUnaryOpTp,
 						Tp:           LiteralExpressionTermTP,
 						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("1"))),
 					},

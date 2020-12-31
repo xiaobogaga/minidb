@@ -26,6 +26,9 @@ func printTestRecordBatchRowData(record *storage.RecordBatch, row int) {
 
 func printTestRecordBatch(record *storage.RecordBatch) {
 	// Print header first.
+	if record == nil {
+		return
+	}
 	printTestRecordBatchHeader(record)
 	for i := 0; i < record.RowCount(); i++ {
 		printTestRecordBatchRowData(record, i)
@@ -134,5 +137,17 @@ func TestExecuteSelectStm(t *testing.T) {
 }
 
 func TestExecuteSelectStmWithJoin(t *testing.T) {
+
+}
+
+func TestExecuteSelectWithOrderBy(t *testing.T) {
+	initTestStorage(t)
+	sql := "select * from test1;"
+	testSelect(t, sql)
+	sql = "select id, age from test1 order by age;"
+	testSelect(t, sql)
+}
+
+func TestExecuteSelectWithLargeData(t *testing.T) {
 
 }

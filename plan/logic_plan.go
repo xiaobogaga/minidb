@@ -328,7 +328,35 @@ func (orderBy *OrderByLogicPlan) Execute() *storage.RecordBatch {
 	return ret
 }
 
-func (orderBy OrderByLogicPlan) InitializeAndSort() {
+//func printTestRecordBatchHeader(record *storage.RecordBatch) {
+//	buf := bytes.Buffer{}
+//	for i := 0; i < len(record.Fields); i++ {
+//		buf.WriteString(record.Fields[i].Name + ",")
+//	}
+//	println(buf.String())
+//}
+//
+//func printTestRecordBatchRowData(record *storage.RecordBatch, row int) {
+//	buf := bytes.Buffer{}
+//	for i := 0; i < record.ColumnCount(); i++ {
+//		buf.WriteString(record.Records[i].String(row) + ",")
+//	}
+//	println(buf.String())
+//}
+//
+//func printTestRecordBatch(record *storage.RecordBatch) {
+//	// Print header first.
+//	if record == nil {
+//		return
+//	}
+//	printTestRecordBatchHeader(record)
+//	for i := 0; i < record.RowCount(); i++ {
+//		printTestRecordBatchRowData(record, i)
+//	}
+//	println()
+//}
+
+func (orderBy *OrderByLogicPlan) InitializeAndSort() {
 	if orderBy.data != nil {
 		return
 	}
@@ -338,8 +366,8 @@ func (orderBy OrderByLogicPlan) InitializeAndSort() {
 	}
 	ret := MakeEmptyRecordBatchFromSchema(orderBy.Schema())
 	for batch != nil {
-		batch = orderBy.Input.Execute()
 		ret.Append(batch)
+		batch = orderBy.Input.Execute()
 	}
 	columnVector := orderBy.OrderBy.Evaluate(ret)
 	ret.OrderBy(columnVector)

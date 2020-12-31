@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"math/rand"
 	"minidb/parser"
 	"minidb/storage"
 	"testing"
@@ -92,14 +93,14 @@ func initTestStorage(t *testing.T) {
 	currentDB = "db1"
 	// insert some data to db1 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, i)
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, testDataSize-(i*int(rand.Int31n(10))))
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err := MakeExecutor(stm, &currentDB)
 		assert.Nil(t, err)
 		_, err = exec.Exec()
 		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, i)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, testDataSize-(i*int(rand.Int31n(10))))
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err = MakeExecutor(stm, &currentDB)
@@ -110,14 +111,14 @@ func initTestStorage(t *testing.T) {
 	currentDB = "db2"
 	// insert some data to db2 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, i)
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1);", i, i, testDataSize-(i*int(rand.Int31n(10))))
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err := MakeExecutor(stm, &currentDB)
 		assert.Nil(t, err)
 		_, err = exec.Exec()
 		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, i)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1);", i, i, testDataSize-(i*int(rand.Int31n(10))))
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err = MakeExecutor(stm, &currentDB)
@@ -151,8 +152,4 @@ func TestLogicExpr_TypeCheck(t *testing.T) {
 	testSelect(t, sql)
 	sql = "select * from db1.test1 where id = 1 + 0 or id = 2;"
 	testSelect(t, sql)
-}
-
-func TestLogicExpr_Execute(t *testing.T) {
-
 }

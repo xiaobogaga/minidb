@@ -157,11 +157,14 @@ func (parser *Parser) parseExpressionTerm() (expr *ExpressionTerm, err error) {
 }
 
 func (parser *Parser) parseUnaryExpressionTerm() (expr *ExpressionTerm, err error) {
-	if parser.matchTokenTypes(false, MINUS) {
+	if !parser.matchTokenTypes(false, MINUS) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
-	exprTerm, err := parser.parseExpressionTerm()
-	exprTerm.UnaryOp = NegativeUnaryOpTp
+	expr, err = parser.parseExpressionTerm()
+	if err != nil {
+		return nil, err
+	}
+	expr.UnaryOp = NegativeUnaryOpTp
 	return
 }
 

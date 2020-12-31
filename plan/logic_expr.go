@@ -1712,7 +1712,7 @@ func (call FuncCallLogicExpr) Evaluate(input *storage.RecordBatch) *storage.Colu
 }
 
 func (call FuncCallLogicExpr) IsAggrFunc() bool {
-	return call.IsAggrFunc()
+	return call.Fn.IsAggrFunc()
 }
 
 func (call FuncCallLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
@@ -1816,4 +1816,34 @@ func (as AsLogicExpr) TypeCheck() error {
 
 func (as AsLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
 	return as.Expr.Evaluate(input)
+}
+
+func (as AsLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
+	return as.Expr.AggrTypeCheck(groupByExpr)
+}
+
+func (as AsLogicExpr) Clone(needAccumulator bool) LogicExpr {
+	return AsLogicExpr{
+		Expr:  as.Expr.Clone(needAccumulator),
+		Alias: as.Alias,
+	}
+}
+
+func (as AsLogicExpr) EvaluateRow(row int, input *storage.RecordBatch) []byte {
+	return as.Expr.EvaluateRow(row, input)
+}
+
+func (as AsLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
+	as.Expr.Accumulate(row, input)
+}
+
+func (as AsLogicExpr) AccumulateValue() []byte {
+	return as.Expr.AccumulateValue()
+}
+func (as AsLogicExpr) HasGroupFunc() bool {
+	return as.Expr.HasGroupFunc()
+}
+
+func (as AsLogicExpr) Compute() ([]byte, error) {
+	return as.Expr.Compute()
 }
