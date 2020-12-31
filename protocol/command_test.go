@@ -114,7 +114,7 @@ func (con *connectionWrapperForTest) SendQueryResult(ret *storage.RecordBatch) E
 }
 
 func TestComQuery_Do(t *testing.T) {
-	initTestStorage(t)
+	util.initTestStorage(t)
 	util.InitLogger("", 1024, time.Second, true)
 	con := &connectionWrapperForTest{db: "db1"}
 	commandQuery := ComQuery("test")

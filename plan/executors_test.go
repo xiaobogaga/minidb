@@ -131,8 +131,8 @@ func TestExecuteSelectWithOrderBy(t *testing.T) {
 }
 
 func TestExecuteSelectWithLargeData(t *testing.T) {
-	BatchSize = 4
-	testDataSize = BatchSize * 3
+	batchSize = 4
+	testDataSize = batchSize * 3
 	initTestStorage(t)
 	sql := "select * from test1;"
 	testSelect(t, sql)

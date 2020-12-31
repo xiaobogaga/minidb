@@ -64,8 +64,8 @@ func (groupBy GroupByLogicPlan) Execute() *storage.RecordBatch {
 	if groupBy.data == nil {
 		groupBy.InitializeData()
 	}
-	ret := groupBy.retData.Slice(groupBy.index, BatchSize)
-	groupBy.index += BatchSize
+	ret := groupBy.retData.Slice(groupBy.index, batchSize)
+	groupBy.index += batchSize
 	return ret
 }
 
@@ -166,7 +166,7 @@ func (having HavingLogicPlan) TypeCheck() error {
 
 func (having HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
 	i := 0
-	for i < BatchSize {
+	for i < batchSize {
 		recordBatch := having.Input.Execute()
 		if recordBatch == nil {
 			return

@@ -91,12 +91,16 @@ func (tableScan *TableScan) TypeCheck() error {
 	return nil
 }
 
-var BatchSize = 1 << 10
+var batchSize = 1 << 10
+
+func SetBatchSize(batch int) {
+	batchSize = batch
+}
 
 func (tableScan *TableScan) Execute() *storage.RecordBatch {
 	dbInfo := storage.GetStorage().GetDbInfo(tableScan.SchemaName)
 	table := dbInfo.GetTable(tableScan.Name)
-	ret := table.FetchData(tableScan.i, BatchSize)
+	ret := table.FetchData(tableScan.i, batchSize)
 	tableScan.i += ret.RowCount()
 	return ret
 }
@@ -257,7 +261,7 @@ func MakeEmptyRecordBatchFromSchema(schema *storage.TableSchema) *storage.Record
 
 func (sel *SelectionLogicPlan) Execute() (ret *storage.RecordBatch) {
 	i := 0
-	for i < BatchSize {
+	for i < batchSize {
 		recordBatch := sel.Input.Execute()
 		if recordBatch == nil {
 			return ret
@@ -323,8 +327,8 @@ func (orderBy *OrderByLogicPlan) Execute() *storage.RecordBatch {
 	if orderBy.data == nil {
 		return nil
 	}
-	ret := orderBy.data.Slice(orderBy.index, BatchSize)
-	orderBy.index += BatchSize
+	ret := orderBy.data.Slice(orderBy.index, batchSize)
+	orderBy.index += batchSize
 	return ret
 }
 
