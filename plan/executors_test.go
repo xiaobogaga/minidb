@@ -1,40 +1,11 @@
 package plan
 
 import (
-	"bytes"
 	"github.com/stretchr/testify/assert"
 	"minidb/parser"
 	"minidb/storage"
 	"testing"
 )
-
-func printTestRecordBatchHeader(record *storage.RecordBatch) {
-	buf := bytes.Buffer{}
-	for i := 0; i < len(record.Fields); i++ {
-		buf.WriteString(record.Fields[i].Name + ",")
-	}
-	println(buf.String())
-}
-
-func printTestRecordBatchRowData(record *storage.RecordBatch, row int) {
-	buf := bytes.Buffer{}
-	for i := 0; i < record.ColumnCount(); i++ {
-		buf.WriteString(record.Records[i].String(row) + ",")
-	}
-	println(buf.String())
-}
-
-func printTestRecordBatch(record *storage.RecordBatch) {
-	// Print header first.
-	if record == nil {
-		return
-	}
-	printTestRecordBatchHeader(record)
-	for i := 0; i < record.RowCount(); i++ {
-		printTestRecordBatchRowData(record, i)
-	}
-	println()
-}
 
 func TestExecuteUseStm(t *testing.T) {
 	initTestStorage(t)
@@ -55,12 +26,12 @@ func TestExecuteShowStm(t *testing.T) {
 	showPlan := &Show{}
 	ret, err := showPlan.Execute("db1", showStm)
 	assert.Nil(t, err)
-	printTestRecordBatch(ret)
+	storage.PrintRecordBatch(ret, true)
 	showStm.TP = parser.ShowTableTP
 	showPlan = &Show{}
 	ret, err = showPlan.Execute("db1", showStm)
 	assert.Nil(t, err)
-	printTestRecordBatch(ret)
+	storage.PrintRecordBatch(ret, true)
 }
 
 func TestExecuteDropDatabaseStm(t *testing.T) {
@@ -76,7 +47,7 @@ func TestExecuteDropDatabaseStm(t *testing.T) {
 	dropStm.DatabaseName = "db2"
 	err = ExecuteDropDatabaseStm(dropStm)
 	assert.Nil(t, err)
-	printTestStorage(t)
+	storage.PrintStorage(t)
 }
 
 func TestExecuteDropTableStm(t *testing.T) {
@@ -90,12 +61,12 @@ func TestExecuteDropTableStm(t *testing.T) {
 	dropTableStm.TableNames = []string{"test1"}
 	err = ExecuteDropTableStm(dropTableStm, "db1")
 	assert.Nil(t, err)
-	printTestStorage(t)
+	storage.PrintStorage(t)
 
 	dropTableStm.TableNames = []string{"test2"}
 	err = ExecuteDropTableStm(dropTableStm, "db2")
 	assert.Nil(t, err)
-	printTestStorage(t)
+	storage.PrintStorage(t)
 }
 
 func toTestStm(t *testing.T, sql string) parser.Stm {
@@ -110,9 +81,17 @@ func testSelect(t *testing.T, sql string) {
 	db := "db1"
 	exec, err := MakeExecutor(stm.(*parser.SelectStm), &db)
 	assert.Nil(t, err)
-	ret, err := exec.Exec()
-	assert.Nil(t, err)
-	printTestRecordBatch(ret)
+	println("sql: ", sql)
+	i := 0
+	for {
+		ret, err := exec.Exec()
+		assert.Nil(t, err)
+		if ret == nil {
+			break
+		}
+		storage.PrintRecordBatch(ret, i == 0)
+		i++
+	}
 }
 
 func TestExecuteSelectStm(t *testing.T) {
@@ -134,6 +113,9 @@ func TestExecuteSelectStm(t *testing.T) {
 
 	sql = "select id from test1 where (id = 2 or id = 1) and name='hello';"
 	testSelect(t, sql)
+
+	sql = "select * from test1 where id % 3 = 0 order by id desc;"
+	testSelect(t, sql)
 }
 
 func TestExecuteSelectStmWithJoin(t *testing.T) {
@@ -144,10 +126,36 @@ func TestExecuteSelectWithOrderBy(t *testing.T) {
 	initTestStorage(t)
 	sql := "select * from test1;"
 	testSelect(t, sql)
-	sql = "select id, age from test1 order by age;"
+	sql = "select id, age, location from test1 order by location desc, id;"
 	testSelect(t, sql)
 }
 
 func TestExecuteSelectWithLargeData(t *testing.T) {
+	BatchSize = 4
+	testDataSize = BatchSize * 3
+	initTestStorage(t)
+	sql := "select * from test1;"
+	testSelect(t, sql)
+	sql = "select * from test1 where id % 3 = 0 order by id desc;"
+	testSelect(t, sql)
+	sql = "select id from test1 where id % 3 = 0 order by id;"
+	testSelect(t, sql)
+	sql = "select id, age, location from test1 order by location desc, id;"
+	testSelect(t, sql)
+	sql = "select id, age from test1 order by age limit 8, 2;"
+	testSelect(t, sql)
+}
 
+func TestExecuteSelectWithLimit(t *testing.T) {
+	initTestStorage(t)
+	sql := "select * from test1;"
+	testSelect(t, sql)
+	sql = "select * from test1 limit 2 offset 1;"
+	testSelect(t, sql)
+	sql = "select * from test1 limit 1 offset 2;"
+	testSelect(t, sql)
+	sql = "select * from test1 limit 2, 1;"
+	testSelect(t, sql)
+	sql = "select id, name, age, location from test1 where id = 1 or id = 2 limit 1;"
+	testSelect(t, sql)
 }

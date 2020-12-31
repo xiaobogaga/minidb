@@ -91,7 +91,7 @@ func (tableScan *TableScan) TypeCheck() error {
 	return nil
 }
 
-const BatchSize = 1 << 10
+var BatchSize = 1 << 10
 
 func (tableScan *TableScan) Execute() *storage.RecordBatch {
 	dbInfo := storage.GetStorage().GetDbInfo(tableScan.SchemaName)
@@ -481,27 +481,28 @@ func (limit *LimitLogicPlan) Execute() *storage.RecordBatch {
 	if batch == nil {
 		return nil
 	}
-	ret := MakeEmptyRecordBatchFromSchema(limit.Schema())
 	// Move index to close to offset first.
-	for limit.Index+batch.RowCount() < limit.Offset {
+	for batch != nil && limit.Index+batch.RowCount() <= limit.Offset {
 		limit.Index += batch.RowCount()
-		batch = limit.Execute()
+		batch = limit.Input.Execute()
 	}
 	// Doesn't have data starting from the offset.
 	if batch == nil {
 		limit.Index = limit.Offset + limit.Count // mark all data is consumed.
-		return ret
+		return nil
 	}
 	startIndex := 0
 	if limit.Index < limit.Offset {
-		startIndex = limit.Offset - limit.Index - 1
+		startIndex = limit.Offset - limit.Index
 	}
 	size := batch.RowCount()
-	if limit.Index+size > limit.Count {
-		size = limit.Count - (limit.Index - limit.Offset)
+	if limit.Index+size >= (limit.Offset + limit.Count) {
+		size = limit.Count + limit.Offset - startIndex - limit.Index
 	}
 	// ret.Copy(ret, startIndex, size)
-	return ret.Slice(startIndex, size)
+	ret := batch.Slice(startIndex, size)
+	limit.Index += batch.RowCount()
+	return ret
 }
 
 func (limit *LimitLogicPlan) Reset() {
