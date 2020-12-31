@@ -201,12 +201,23 @@ func (update Update) TypeCheck() error {
 		return err
 	}
 	// type check on assignments.
+	schemaName, tableName, _ := getSchemaTableName(update.TableName, update.DefaultSchema)
 	for _, assign := range update.Assignments {
 		err := assign.Expr.TypeCheck()
 		if err != nil {
 			return err
 		}
+		tableInfo := storage.GetStorage().GetDbInfo(schemaName).GetTable(tableName)
+		f := tableInfo.GetColumnInfo(assign.Col)
+		if f == nil {
+			return errors.New(fmt.Sprintf("cannot find such column %s", assign.Col))
+		}
+		err = f.CanOp(assign.Expr.toField(), storage.EqualOpType)
+		if err != nil {
+			return err
+		}
 	}
+	// Now we check whether the column can matched to assignment.
 	return nil
 }
 

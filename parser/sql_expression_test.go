@@ -26,4 +26,8 @@ func TestParser_Expression(t *testing.T) {
 	testOneExpression(t, []byte(sql))
 	sql = "a > b and (c = 1) + d"
 	testOneExpression(t, []byte(sql))
+	sql = "id = 1 + 0 or id = 2"
+	testOneExpression(t, []byte(sql))
+	sql = " id = 1 * 1 + 1 or id = 1"
+	testOneExpression(t, []byte(sql))
 }

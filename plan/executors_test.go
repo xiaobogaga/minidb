@@ -106,6 +106,7 @@ func testSelect(t *testing.T, sql string) {
 	stm := toTestStm(t, sql)
 	db := "db1"
 	exec, err := MakeExecutor(stm.(*parser.SelectStm), &db)
+	assert.Nil(t, err)
 	ret, err := exec.Exec()
 	assert.Nil(t, err)
 	printTestRecordBatch(ret)
@@ -122,7 +123,7 @@ func TestExecuteSelectStm(t *testing.T) {
 	sql = "select * from test1 where id = 1;"
 	testSelect(t, sql)
 
-	sql = "select * from test1 where (id = 2 or id = 1);"
+	sql = "select * from test1 where (id = 1 + 1 or id = 1);"
 	testSelect(t, sql)
 
 	sql = "select * from test1 where (id = 2 or id = 1) and name='hello';"

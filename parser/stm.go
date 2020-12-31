@@ -275,15 +275,15 @@ type InsertIntoStm struct {
 // Note: currently we don't consider [NOT] IN, [NOT] LIKE
 // Note: literal can be -5
 type ExpressionStm struct {
-	LeftExpr  interface{} // can be ExpressionTerm or ExpressionAst
-	Op        *ExpressionOp
-	RightExpr interface{}
+	LeftExpr  interface{}   `json:"left"` // can be ExpressionTerm or ExpressionAst
+	Op        *ExpressionOp `json:"op"`
+	RightExpr interface{}   `json:right`
 }
 
 type ExpressionTerm struct {
-	UnaryOp      UnaryOpTp
-	Tp           ExpressionTermTP
-	RealExprTerm interface{} // can be LiteralExpressionStm, IdentifierExpression, FunctionCallExpressionStm, SubExpressionTerm
+	UnaryOp      UnaryOpTp        `json:"unary"`
+	Tp           ExpressionTermTP `json:"tp"`
+	RealExprTerm interface{}      `json:"real_expr"` // can be LiteralExpressionStm, IdentifierExpression, FunctionCallExpressionStm, SubExpressionTerm
 }
 
 type UnaryOpTp byte
@@ -311,23 +311,24 @@ const (
 type ExpressionOp struct {
 	Tp       TokenType
 	Priority int
+	Name     string
 }
 
 var (
-	OperationAdd        = &ExpressionOp{Tp: ADD, Priority: 1}
-	OperationMinus      = &ExpressionOp{Tp: MINUS, Priority: 1}
-	OperationMul        = &ExpressionOp{Tp: MUL, Priority: 2}
-	OperationDivide     = &ExpressionOp{Tp: DIVIDE, Priority: 2}
-	OperationMod        = &ExpressionOp{Tp: MOD, Priority: 2}
-	OperationEqual      = &ExpressionOp{Tp: EQUAL, Priority: 1}
-	OperationIs         = &ExpressionOp{Tp: IS, Priority: 1}
-	OperationNotEqual   = &ExpressionOp{Tp: NOTEQUAL, Priority: 1}
-	OperationGreat      = &ExpressionOp{Tp: GREAT, Priority: 1}
-	OperationGreatEqual = &ExpressionOp{Tp: GREATEQUAL, Priority: 1}
-	OperationLess       = &ExpressionOp{Tp: LESS, Priority: 1}
-	OperationLessEqual  = &ExpressionOp{Tp: LESSEQUAL, Priority: 1}
-	OperationAnd        = &ExpressionOp{Tp: AND, Priority: 0}
-	OperationOr         = &ExpressionOp{Tp: OR, Priority: 0}
+	OperationAdd        = &ExpressionOp{Tp: ADD, Priority: 2, Name: "+"}
+	OperationMinus      = &ExpressionOp{Tp: MINUS, Priority: 2, Name: "-"}
+	OperationMul        = &ExpressionOp{Tp: MUL, Priority: 3, Name: "*"}
+	OperationDivide     = &ExpressionOp{Tp: DIVIDE, Priority: 3, Name: "/"}
+	OperationMod        = &ExpressionOp{Tp: MOD, Priority: 3, Name: "%"}
+	OperationEqual      = &ExpressionOp{Tp: EQUAL, Priority: 1, Name: "="}
+	OperationIs         = &ExpressionOp{Tp: IS, Priority: 1, Name: "is"}
+	OperationNotEqual   = &ExpressionOp{Tp: NOTEQUAL, Priority: 1, Name: "!="}
+	OperationGreat      = &ExpressionOp{Tp: GREAT, Priority: 1, Name: ">"}
+	OperationGreatEqual = &ExpressionOp{Tp: GREATEQUAL, Priority: 1, Name: ">="}
+	OperationLess       = &ExpressionOp{Tp: LESS, Priority: 1, Name: "<"}
+	OperationLessEqual  = &ExpressionOp{Tp: LESSEQUAL, Priority: 1, Name: "<="}
+	OperationAnd        = &ExpressionOp{Tp: AND, Priority: 0, Name: "and"}
+	OperationOr         = &ExpressionOp{Tp: OR, Priority: 0, Name: "or"}
 	// OperationISNot      ExpressionOp = ExpressionOp{Tp: lexer.OR + 1, Priority: 1}
 	// OperationDot ExpressionOp = ExpressionOp{Tp: lexer.DOT, Priority: 2}
 )

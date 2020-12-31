@@ -85,36 +85,25 @@ func (parser *Parser) buildExpressionsTree(ops []*ExpressionOp, exprTerms []*Exp
 	for _, exprTerm := range exprTerms {
 		expressionStack = append(expressionStack, exprTerm)
 	}
-	//for i := 0; len(ops) > 1; i = i % len(expressionStack) {
-	//	nextOp := ops[i+1]
-	//	lastOp := ops[i]
-	//	if lastOp.Priority >= nextOp.Priority {
-	//		// We can merge last two expression to a new expression node.
-	//		lastLeftExpression, lastRightExpression := expressionStack[i-2], expressionStack[i-1]
-	//		newExpr := parser.makeNewExpression(lastLeftExpression, lastRightExpression, lastOp)
-	//		expressionStack = append(expressionStack[:i-1], expressionStack[i:]...)
-	//		expressionStack[i-2] = newExpr
-	//		ops = append(ops[:i-2], ops[i-1:]...)
-	//		continue
-	//	}
-	//	i++
-	//}
-	return parser.buildExpressionsTree0(ops, expressionStack)
+	ret, _ := parser.buildExpressionsTree0(ops, expressionStack, 0, 0)
+	return ret.(*ExpressionStm)
 }
 
-func (parser *Parser) buildExpressionsTree0(ops []*ExpressionOp, exprTerms []interface{}) *ExpressionStm {
-	if len(ops) == 1 {
-		return parser.makeNewExpression(exprTerms[0], exprTerms[1], ops[0])
+func (parser *Parser) buildExpressionsTree0(ops []*ExpressionOp, exprTerms []interface{}, loc int, minPriority int) (interface{}, int) {
+	lhs := exprTerms[loc]
+	i := loc
+	for i < len(ops) && ops[i].Priority >= minPriority {
+		op := ops[i]
+		rhs := exprTerms[i+1]
+		j := i + 1
+		for j < len(ops) && ops[j].Priority > op.Priority {
+			rhs, j = parser.buildExpressionsTree0(ops, exprTerms, j, ops[j].Priority)
+		}
+		lhs = parser.makeNewExpression(lhs, rhs, op)
+		exprTerms[j] = lhs
+		i = j
 	}
-	lastOp := ops[0]
-	nextOp := ops[1]
-	if lastOp.Priority >= nextOp.Priority {
-		newExpr := parser.makeNewExpression(exprTerms[0], exprTerms[1], lastOp)
-		exprTerms[1] = newExpr
-		return parser.buildExpressionsTree0(ops[1:], exprTerms[1:])
-	}
-	expr := parser.buildExpressionsTree0(ops[1:], exprTerms[1:])
-	return parser.makeNewExpression(exprTerms[0], expr, lastOp)
+	return lhs, i
 }
 
 func (parser *Parser) makeNewExpression(leftExpr interface{}, rightExpr interface{}, op *ExpressionOp) *ExpressionStm {
