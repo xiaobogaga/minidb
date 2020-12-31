@@ -91,7 +91,7 @@ func (groupBy GroupByLogicPlan) InitializeData() {
 		groupBy.data.Append(batch)
 		// Now we calculate the values of keys.
 		for j, groupByExpr := range groupBy.GroupByExpr {
-			groupBy.keys.Records[j].Appends(groupByExpr.Evaluate(batch).Values)
+			groupBy.keys.Records[j].Appends(groupByExpr.Evaluate(batch))
 		}
 	}
 

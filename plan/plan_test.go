@@ -104,7 +104,9 @@ func TestMakeOrderByLogicPlan(t *testing.T) {
 }
 
 func TestMakeJoinLogicPlan(t *testing.T) {
-
+	initTestStorage(t)
+	sql := "select * from test1, test2;"
+	verifyTestPlan(t, sql)
 }
 
 func TestMakeGroupByPlan(t *testing.T) {

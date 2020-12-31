@@ -96,7 +96,7 @@ func (ident IdentifierLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
 func (ident IdentifierLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
 	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
 	col := input.GetColumnValue(columnName)
-	ident.accumulator = col.Values[row]
+	ident.accumulator = col.RawValue(row)
 }
 
 func (ident IdentifierLogicExpr) AccumulateValue() []byte {
@@ -1632,7 +1632,7 @@ func (orderBy OrderByLogicExpr) Evaluate(input *storage.RecordBatch) *storage.Co
 	ret := &storage.ColumnVector{Field: storage.Field{Name: "order", TP: storage.Int}}
 	for i := 0; i < input.RowCount(); i++ {
 		val := storage.EncodeInt(int64(i))
-		ret.Values = append(ret.Values, val)
+		ret.Append(val)
 	}
 	sortedVector := make([]*storage.ColumnVector, len(orderBy.Expr))
 	asc := make([]bool, len(orderBy.Expr))
@@ -1703,10 +1703,10 @@ func (call FuncCallLogicExpr) Evaluate(input *storage.RecordBatch) *storage.Colu
 	for i := 0; i < columnVectors[i].Size(); i++ {
 		params := make([][]byte, len(columnVectors))
 		for j, columnVector := range columnVectors {
-			params[j] = columnVector.Values[i]
+			params[j] = columnVector.RawValue(i)
 		}
 		oneRecord := f.F()(params)
-		ret.Values = append(ret.Values, oneRecord)
+		ret.Append(oneRecord)
 	}
 	return ret
 }

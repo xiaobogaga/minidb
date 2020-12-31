@@ -323,35 +323,88 @@ func (recordBatch *RecordBatch) ColumnCount() int {
 	return len(recordBatch.Records)
 }
 
-// recordBatch join another.
-func (recordBatch *RecordBatch) Join(another *RecordBatch) *RecordBatch {
+type JoinType byte
+
+const (
+	LeftJoin JoinType = iota
+	RightJoin
+	InnerJoin
+)
+
+func createRecordBatchFromTableSchema(schema *TableSchema, size int) *RecordBatch {
 	ret := &RecordBatch{
-		Fields:  make([]Field, len(recordBatch.Fields)+len(another.Fields)),
-		Records: make([]*ColumnVector, len(recordBatch.Records)+len(another.Records)),
+		Fields:  make([]Field, len(schema.Columns)),
+		Records: make([]*ColumnVector, len(schema.Columns)),
 	}
-	// set Field first.
-	for i, f := range recordBatch.Fields {
+	for i := 0; i < len(schema.Columns); i++ {
+		f := schema.Columns[i]
 		ret.Fields[i] = f
-	}
-	j := len(recordBatch.Fields)
-	for i, f := range another.Fields {
-		ret.Fields[j+i] = f
-	}
-	// set column vector.
-	for i, col := range recordBatch.Records {
-		ret.Records[i] = col
-	}
-	j = len(recordBatch.Fields)
-	for i, col := range another.Records {
-		ret.Records[i+j] = col
+		// ret.Fields[i].Name = fmt.Sprintf("%s.%s", f.TableName, f.Name)
+		ret.Records[i] = &ColumnVector{Field: ret.Fields[i], Values: make([][]byte, size)}
 	}
 	return ret
+}
+
+func maxSizeOf(left *RecordBatch, right *RecordBatch) int {
+	if left == nil && right == nil {
+		return 0
+	}
+	if left == nil {
+		return len(right.Records[1].Values)
+	}
+	if right == nil {
+		return len(left.Records[1].Values)
+	}
+	return len(left.Records[1].Values) * len(right.Records[1].Values)
+}
+
+// recordBatch join another.
+func (recordBatch *RecordBatch) Join(another *RecordBatch, leftSchema *TableSchema, finalSchema *TableSchema) *RecordBatch {
+	if recordBatch == nil && another == nil {
+		return nil
+	}
+	size := maxSizeOf(recordBatch, another)
+	// First prepare ret from finalSchema first.
+	ret := createRecordBatchFromTableSchema(finalSchema, size)
+	if recordBatch == nil || another == nil {
+		JoinWithNull(ret, recordBatch, another, len(leftSchema.Columns))
+		return ret
+	}
+	// Now we join left and right. they are not null.
+	// recordBatch: 3 rows, another: 2 rows
+	for i := 0; i < size; i++ {
+		rowRight := i % another.RowCount()
+		rowLeft := i / another.RowCount()
+		for j := 0; j < recordBatch.ColumnCount(); j++ {
+			ret.Records[j].Set(i, recordBatch.Records[j].RawValue(rowLeft))
+		}
+		for j := 0; j < another.ColumnCount(); j++ {
+			col := j + recordBatch.ColumnCount()
+			ret.Records[col].Set(i, another.Records[j].RawValue(rowRight))
+		}
+	}
+	return ret
+}
+
+// Join left, right to ret. and one of left, right is null.
+func JoinWithNull(ret *RecordBatch, left, right *RecordBatch, j int) {
+	// set column vector.
+	if left != nil {
+		for i, col := range left.Records {
+			ret.Records[i].Values = col.Values
+		}
+	}
+	if right != nil {
+		for i, col := range right.Records {
+			ret.Records[i+j].Values = col.Values
+		}
+	}
 }
 
 // Append new to recordBatch, they are in the same layout.
 func (recordBatch *RecordBatch) Append(new *RecordBatch) {
 	for i, col := range new.Records {
-		recordBatch.Records[i].Appends(col.Values)
+		recordBatch.Records[i].Appends(col)
 	}
 }
 
@@ -957,11 +1010,16 @@ func (column *ColumnVector) Append(value []byte) {
 	column.Values = append(column.Values, value)
 }
 
-func (column *ColumnVector) Appends(values [][]byte) {
-	column.Values = append(column.Values, values...)
+func (column *ColumnVector) Appends(another *ColumnVector) {
+	column.Values = append(column.Values, another.Values...)
 }
 
+const NULL = "NULL"
+
 func (column *ColumnVector) ToString(row int) string {
+	if row >= len(column.Values) {
+		return NULL
+	}
 	switch column.Field.TP {
 	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
 		// we can compare them by bytes.
@@ -985,6 +1043,10 @@ func (column *ColumnVector) Print() {
 	for i := 0; i < column.Size(); i++ {
 		println(column.ToString(i))
 	}
+}
+
+func (column *ColumnVector) Set(row int, data []byte) {
+	column.Values[row] = data
 }
 
 type FieldTP string

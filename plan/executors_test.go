@@ -119,7 +119,13 @@ func TestExecuteSelectStm(t *testing.T) {
 }
 
 func TestExecuteSelectStmWithJoin(t *testing.T) {
-
+	initTestStorage(t)
+	sql := "select * from test1;"
+	testSelect(t, sql)
+	sql = "select * from test2;"
+	testSelect(t, sql)
+	sql = "select * from test1, test2;"
+	testSelect(t, sql)
 }
 
 func TestExecuteSelectWithOrderBy(t *testing.T) {

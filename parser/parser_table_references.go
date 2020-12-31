@@ -178,9 +178,13 @@ func (parser *Parser) parseInnerJoinStm(tableRef TableReferenceTableFactorStm) (
 	if err != nil {
 		return emptyTableRefStm, err
 	}
-	joinSpec, err := parser.parseJoinSpecification()
-	if err != nil {
-		return emptyTableRefStm, err
+	var joinSpec *JoinSpecification
+	if parser.matchTokenTypes(true, ON) || parser.matchTokenTypes(true, USING) {
+		parser.UnReadToken()
+		joinSpec, err = parser.parseJoinSpecification()
+		if err != nil {
+			return emptyTableRefStm, err
+		}
 	}
 	return TableReferenceStm{
 		Tp: TableReferenceJoinTableTp,
@@ -193,21 +197,18 @@ func (parser *Parser) parseInnerJoinStm(tableRef TableReferenceTableFactorStm) (
 	}, nil
 }
 
-var emptyJoinSepc = JoinSpecification{}
-
-func (parser *Parser) parseJoinSpecification() (JoinSpecification, error) {
+func (parser *Parser) parseJoinSpecification() (*JoinSpecification, error) {
 	token, ok := parser.NextToken()
 	if !ok {
-		return emptyJoinSepc, parser.MakeSyntaxError(parser.pos - 1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	switch token.Tp {
 	case ON:
 		parser.UnReadToken()
 		return parser.parseOnJoinSpec()
 	case USING:
-		parser.UnReadToken()
 		return parser.parseUsingJoinSpec()
 	default:
-		return emptyJoinSepc, parser.MakeSyntaxError(parser.pos - 1)
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 }

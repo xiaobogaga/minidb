@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -16,6 +17,8 @@ func testSqls(t *testing.T, sqls []testEntity) {
 		stm, err := parser.Parse([]byte(sql.sql))
 		assert.Nil(t, err, sql)
 		assert.Equal(t, sql.stm, stm, sql)
+		data, _ := json.MarshalIndent(stm, "", "\t")
+		println(string(data))
 	}
 }
 
@@ -600,6 +603,287 @@ func TestUpdateStm(t *testing.T) {
 		},
 	}
 	testSqls(t, sqls)
+}
+
+func TestJoin(t *testing.T) {
+	sql := []testEntity{
+		{
+			sql: "select * from test1, test2;",
+			stm: &SelectStm{
+				SelectExpressions: &SelectExpressionStm{Tp: StarSelectExpressionTp},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceTableFactorTp,
+						TableReference: TableReferenceTableFactorStm{
+							Tp: TableReferencePureTableNameTp,
+							TableFactorReference: TableReferencePureTableRefStm{
+								TableName: "test1",
+							},
+						},
+					},
+					{
+						Tp: TableReferenceTableFactorTp,
+						TableReference: TableReferenceTableFactorStm{
+							Tp: TableReferencePureTableNameTp,
+							TableFactorReference: TableReferencePureTableRefStm{
+								TableName: "test2",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			sql: "select id from test1 inner join test2;",
+			stm: &SelectStm{
+				SelectExpressions: &SelectExpressionStm{
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{LeftExpr: &ExpressionTerm{Tp: IdentifierExpressionTermTP, RealExprTerm: IdentifierExpression(ColumnValue("id"))}},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceJoinTableTp,
+						TableReference: JoinedTableStm{
+							TableReference: TableReferenceTableFactorStm{
+								Tp:                   TableReferencePureTableNameTp,
+								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
+							},
+							JoinTp: InnerJoin,
+							JoinedTableReference: TableReferenceStm{
+								Tp: TableReferenceTableFactorTp,
+								TableReference: TableReferenceTableFactorStm{
+									Tp: TableReferencePureTableNameTp,
+									TableFactorReference: TableReferencePureTableRefStm{
+										TableName: "test2",
+									},
+								},
+							},
+							JoinSpec: nil,
+						},
+					},
+				},
+			},
+		},
+		{
+			sql: "select id from test1 inner join test2 on id = id;",
+			stm: &SelectStm{
+				SelectExpressions: &SelectExpressionStm{
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{LeftExpr: &ExpressionTerm{Tp: IdentifierExpressionTermTP, RealExprTerm: IdentifierExpression(ColumnValue("id"))}},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceJoinTableTp,
+						TableReference: JoinedTableStm{
+							TableReference: TableReferenceTableFactorStm{
+								Tp:                   TableReferencePureTableNameTp,
+								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
+							},
+							JoinTp: InnerJoin,
+							JoinedTableReference: TableReferenceStm{
+								Tp: TableReferenceTableFactorTp,
+								TableReference: TableReferenceTableFactorStm{
+									Tp: TableReferencePureTableNameTp,
+									TableFactorReference: TableReferencePureTableRefStm{
+										TableName: "test2",
+									},
+								},
+							},
+							JoinSpec: &JoinSpecification{
+								Tp: JoinSpecificationON,
+								Condition: &ExpressionStm{
+									LeftExpr: &ExpressionTerm{
+										Tp:           IdentifierExpressionTermTP,
+										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									},
+									Op: OperationEqual,
+									RightExpr: &ExpressionTerm{
+										Tp:           IdentifierExpressionTermTP,
+										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			sql: "select id from test1 left join test2 on id = id;",
+			stm: &SelectStm{
+				SelectExpressions: &SelectExpressionStm{
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{LeftExpr: &ExpressionTerm{Tp: IdentifierExpressionTermTP, RealExprTerm: IdentifierExpression(ColumnValue("id"))}},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceJoinTableTp,
+						TableReference: JoinedTableStm{
+							TableReference: TableReferenceTableFactorStm{
+								Tp:                   TableReferencePureTableNameTp,
+								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
+							},
+							JoinTp: LeftOuterJoin,
+							JoinedTableReference: TableReferenceStm{
+								Tp: TableReferenceTableFactorTp,
+								TableReference: TableReferenceTableFactorStm{
+									Tp: TableReferencePureTableNameTp,
+									TableFactorReference: TableReferencePureTableRefStm{
+										TableName: "test2",
+									},
+								},
+							},
+							JoinSpec: &JoinSpecification{
+								Tp: JoinSpecificationON,
+								Condition: &ExpressionStm{
+									LeftExpr: &ExpressionTerm{
+										Tp:           IdentifierExpressionTermTP,
+										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									},
+									Op: OperationEqual,
+									RightExpr: &ExpressionTerm{
+										Tp:           IdentifierExpressionTermTP,
+										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			sql: "select id from test1 right join test2 on id = id;",
+			stm: &SelectStm{
+				SelectExpressions: &SelectExpressionStm{
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{LeftExpr: &ExpressionTerm{Tp: IdentifierExpressionTermTP, RealExprTerm: IdentifierExpression(ColumnValue("id"))}},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceJoinTableTp,
+						TableReference: JoinedTableStm{
+							TableReference: TableReferenceTableFactorStm{
+								Tp:                   TableReferencePureTableNameTp,
+								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
+							},
+							JoinTp: RightOuterJoin,
+							JoinedTableReference: TableReferenceStm{
+								Tp: TableReferenceTableFactorTp,
+								TableReference: TableReferenceTableFactorStm{
+									Tp: TableReferencePureTableNameTp,
+									TableFactorReference: TableReferencePureTableRefStm{
+										TableName: "test2",
+									},
+								},
+							},
+							JoinSpec: &JoinSpecification{
+								Tp: JoinSpecificationON,
+								Condition: &ExpressionStm{
+									LeftExpr: &ExpressionTerm{
+										Tp:           IdentifierExpressionTermTP,
+										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									},
+									Op: OperationEqual,
+									RightExpr: &ExpressionTerm{
+										Tp:           IdentifierExpressionTermTP,
+										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			sql: "select id from test1 right join test2 using (id, id2);",
+			stm: &SelectStm{
+				SelectExpressions: &SelectExpressionStm{
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{LeftExpr: &ExpressionTerm{Tp: IdentifierExpressionTermTP, RealExprTerm: IdentifierExpression(ColumnValue("id"))}},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceJoinTableTp,
+						TableReference: JoinedTableStm{
+							TableReference: TableReferenceTableFactorStm{
+								Tp:                   TableReferencePureTableNameTp,
+								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
+							},
+							JoinTp: RightOuterJoin,
+							JoinedTableReference: TableReferenceStm{
+								Tp: TableReferenceTableFactorTp,
+								TableReference: TableReferenceTableFactorStm{
+									Tp: TableReferencePureTableNameTp,
+									TableFactorReference: TableReferencePureTableRefStm{
+										TableName: "test2",
+									},
+								},
+							},
+							JoinSpec: &JoinSpecification{
+								Tp:        JoinSpecificationUsing,
+								Condition: []string{"id", "id2"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			sql: "select id from test1 inner join test2 using (id, id2);",
+			stm: &SelectStm{
+				SelectExpressions: &SelectExpressionStm{
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{LeftExpr: &ExpressionTerm{Tp: IdentifierExpressionTermTP, RealExprTerm: IdentifierExpression(ColumnValue("id"))}},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceJoinTableTp,
+						TableReference: JoinedTableStm{
+							TableReference: TableReferenceTableFactorStm{
+								Tp:                   TableReferencePureTableNameTp,
+								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
+							},
+							JoinTp: InnerJoin,
+							JoinedTableReference: TableReferenceStm{
+								Tp: TableReferenceTableFactorTp,
+								TableReference: TableReferenceTableFactorStm{
+									Tp: TableReferencePureTableNameTp,
+									TableFactorReference: TableReferencePureTableRefStm{
+										TableName: "test2",
+									},
+								},
+							},
+							JoinSpec: &JoinSpecification{
+								Tp:        JoinSpecificationUsing,
+								Condition: []string{"id", "id2"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	testSqls(t, sql)
 }
 
 func TestUseStm(t *testing.T) {

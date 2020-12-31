@@ -438,7 +438,7 @@ type JoinedTableStm struct {
 	TableReference       TableReferenceTableFactorStm
 	JoinTp               JoinType
 	JoinedTableReference TableReferenceStm
-	JoinSpec             JoinSpecification
+	JoinSpec             *JoinSpecification
 }
 
 type JoinType byte

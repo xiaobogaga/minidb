@@ -165,7 +165,7 @@ func (join *JoinLogicPlan) Execute() (ret *storage.RecordBatch) {
 	if join.LeftBatch == nil {
 		join.LeftBatch = join.LeftLogicPlan.Execute()
 	}
-	if join.RightLogicPlan == nil {
+	if join.RightBatch == nil {
 		join.RightBatch = join.RightLogicPlan.Execute()
 	}
 	switch join.JoinType {
@@ -173,27 +173,29 @@ func (join *JoinLogicPlan) Execute() (ret *storage.RecordBatch) {
 		if join.LeftBatch == nil {
 			return nil
 		}
-		ret = join.LeftBatch.Join(join.RightBatch)
+		ret = join.LeftBatch.Join(join.RightBatch, join.LeftLogicPlan.Schema(), join.Schema())
+		join.RightBatch = nil
 	case parser.RightOuterJoin:
-		if join.RightLogicPlan == nil {
+		if join.RightBatch == nil {
 			return nil
 		}
-		ret = join.LeftBatch.Join(join.RightBatch)
+		ret = join.LeftBatch.Join(join.RightBatch, join.LeftLogicPlan.Schema(), join.Schema())
 	case parser.InnerJoin:
 		if join.LeftBatch == nil || join.RightBatch == nil {
 			return nil
 		}
-		ret = join.LeftBatch.Join(join.RightBatch)
+		ret = join.LeftBatch.Join(join.RightBatch, join.LeftLogicPlan.Schema(), join.Schema())
+		join.RightBatch = nil
 	}
-	if ret == nil {
-		join.RightBatch = join.RightLogicPlan.Execute()
-		if join.RightBatch == nil {
-			join.LeftBatch = join.LeftLogicPlan.Execute()
-			join.RightLogicPlan.Reset()
-		}
-		return join.Execute()
+	if ret != nil {
+		return ret
 	}
-	return ret
+	join.RightBatch = join.RightLogicPlan.Execute()
+	if join.RightBatch == nil {
+		join.LeftBatch = join.LeftLogicPlan.Execute()
+		join.RightLogicPlan.Reset()
+	}
+	return join.Execute()
 }
 
 func (join JoinLogicPlan) Reset() {
@@ -446,7 +448,7 @@ func (proj *ProjectionLogicPlan) Execute() *storage.RecordBatch {
 		return records
 	}
 	// Now we copy the row index.
-	ret.Records[0].Appends(records.Records[0].Values)
+	ret.Records[0].Appends(records.Records[0])
 	return ret
 }
 
