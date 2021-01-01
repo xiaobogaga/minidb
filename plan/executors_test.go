@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"minidb/parser"
 	"minidb/storage"
@@ -91,14 +92,24 @@ func toTestStm(t *testing.T, sql string) parser.Stm {
 func testSelect(t *testing.T, sql string, expectRowSize int, expectErr bool) {
 	stm := toTestStm(t, sql)
 	db := "db1"
-	exec, err1 := MakeExecutor(stm.(*parser.SelectStm), &db)
+	exec, err := MakeExecutor(stm.(*parser.SelectStm), &db)
+	if expectErr && err != nil {
+		fmt.Printf("err: %s\n", err)
+		return
+	}
+	if err != nil {
+		fmt.Printf("err: %s\n", err)
+		return
+	}
 	println("sql: ", sql)
 	i := 0
-	var err2 error
 	count := 0
 	for {
 		var ret *storage.RecordBatch
-		ret, err2 = exec.Exec()
+		ret, err = exec.Exec()
+		if err != nil {
+			break
+		}
 		if ret == nil {
 			break
 		}
@@ -108,10 +119,10 @@ func testSelect(t *testing.T, sql string, expectRowSize int, expectErr bool) {
 	}
 	assert.Equal(t, expectRowSize, count)
 	if expectErr {
-		assert.True(t, err1 != nil || err2 != nil)
+		assert.True(t, err != nil)
+		fmt.Printf("err: %s\n", err)
 	} else {
-		assert.Nil(t, err1)
-		assert.Nil(t, err2)
+		assert.Nil(t, err)
 	}
 }
 
@@ -211,4 +222,19 @@ func TestExecuteSelectWithLargeData(t *testing.T) {
 	testSelect(t, sql, testDataSize, false)
 	sql = "select id, age from test1 order by age limit 2, 8;"
 	testSelect(t, sql, 8, false)
+}
+
+func TestExecuteSelectWithGroupBy(t *testing.T) {
+	initTestStorage(t)
+	var sql string
+	//sql = "select * from test1;"
+	//testSelect(t, sql, testDataSize, false)
+	//sql = "select location from test1 group by location;"
+	//testSelect(t, sql, testDataSize/2, false)
+	//sql = "select location from test1 group by location order by location desc limit 1;"
+	//testSelect(t, sql, 1, false)
+	//sql = "select location from test1 group by location order by location desc;"
+	//testSelect(t, sql, testDataSize/2, false)
+	sql = "select sum(id), location from test1 group by location;"
+	testSelect(t, sql, testDataSize/2, false)
 }

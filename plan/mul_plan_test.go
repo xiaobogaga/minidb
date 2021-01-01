@@ -16,7 +16,7 @@ func testInsert(t *testing.T, sql string) {
 
 func TestInsert_Execute(t *testing.T) {
 	initTestStorage(t)
-	sql := "insert into db1.test1 values(10, 'xiaobo', 10.0, 'a');"
+	sql := "insert into db1.test1 values(10, 'xiaobo', 10.0, 'a', 0);"
 	testInsert(t, sql)
 }
 

@@ -42,8 +42,8 @@ func (parser *Parser) parseTableReferenceStm() (stm TableReferenceStm, err error
 		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, LeftOuterJoin)
 	case RIGHT:
 		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, RightOuterJoin)
-	case INNER:
-		stm, err = parser.parseInnerJoinStm(tableFactorStm)
+	case INNER, JOIN:
+		stm, err = parser.parseInnerJoinStm(tableFactorStm, token.Tp == INNER)
 	default:
 		// If not, unread this token.
 		parser.UnReadToken()
@@ -170,8 +170,8 @@ func (parser *Parser) parseLeftRightOuterJoinStm(tableRef TableReferenceTableFac
 	}, nil
 }
 
-func (parser *Parser) parseInnerJoinStm(tableRef TableReferenceTableFactorStm) (TableReferenceStm, error) {
-	if !parser.matchTokenTypes(false, JOIN) {
+func (parser *Parser) parseInnerJoinStm(tableRef TableReferenceTableFactorStm, isImplicitInner bool) (TableReferenceStm, error) {
+	if isImplicitInner && !parser.matchTokenTypes(false, JOIN) {
 		return emptyTableRefStm, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	joinedTableRef, err := parser.parseTableReferenceStm()

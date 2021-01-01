@@ -325,7 +325,11 @@ func (orderBy *OrderByLogicPlan) TypeCheck() error {
 	if !orderBy.IsAggr {
 		return nil
 	}
-	return orderBy.OrderBy.AggrTypeCheck(orderBy.Input.(GroupByLogicPlan).GroupByExpr)
+	have, ok := orderBy.Input.(*HavingLogicPlan)
+	if ok {
+		return orderBy.OrderBy.AggrTypeCheck(have.Input.GroupByExpr)
+	}
+	return orderBy.OrderBy.AggrTypeCheck(orderBy.Input.(*GroupByLogicPlan).GroupByExpr)
 }
 
 func (orderBy *OrderByLogicPlan) Execute() *storage.RecordBatch {

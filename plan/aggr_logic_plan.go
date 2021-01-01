@@ -19,7 +19,7 @@ type GroupByLogicPlan struct {
 	index       int
 }
 
-func (groupBy GroupByLogicPlan) Schema() *storage.TableSchema {
+func (groupBy *GroupByLogicPlan) Schema() *storage.TableSchema {
 	ret := &storage.TableSchema{}
 	for _, aggrExpr := range groupBy.AggrExprs {
 		f := aggrExpr.toField()
@@ -28,15 +28,15 @@ func (groupBy GroupByLogicPlan) Schema() *storage.TableSchema {
 	return ret
 }
 
-func (groupBy GroupByLogicPlan) String() string {
+func (groupBy *GroupByLogicPlan) String() string {
 	return fmt.Sprintf("GroupByLogicPlan: %s groupBy %s", groupBy.Input, groupBy.GroupByExpr)
 }
 
-func (groupBy GroupByLogicPlan) Child() []LogicPlan {
+func (groupBy *GroupByLogicPlan) Child() []LogicPlan {
 	return []LogicPlan{groupBy.Input}
 }
 
-func (groupBy GroupByLogicPlan) TypeCheck() error {
+func (groupBy *GroupByLogicPlan) TypeCheck() error {
 	err := groupBy.Input.TypeCheck()
 	if err != nil {
 		return err
@@ -52,6 +52,10 @@ func (groupBy GroupByLogicPlan) TypeCheck() error {
 	}
 	// Now we check whether aggrExprs is okay.
 	for _, aggrExpr := range groupBy.AggrExprs {
+		err := aggrExpr.TypeCheck()
+		if err != nil {
+			return err
+		}
 		err = aggrExpr.AggrTypeCheck(groupBy.GroupByExpr)
 		if err != nil {
 			return err
@@ -60,7 +64,7 @@ func (groupBy GroupByLogicPlan) TypeCheck() error {
 	return nil
 }
 
-func (groupBy GroupByLogicPlan) Execute() *storage.RecordBatch {
+func (groupBy *GroupByLogicPlan) Execute() *storage.RecordBatch {
 	if groupBy.data == nil {
 		groupBy.InitializeData()
 	}
@@ -72,16 +76,20 @@ func (groupBy GroupByLogicPlan) Execute() *storage.RecordBatch {
 // GroupBy.
 // |---|---|---|  group by col1, col2.
 // |---|---|---|           |----|----|
-func (groupBy GroupByLogicPlan) InitializeData() {
+func (groupBy *GroupByLogicPlan) InitializeData() {
 	if groupBy.data != nil {
 		return
 	}
 	// Load all data from input and calculate the data for the keys.
 	groupBy.data = MakeEmptyRecordBatchFromSchema(groupBy.Input.Schema())
-	groupBy.keys = &storage.RecordBatch{}
-	for _, groupByExpr := range groupBy.GroupByExpr {
+	groupBy.keys = &storage.RecordBatch{
+		Fields:  make([]storage.Field, len(groupBy.GroupByExpr)),
+		Records: make([]*storage.ColumnVector, len(groupBy.GroupByExpr)),
+	}
+	for i, groupByExpr := range groupBy.GroupByExpr {
 		f := groupByExpr.toField()
-		groupBy.keys.Fields = append(groupBy.keys.Fields, f)
+		groupBy.keys.Fields[i] = f
+		groupBy.keys.Records[i] = &storage.ColumnVector{Field: f}
 	}
 	for {
 		batch := groupBy.Input.Execute()
@@ -109,9 +117,12 @@ func (groupBy GroupByLogicPlan) InitializeData() {
 			value = groupBy.CloneAggrExpr(false)
 			keyMap[string(key)] = value
 		}
-		for _, expr := range value {
+		value, _ = keyMap[string(key)]
+		// fmt.Printf("key: %s\n", string(key))
+		for i, expr := range value {
 			// Accumulate row i at groupBy.data.
 			expr.Accumulate(i, groupBy.data)
+			// fmt.Printf("i: %d, value: %s\n", i, expr.AccumulateValue())
 		}
 	}
 	// Now we have accumulate all data. It's time to collect all individual group now.
@@ -122,7 +133,7 @@ func (groupBy GroupByLogicPlan) InitializeData() {
 	}
 }
 
-func (groupBy GroupByLogicPlan) CloneAggrExpr(needAccumulator bool) (ret []LogicExpr) {
+func (groupBy *GroupByLogicPlan) CloneAggrExpr(needAccumulator bool) (ret []LogicExpr) {
 	ret = make([]LogicExpr, len(groupBy.AggrExprs))
 	for i, aggrExpr := range groupBy.AggrExprs {
 		ret[i] = aggrExpr.Clone(needAccumulator)
@@ -130,7 +141,7 @@ func (groupBy GroupByLogicPlan) CloneAggrExpr(needAccumulator bool) (ret []Logic
 	return ret
 }
 
-func (groupBy GroupByLogicPlan) Reset() {
+func (groupBy *GroupByLogicPlan) Reset() {
 	groupBy.data = nil
 	groupBy.keys = nil
 	groupBy.retData = nil
@@ -139,24 +150,24 @@ func (groupBy GroupByLogicPlan) Reset() {
 
 // For Having condition
 type HavingLogicPlan struct {
-	Input GroupByLogicPlan `json:"having_input"`
-	Expr  LogicExpr        `json:"Expr"`
+	Input *GroupByLogicPlan `json:"having_input"`
+	Expr  LogicExpr         `json:"Expr"`
 }
 
-func (having HavingLogicPlan) Schema() *storage.TableSchema {
+func (having *HavingLogicPlan) Schema() *storage.TableSchema {
 	// Should be the same schema as Expr.
 	return having.Input.Schema()
 }
 
-func (having HavingLogicPlan) String() string {
+func (having *HavingLogicPlan) String() string {
 	return fmt.Sprintf("HavingLogicPlan: %s having %s", having.Input, having.Expr)
 }
 
-func (having HavingLogicPlan) Child() []LogicPlan {
+func (having *HavingLogicPlan) Child() []LogicPlan {
 	return []LogicPlan{having.Input}
 }
 
-func (having HavingLogicPlan) TypeCheck() error {
+func (having *HavingLogicPlan) TypeCheck() error {
 	err := having.Input.TypeCheck()
 	if err != nil {
 		return err
@@ -164,7 +175,7 @@ func (having HavingLogicPlan) TypeCheck() error {
 	return having.Expr.AggrTypeCheck(having.Input.GroupByExpr)
 }
 
-func (having HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
+func (having *HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
 	i := 0
 	for i < batchSize {
 		recordBatch := having.Input.Execute()
@@ -182,7 +193,7 @@ func (having HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
 	return
 }
 
-func (having HavingLogicPlan) Reset() {
+func (having *HavingLogicPlan) Reset() {
 	having.Input.Reset()
 }
 
@@ -198,18 +209,18 @@ func MakeAggreLogicPlan(input LogicPlan, ast *parser.SelectStm) (LogicPlan, erro
 	return limitLogicPlan, limitLogicPlan.TypeCheck()
 }
 
-func makeHavingLogicPlan(input GroupByLogicPlan, having parser.HavingStm) LogicPlan {
+func makeHavingLogicPlan(input *GroupByLogicPlan, having parser.HavingStm) LogicPlan {
 	if having == nil {
 		return input
 	}
-	return HavingLogicPlan{
+	return &HavingLogicPlan{
 		Input: input,
 		Expr:  ExprStmToLogicExpr(having, input),
 	}
 }
 
-func makeGroupByLogicPlan(input LogicPlan, groupBy *parser.GroupByStm, selectExprStm *parser.SelectExpressionStm) GroupByLogicPlan {
-	ret := GroupByLogicPlan{
+func makeGroupByLogicPlan(input LogicPlan, groupBy *parser.GroupByStm, selectExprStm *parser.SelectExpressionStm) *GroupByLogicPlan {
+	ret := &GroupByLogicPlan{
 		Input:       input,
 		GroupByExpr: ExprStmsToLogicExprs(*groupBy, input),
 	}

@@ -456,11 +456,11 @@ func MakeEmptyRecordBatchFrom(src *RecordBatch) *RecordBatch {
 
 // Encode row key.
 func (recordBatch *RecordBatch) RowKey(row int) (key []byte) {
-	if recordBatch.RowCount() >= row {
+	if row >= recordBatch.RowCount() {
 		return
 	}
 	for i := 0; i < recordBatch.ColumnCount(); i++ {
-		key = append(key, ',')
+		key = append(key, EncodeInt(int64(len(recordBatch.Records[i].Values[row])))...) // 8 byte length.
 		key = append(key, recordBatch.Records[i].Values[row]...)
 	}
 	return

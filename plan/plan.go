@@ -109,8 +109,8 @@ func buildLogicExprForUsing(joinSpex *parser.JoinSpecification, input *JoinLogic
 		rightColName := []byte(fmt.Sprintf("%s.%s", input.RightLogicPlan.Schema().TableName(), col))
 		if i == 0 {
 			expr = EqualLogicExpr{
-				Left:  IdentifierLogicExpr{Ident: leftColName, input: input},
-				Right: IdentifierLogicExpr{Ident: rightColName, input: input},
+				Left:  &IdentifierLogicExpr{Ident: leftColName, input: input},
+				Right: &IdentifierLogicExpr{Ident: rightColName, input: input},
 				Name:  "equal",
 			}
 			continue
@@ -118,8 +118,8 @@ func buildLogicExprForUsing(joinSpex *parser.JoinSpecification, input *JoinLogic
 		expr = AndLogicExpr{
 			Left: expr,
 			Right: EqualLogicExpr{
-				Left:  IdentifierLogicExpr{Ident: leftColName, input: input},
-				Right: IdentifierLogicExpr{Ident: rightColName, input: input},
+				Left:  &IdentifierLogicExpr{Ident: leftColName, input: input},
+				Right: &IdentifierLogicExpr{Ident: rightColName, input: input},
 				Name:  "equal",
 			},
 			Name: "and",
@@ -272,7 +272,7 @@ func LiteralExprToLiteralLogicExpr(literalExprStm parser.LiteralExpressionStm) L
 }
 
 func IdentifierExprToIdentifierLogicExpr(identifierExpr parser.IdentifierExpression, input LogicPlan) LogicExpr {
-	return IdentifierLogicExpr{Ident: identifierExpr, input: input, Str: string(identifierExpr)}
+	return &IdentifierLogicExpr{Ident: identifierExpr, input: input, Str: string(identifierExpr)}
 }
 
 func FuncCallExprToLogicExpr(funcCallExpr parser.FunctionCallExpressionStm, input LogicPlan) LogicExpr {

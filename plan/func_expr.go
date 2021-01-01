@@ -13,13 +13,13 @@ func getFunc(name string, params []LogicExpr) FuncInterface {
 	case "CHARLENGTH":
 		return CharLengthFunc{Name: "CHARLENGTH", Fn: charLength, Params: params}
 	case "MIN":
-		return MinFunc{Name: "MIN", Params: params}
+		return &MinFunc{Name: "MIN", Params: params}
 	case "MAX":
-		return MaxFunc{Name: "MAX", Params: params}
+		return &MaxFunc{Name: "MAX", Params: params}
 	case "SUM":
-		return SumFunc{Name: "SUM", Params: params}
+		return &SumFunc{Name: "SUM", Params: params}
 	case "COUNT":
-		return CountFunc{Name: "COUNT", Params: params}
+		return &CountFunc{Name: "COUNT", Params: params}
 	default:
 		return nil
 	}
@@ -102,26 +102,26 @@ type MaxFunc struct {
 	Accumulator []byte
 }
 
-func (max MaxFunc) TypeCheck() error {
+func (max *MaxFunc) TypeCheck() error {
 	if len(max.Params) != 1 {
 		return errors.New("param size doesn't match")
 	}
 	return nil
 }
 
-func (max MaxFunc) FuncParamSize() int {
+func (max *MaxFunc) FuncParamSize() int {
 	return 1
 }
 
-func (max MaxFunc) F() funcInterface {
+func (max *MaxFunc) F() funcInterface {
 	return nil
 }
 
-func (max MaxFunc) ReturnType() storage.FieldTP {
+func (max *MaxFunc) ReturnType() storage.FieldTP {
 	return max.Params[0].toField().TP
 }
 
-func (max MaxFunc) Accumulate(row int, input *storage.RecordBatch) {
+func (max *MaxFunc) Accumulate(row int, input *storage.RecordBatch) {
 	data := max.Params[0].EvaluateRow(row, input)
 	if max.Accumulator == nil {
 		max.Accumulator = data
@@ -130,15 +130,15 @@ func (max MaxFunc) Accumulate(row int, input *storage.RecordBatch) {
 	max.Accumulator = storage.Max(max.Accumulator, max.ReturnType(), data, max.ReturnType())
 }
 
-func (max MaxFunc) AccumulateValue() []byte {
+func (max *MaxFunc) AccumulateValue() []byte {
 	return max.Accumulator
 }
 
-func (max MaxFunc) IsAggrFunc() bool {
+func (max *MaxFunc) IsAggrFunc() bool {
 	return true
 }
 
-func (max MaxFunc) String() string {
+func (max *MaxFunc) String() string {
 	return fmt.Sprintf("MAX(%s)", max.Params[0])
 }
 
@@ -149,26 +149,26 @@ type MinFunc struct {
 	Accumulator []byte
 }
 
-func (min MinFunc) TypeCheck() error {
+func (min *MinFunc) TypeCheck() error {
 	if len(min.Params) != 1 {
 		return errors.New("param size doesn't match")
 	}
 	return nil
 }
 
-func (min MinFunc) FuncParamSize() int {
+func (min *MinFunc) FuncParamSize() int {
 	return 1
 }
 
-func (min MinFunc) F() funcInterface {
+func (min *MinFunc) F() funcInterface {
 	return nil
 }
 
-func (min MinFunc) ReturnType() storage.FieldTP {
+func (min *MinFunc) ReturnType() storage.FieldTP {
 	return min.Params[0].toField().TP
 }
 
-func (min MinFunc) Accumulate(row int, input *storage.RecordBatch) {
+func (min *MinFunc) Accumulate(row int, input *storage.RecordBatch) {
 	data := min.Params[0].EvaluateRow(row, input)
 	if min.Accumulator == nil {
 		min.Accumulator = data
@@ -177,15 +177,15 @@ func (min MinFunc) Accumulate(row int, input *storage.RecordBatch) {
 	min.Accumulator = storage.Min(min.Accumulator, min.ReturnType(), data, min.ReturnType())
 }
 
-func (min MinFunc) AccumulateValue() []byte {
+func (min *MinFunc) AccumulateValue() []byte {
 	return min.Accumulator
 }
 
-func (min MinFunc) IsAggrFunc() bool {
+func (min *MinFunc) IsAggrFunc() bool {
 	return true
 }
 
-func (min MinFunc) String() string {
+func (min *MinFunc) String() string {
 	return fmt.Sprintf("MIN(%s)", min.Params[0])
 }
 
@@ -196,26 +196,26 @@ type CountFunc struct {
 	Accumulator []byte
 }
 
-func (count CountFunc) TypeCheck() error {
+func (count *CountFunc) TypeCheck() error {
 	if len(count.Params) != 1 {
 		return errors.New("param size doesn't match")
 	}
 	return nil
 }
 
-func (count CountFunc) FuncParamSize() int {
+func (count *CountFunc) FuncParamSize() int {
 	return 1
 }
 
-func (count CountFunc) F() funcInterface {
+func (count *CountFunc) F() funcInterface {
 	return nil
 }
 
-func (count CountFunc) ReturnType() storage.FieldTP {
+func (count *CountFunc) ReturnType() storage.FieldTP {
 	return count.Params[0].toField().TP
 }
 
-func (count CountFunc) Accumulate(row int, input *storage.RecordBatch) {
+func (count *CountFunc) Accumulate(row int, input *storage.RecordBatch) {
 	if len(count.Accumulator) == 0 {
 		count.Accumulator = storage.EncodeInt(1)
 		return
@@ -223,15 +223,15 @@ func (count CountFunc) Accumulate(row int, input *storage.RecordBatch) {
 	count.Accumulator = storage.Add(count.Accumulator, storage.Int, storage.EncodeInt(1), storage.Int)
 }
 
-func (count CountFunc) AccumulateValue() []byte {
+func (count *CountFunc) AccumulateValue() []byte {
 	return count.Accumulator
 }
 
-func (count CountFunc) IsAggrFunc() bool {
+func (count *CountFunc) IsAggrFunc() bool {
 	return true
 }
 
-func (count CountFunc) String() string {
+func (count *CountFunc) String() string {
 	return fmt.Sprintf("COUNT(%s)", count.Params[0])
 }
 
@@ -242,7 +242,7 @@ type SumFunc struct {
 	Accumulator []byte
 }
 
-func (sum SumFunc) TypeCheck() error {
+func (sum *SumFunc) TypeCheck() error {
 	if len(sum.Params) != 1 {
 		return errors.New("param size doesn't match")
 	}
@@ -252,35 +252,35 @@ func (sum SumFunc) TypeCheck() error {
 	return nil
 }
 
-func (sum SumFunc) FuncParamSize() int {
+func (sum *SumFunc) FuncParamSize() int {
 	return 1
 }
 
-func (sum SumFunc) F() funcInterface {
+func (sum *SumFunc) F() funcInterface {
 	return nil
 }
 
-func (sum SumFunc) ReturnType() storage.FieldTP {
+func (sum *SumFunc) ReturnType() storage.FieldTP {
 	return sum.Params[0].toField().TP
 }
 
-func (sum SumFunc) Accumulate(row int, input *storage.RecordBatch) {
+func (sum *SumFunc) Accumulate(row int, input *storage.RecordBatch) {
 	data := sum.Params[0].EvaluateRow(row, input)
-	if len(data) == 0 {
+	if sum.Accumulator == nil {
 		sum.Accumulator = data
 		return
 	}
 	sum.Accumulator = storage.Add(sum.Accumulator, sum.ReturnType(), data, sum.ReturnType())
 }
 
-func (sum SumFunc) AccumulateValue() []byte {
+func (sum *SumFunc) AccumulateValue() []byte {
 	return sum.Accumulator
 }
 
-func (sum SumFunc) IsAggrFunc() bool {
+func (sum *SumFunc) IsAggrFunc() bool {
 	return true
 }
 
-func (sum SumFunc) String() string {
+func (sum *SumFunc) String() string {
 	return fmt.Sprintf("SUM(%s)", sum.Params[0])
 }

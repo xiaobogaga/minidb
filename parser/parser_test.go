@@ -903,6 +903,146 @@ func TestShowStm(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestParser_ParseGroupByStm(t *testing.T) {
+	sqls := []testEntity{
+		{
+			sql: "select id from test group by id having id > 0;",
+			stm: &SelectStm{
+				Tp: SelectAllTp,
+				SelectExpressions: &SelectExpressionStm{
+					Tp: ExprSelectExpressionTp,
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("id")),
+								},
+							},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceTableFactorTp,
+						TableReference: TableReferenceTableFactorStm{
+							Tp: TableReferencePureTableNameTp,
+							TableFactorReference: TableReferencePureTableRefStm{
+								TableName: "test",
+							},
+						},
+					},
+				},
+				Groupby: &GroupByStm{
+					{
+						LeftExpr: &ExpressionTerm{
+							Tp:           IdentifierExpressionTermTP,
+							RealExprTerm: IdentifierExpression(ColumnValue("id")),
+						},
+					},
+				},
+				Having: &ExpressionStm{
+					LeftExpr: &ExpressionTerm{
+						Tp:           IdentifierExpressionTermTP,
+						RealExprTerm: IdentifierExpression(ColumnValue("id")),
+					},
+					Op: OperationGreat,
+					RightExpr: &ExpressionTerm{
+						Tp:           LiteralExpressionTermTP,
+						RealExprTerm: LiteralExpressionStm(ColumnValue("0")),
+					},
+				},
+			},
+		},
+		{
+			sql: "select id, max(age) from test group by id having id > 0 order by id limit 10;",
+			stm: &SelectStm{
+				Tp: SelectAllTp,
+				SelectExpressions: &SelectExpressionStm{
+					Tp: ExprSelectExpressionTp,
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("id")),
+								},
+							},
+						},
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									Tp: FuncCallExpressionTermTP,
+									RealExprTerm: FunctionCallExpressionStm{
+										FuncName: "max",
+										Params: []*ExpressionStm{
+											{
+												LeftExpr: &ExpressionTerm{
+													Tp:           IdentifierExpressionTermTP,
+													RealExprTerm: IdentifierExpression(ColumnValue("age")),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceTableFactorTp,
+						TableReference: TableReferenceTableFactorStm{
+							Tp: TableReferencePureTableNameTp,
+							TableFactorReference: TableReferencePureTableRefStm{
+								TableName: "test",
+							},
+						},
+					},
+				},
+				Groupby: &GroupByStm{
+					{
+						LeftExpr: &ExpressionTerm{
+							Tp:           IdentifierExpressionTermTP,
+							RealExprTerm: IdentifierExpression(ColumnValue("id")),
+						},
+					},
+				},
+				Having: &ExpressionStm{
+					LeftExpr: &ExpressionTerm{
+						Tp:           IdentifierExpressionTermTP,
+						RealExprTerm: IdentifierExpression(ColumnValue("id")),
+					},
+					Op: OperationGreat,
+					RightExpr: &ExpressionTerm{
+						Tp:           LiteralExpressionTermTP,
+						RealExprTerm: LiteralExpressionStm(ColumnValue("0")),
+					},
+				},
+				OrderBy: &OrderByStm{
+					Expressions: []*OrderedExpressionStm{
+						{
+							Expression: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression(ColumnValue("id")),
+								},
+							},
+							Asc: true,
+						},
+					},
+				},
+				LimitStm: &LimitStm{
+					Count: 10,
+				},
+			},
+		},
+	}
+	testSqls(t, sqls)
+}
+
 //func TestAlterStm(t *testing.T) {
 //	sqls := []testEntity{
 //		{
