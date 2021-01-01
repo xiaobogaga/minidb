@@ -237,7 +237,7 @@ type LexerError struct {
 }
 
 func (s LexerError) Error() string {
-	return fmt.Sprintf("syntax err near %s at %d line", s.ErrData, s.LineNumber)
+	return fmt.Sprintf("syntax err near '%s' at %d line", s.ErrData, s.LineNumber)
 }
 
 func (l *Lexer) MakeLexerError(lineNumber, startPos int) error {

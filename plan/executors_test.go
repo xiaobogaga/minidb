@@ -88,7 +88,34 @@ func toTestStm(t *testing.T, sql string) parser.Stm {
 	return stm
 }
 
-func testSelect(t *testing.T, sql string) {
+func testSelect(t *testing.T, sql string, expectRowSize int, expectErr bool) {
+	stm := toTestStm(t, sql)
+	db := "db1"
+	exec, err1 := MakeExecutor(stm.(*parser.SelectStm), &db)
+	println("sql: ", sql)
+	i := 0
+	var err2 error
+	count := 0
+	for {
+		var ret *storage.RecordBatch
+		ret, err2 = exec.Exec()
+		if ret == nil {
+			break
+		}
+		count += ret.RowCount()
+		storage.PrintRecordBatch(ret, i == 0)
+		i++
+	}
+	assert.Equal(t, expectRowSize, count)
+	if expectErr {
+		assert.True(t, err1 != nil || err2 != nil)
+	} else {
+		assert.Nil(t, err1)
+		assert.Nil(t, err2)
+	}
+}
+
+func testSelect2(t *testing.T, sql string) {
 	stm := toTestStm(t, sql)
 	db := "db1"
 	exec, err := MakeExecutor(stm.(*parser.SelectStm), &db)
@@ -109,45 +136,65 @@ func testSelect(t *testing.T, sql string) {
 func TestExecuteSelectStm(t *testing.T) {
 	initTestStorage(t)
 	sql := "select * from test1;"
-	testSelect(t, sql)
+	testSelect(t, sql, testDataSize, false)
 
 	sql = "select * from test1 where id = 0;"
-	testSelect(t, sql)
+	testSelect(t, sql, 1, false)
 
 	sql = "select * from test1 where id = 1;"
-	testSelect(t, sql)
+	testSelect(t, sql, 1, false)
 
 	sql = "select * from test1 where (id = 1 + 1 or id = 1);"
-	testSelect(t, sql)
+	testSelect(t, sql, 2, false)
 
 	sql = "select * from test1 where (id = 2 or id = 1) and name='hello';"
-	testSelect(t, sql)
+	testSelect(t, sql, 0, false)
 
 	sql = "select id from test1 where (id = 2 or id = 1) and name='hello';"
-	testSelect(t, sql)
+	testSelect(t, sql, 0, false)
 
 	sql = "select * from test1 where id % 3 = 0 order by id desc;"
-	testSelect(t, sql)
+	testSelect(t, sql, testDataSize/3+1, false)
 }
 
 func TestExecuteSelectStmWithJoin(t *testing.T) {
 	initTestStorage(t)
-	//sql := "select * from test1;"
-	//testSelect(t, sql)
-	//sql = "select * from test2;"
-	//testSelect(t, sql)
-	//sql = "select * from test1, test2;"
-	//testSelect(t, sql)
-	sql := "select * from test1 left join test2 on test1.age > test2.age;"
-	testSelect(t, sql)
+	sql := "select * from test1;"
+	testSelect(t, sql, testDataSize, false)
+	sql = "select * from test2;"
+	testSelect(t, sql, testDataSize, false)
+	sql = "select * from test1, test2;"
+	testSelect(t, sql, testDataSize*testDataSize, false)
+	sql = "select * from test1 left join test2 on test1.age > test2.age order by test2.age;"
+	testSelect2(t, sql)
+	sql = "select test1.id from test1 left join test2 on test1.age > test2.age where test1.id = 1 or test1.id = 2 limit 1;"
+	testSelect2(t, sql)
 }
 
 func TestExecuteSelectWithOrderBy(t *testing.T) {
 	initTestStorage(t)
-	sql := "select * from test1;"
-	testSelect(t, sql)
+	var sql string
+	sql = "select * from test1;"
+	testSelect(t, sql, testDataSize, false)
 	sql = "select id, age, location from test1 order by location desc, id;"
-	testSelect(t, sql)
+	testSelect(t, sql, testDataSize, false)
+}
+
+func TestExecuteSelectWithLimit(t *testing.T) {
+	initTestStorage(t)
+	var sql string
+	sql = "select * from test1;"
+	testSelect(t, sql, testDataSize, false)
+	sql = "select * from test1 limit 2 offset 1;"
+	testSelect(t, sql, 2, false)
+	sql = "select * from test1 limit 1 offset 2;"
+	testSelect(t, sql, 1, false)
+	sql = "select * from test1 limit 2, 1;"
+	testSelect(t, sql, 1, false)
+	sql = "select id, name, age, location from test1 where id = 1 or id = 2 limit 1;"
+	testSelect(t, sql, 1, false)
+	sql = "select * from test1 limit 1, 1000;"
+	testSelect(t, sql, 3, false)
 }
 
 func TestExecuteSelectWithLargeData(t *testing.T) {
@@ -155,27 +202,13 @@ func TestExecuteSelectWithLargeData(t *testing.T) {
 	testDataSize = batchSize * 3
 	initTestStorage(t)
 	sql := "select * from test1;"
-	testSelect(t, sql)
+	testSelect(t, sql, testDataSize, false)
 	sql = "select * from test1 where id % 3 = 0 order by id desc;"
-	testSelect(t, sql)
+	testSelect(t, sql, testDataSize/3, false)
 	sql = "select id from test1 where id % 3 = 0 order by id;"
-	testSelect(t, sql)
+	testSelect(t, sql, testDataSize/3, false)
 	sql = "select id, age, location from test1 order by location desc, id;"
-	testSelect(t, sql)
-	sql = "select id, age from test1 order by age limit 8, 2;"
-	testSelect(t, sql)
-}
-
-func TestExecuteSelectWithLimit(t *testing.T) {
-	initTestStorage(t)
-	sql := "select * from test1;"
-	testSelect(t, sql)
-	sql = "select * from test1 limit 2 offset 1;"
-	testSelect(t, sql)
-	sql = "select * from test1 limit 1 offset 2;"
-	testSelect(t, sql)
-	sql = "select * from test1 limit 2, 1;"
-	testSelect(t, sql)
-	sql = "select id, name, age, location from test1 where id = 1 or id = 2 limit 1;"
-	testSelect(t, sql)
+	testSelect(t, sql, testDataSize, false)
+	sql = "select id, age from test1 order by age limit 2, 8;"
+	testSelect(t, sql, 8, false)
 }

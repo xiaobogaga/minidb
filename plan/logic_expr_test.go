@@ -28,7 +28,7 @@ func TestMakeLogicExpr(t *testing.T) {
 func TestLogicExpr_TypeCheck(t *testing.T) {
 	initTestStorage(t)
 	sql := "select * from db1.test1 where id = 1 + 0;"
-	testSelect(t, sql)
+	testSelect(t, sql, 1, false)
 	sql = "select * from db1.test1 where id = 1 + 0 or id = 2;"
-	testSelect(t, sql)
+	testSelect(t, sql, 2, false)
 }

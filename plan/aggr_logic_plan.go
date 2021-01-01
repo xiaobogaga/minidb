@@ -178,13 +178,6 @@ func (having HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
 		selectedRecord := recordBatch.Filter(selectedRows)
 		ret.Append(selectedRecord)
 		i += selectedRecord.RowCount()
-		//for row := 0; row < selectedRows.Size(); row ++ {
-		//	if !selectedRows.Bool(row) {
-		//		continue
-		//	}
-		//	ret.AppendRecord(recordBatch, row)
-		//	i ++
-		//}
 	}
 	return
 }

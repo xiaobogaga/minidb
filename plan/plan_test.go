@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"minidb/parser"
 	"testing"
+	"time"
 )
 
 var testDataSize = 4
@@ -32,17 +33,18 @@ func initTestStorage(t *testing.T) {
 		_, err = exec.Exec()
 		assert.Nil(t, err)
 	}
+	random := rand.New(rand.NewSource(time.Now().Unix()))
 	currentDB = "db1"
 	// insert some data to db1 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(rand.Int31n(10))), i%2)
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err := MakeExecutor(stm, &currentDB)
 		assert.Nil(t, err)
 		_, err = exec.Exec()
 		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(rand.Int31n(10))), i%2)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err = MakeExecutor(stm, &currentDB)
@@ -53,14 +55,14 @@ func initTestStorage(t *testing.T) {
 	currentDB = "db2"
 	// insert some data to db2 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(rand.Int31n(10))), i%2)
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err := MakeExecutor(stm, &currentDB)
 		assert.Nil(t, err)
 		_, err = exec.Exec()
 		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(rand.Int31n(10))), i%2)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1, '%d');", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err = MakeExecutor(stm, &currentDB)

@@ -26,28 +26,29 @@ func MakeInsertPlan(stm *parser.InsertIntoStm, currentDB string) Insert {
 	}
 }
 
+func (insert Insert) GetMulColumns() (ret []string) {
+	dbInfo := storage.GetStorage().GetDbInfo(insert.Schema)
+	tableInfo := dbInfo.GetTable(insert.Table)
+	if len(insert.Cols) > 0 {
+		ret = make([]string, len(insert.Cols))
+		for i, col := range insert.Cols {
+			_, _, ret[i] = getSchemaTableColumnName(col)
+		}
+		return
+	}
+	// The cols should be the table columns.
+	ret = make([]string, len(tableInfo.TableSchema.Columns))
+	for i, col := range tableInfo.TableSchema.Columns {
+		ret[i] = col.Name
+	}
+	// skip row index column.
+	return ret[1:]
+}
+
 func (insert Insert) Execute() error {
 	// Now we save the values to the table.
 	dbInfo := storage.GetStorage().GetDbInfo(insert.Schema)
 	tableInfo := dbInfo.GetTable(insert.Table)
-	// Prepare the columns we need to insert.
-	var realCols []string
-	if len(insert.Cols) == 0 {
-		// The cols should be the table columns.
-		realCols = make([]string, len(tableInfo.TableSchema.Columns)-1)
-		for i, col := range tableInfo.TableSchema.Columns {
-			// skip row index column.
-			if i == 0 {
-				continue
-			}
-			realCols[i-1] = col.Name
-		}
-	} else {
-		realCols = make([]string, len(insert.Cols))
-		for i, col := range insert.Cols {
-			_, _, realCols[i] = getSchemaTableColumnName(col)
-		}
-	}
 	// Now we compute the values and then insert.
 	values := make([][]byte, len(insert.Values))
 	for i, expr := range insert.Values {
@@ -57,7 +58,7 @@ func (insert Insert) Execute() error {
 		}
 		values[i] = v
 	}
-	tableInfo.InsertData(realCols, values)
+	tableInfo.InsertData(insert.GetMulColumns(), values)
 	return nil
 }
 
@@ -85,9 +86,9 @@ func (insert Insert) TypeCheckForNoCols() error {
 }
 
 func (insert Insert) HasColumn(colName string) bool {
-	for _, col := range insert.Cols {
-		_, _, realCol := getSchemaTableColumnName(col)
-		if realCol == colName {
+	for _, column := range insert.Cols {
+		_, _, columnName := getSchemaTableColumnName(column)
+		if columnName == colName {
 			return true
 		}
 	}

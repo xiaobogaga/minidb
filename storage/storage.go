@@ -197,7 +197,7 @@ func (schema *TableSchema) SchemaName() string {
 
 func isSameColumn(schemaName, tableName, columnName string, expected Field) bool {
 	return expected.Name == columnName && (schemaName == "" || schemaName == expected.SchemaName) &&
-		(tableName == "" || tableName == expected.Name)
+		(tableName == "" || tableName == expected.TableName)
 }
 
 func (schema *TableSchema) GetTableInfoFromColumn(schemaName, tableName, columnName string) (*TableInfo, error) {
