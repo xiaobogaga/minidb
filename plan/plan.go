@@ -2,6 +2,7 @@ package plan
 
 import (
 	"errors"
+	"fmt"
 	"minidb/parser"
 	"strings"
 )
@@ -86,6 +87,47 @@ func splitSchemaAndTableName(schemaTable string) (schema, table string, err erro
 	return
 }
 
+func joinSpecToExpr(joinSpex *parser.JoinSpecification, input *JoinLogicPlan) (expr LogicExpr) {
+	if joinSpex == nil {
+		return nil
+	}
+	switch joinSpex.Tp {
+	case parser.JoinSpecificationON:
+		expr = ExprStmToLogicExpr(joinSpex.Condition.(*parser.ExpressionStm), input)
+	case parser.JoinSpecificationUsing:
+		return buildLogicExprForUsing(joinSpex, input)
+	default:
+		panic("unknown join tp")
+	}
+	return
+}
+
+func buildLogicExprForUsing(joinSpex *parser.JoinSpecification, input *JoinLogicPlan) (expr LogicExpr) {
+	cols := joinSpex.Condition.([]string)
+	for i, col := range cols {
+		leftColName := []byte(fmt.Sprintf("%s.%s", input.LeftLogicPlan.Schema().TableName(), col))
+		rightColName := []byte(fmt.Sprintf("%s.%s", input.RightLogicPlan.Schema().TableName(), col))
+		if i == 0 {
+			expr = EqualLogicExpr{
+				Left:  IdentifierLogicExpr{Ident: leftColName, input: input},
+				Right: IdentifierLogicExpr{Ident: rightColName, input: input},
+				Name:  "equal",
+			}
+			continue
+		}
+		expr = AndLogicExpr{
+			Left: expr,
+			Right: EqualLogicExpr{
+				Left:  IdentifierLogicExpr{Ident: leftColName, input: input},
+				Right: IdentifierLogicExpr{Ident: rightColName, input: input},
+				Name:  "equal",
+			},
+			Name: "and",
+		}
+	}
+	return
+}
+
 func makeScanLogicPlanForJoin(joinTableStm parser.JoinedTableStm, currentDB string) (LogicPlan, error) {
 	// a inorder traversal to build logic plan.
 	leftLogicPlan, err := makeScanLogicPlan(joinTableStm.TableReference, currentDB)
@@ -96,7 +138,12 @@ func makeScanLogicPlanForJoin(joinTableStm parser.JoinedTableStm, currentDB stri
 	if err != nil {
 		return nil, err
 	}
-	return NewJoinLogicPlan(leftLogicPlan, rightLogicPlan, joinTableStm.JoinTp), nil
+	joinPlan := NewJoinLogicPlan(leftLogicPlan, rightLogicPlan, joinTableStm.JoinTp)
+	if joinTableStm.JoinSpec == nil {
+		return joinPlan, nil
+	}
+	expr := joinSpecToExpr(joinTableStm.JoinSpec, joinPlan)
+	return &SelectionLogicPlan{Input: joinPlan, Expr: expr}, nil
 }
 
 func buildLogicPlanForTableReferenceStm(tableRef parser.TableReferenceStm, currentDB string) (LogicPlan, error) {

@@ -107,6 +107,8 @@ func TestMakeJoinLogicPlan(t *testing.T) {
 	initTestStorage(t)
 	sql := "select * from test1, test2;"
 	verifyTestPlan(t, sql)
+	sql = "select test1.id from test1 left join test2 on test1.id = test2.id;"
+	verifyTestPlan(t, sql)
 }
 
 func TestMakeGroupByPlan(t *testing.T) {

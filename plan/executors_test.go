@@ -17,6 +17,11 @@ func TestExecuteUseStm(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func assertRecordBatch(t *testing.T, rowSize, columnSize int, ret *storage.RecordBatch) {
+	assert.Equal(t, rowSize, ret.RowCount())
+	assert.Equal(t, columnSize, ret.ColumnCount())
+}
+
 func TestExecuteShowStm(t *testing.T) {
 	initTestStorage(t)
 	useStm := &parser.UseDatabaseStm{DatabaseName: "db1"}
@@ -26,12 +31,14 @@ func TestExecuteShowStm(t *testing.T) {
 	showPlan := &Show{}
 	ret, err := showPlan.Execute("db1", showStm)
 	assert.Nil(t, err)
+	assertRecordBatch(t, 2, 2, ret)
 	storage.PrintRecordBatch(ret, true)
 	showStm.TP = parser.ShowTableTP
 	showPlan = &Show{}
 	ret, err = showPlan.Execute("db1", showStm)
 	assert.Nil(t, err)
 	storage.PrintRecordBatch(ret, true)
+	assertRecordBatch(t, 2, 2, ret)
 }
 
 func TestExecuteDropDatabaseStm(t *testing.T) {
@@ -48,6 +55,11 @@ func TestExecuteDropDatabaseStm(t *testing.T) {
 	err = ExecuteDropDatabaseStm(dropStm)
 	assert.Nil(t, err)
 	storage.PrintStorage(t)
+	showStm := &parser.ShowStm{TP: parser.ShowDatabaseTP}
+	showPlan := &Show{}
+	ret, err := showPlan.Execute("db1", showStm)
+	assert.Nil(t, err)
+	assertRecordBatch(t, 0, 2, ret)
 }
 
 func TestExecuteDropTableStm(t *testing.T) {
@@ -120,11 +132,13 @@ func TestExecuteSelectStm(t *testing.T) {
 
 func TestExecuteSelectStmWithJoin(t *testing.T) {
 	initTestStorage(t)
-	sql := "select * from test1;"
-	testSelect(t, sql)
-	sql = "select * from test2;"
-	testSelect(t, sql)
-	sql = "select * from test1, test2;"
+	//sql := "select * from test1;"
+	//testSelect(t, sql)
+	//sql = "select * from test2;"
+	//testSelect(t, sql)
+	//sql = "select * from test1, test2;"
+	//testSelect(t, sql)
+	sql := "select * from test1 left join test2 on test1.age > test2.age;"
 	testSelect(t, sql)
 }
 

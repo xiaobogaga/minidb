@@ -195,31 +195,17 @@ func (schema *TableSchema) SchemaName() string {
 	return schema.Columns[0].SchemaName
 }
 
-//func (schema *TableSchema) HasSubTable(tableName string) bool {
-//	for _, column := range schema.Columns {
-//		if column.TableName == tableName {
-//			return true
-//		}
-//	}
-//	return false
-//}
+func isSameColumn(schemaName, tableName, columnName string, expected Field) bool {
+	return expected.Name == columnName && (schemaName == "" || schemaName == expected.SchemaName) &&
+		(tableName == "" || tableName == expected.Name)
+}
 
 func (schema *TableSchema) GetTableInfoFromColumn(schemaName, tableName, columnName string) (*TableInfo, error) {
 	var col Field
 	for _, column := range schema.Columns {
-		if schemaName == "" && column.TableName == tableName && column.Name == columnName {
+		if isSameColumn(schemaName, tableName, columnName, column) {
 			col = column
-		}
-		if schemaName == "" && tableName == "" && column.Name == columnName {
-			col = column
-		}
-		if schemaName != "" && (schemaName == column.SchemaName) && tableName == "" &&
-			column.Name == columnName {
-			col = column
-		}
-		if schemaName != "" && (schemaName == column.SchemaName) && column.TableName == tableName &&
-			column.Name == columnName {
-			col = column
+			break
 		}
 	}
 	schemaName = col.SchemaName
@@ -235,33 +221,12 @@ func (schema *TableSchema) GetTableInfoFromColumn(schemaName, tableName, columnN
 // schemaName, tableName can be empty, then it will iterate all db schema to find such column.
 func (schema *TableSchema) HasColumn(schemaName, tableName, columnName string) bool {
 	for _, column := range schema.Columns {
-		// TableSchema can be empty
-		if schemaName == "" && column.TableName == tableName && column.Name == columnName {
-			return true
-		}
-		if schemaName == "" && tableName == "" && column.Name == columnName {
-			return true
-		}
-		if schemaName != "" && (schemaName == column.SchemaName) && tableName == "" &&
-			column.Name == columnName {
-			return true
-		}
-		if schemaName != "" && (schemaName == column.SchemaName) && column.TableName == tableName &&
-			column.Name == columnName {
+		if isSameColumn(schemaName, tableName, columnName, column) {
 			return true
 		}
 	}
 	return false
 }
-
-//func (schema *TableSchema) TableHasColumn(fields []Field, column string) bool {
-//	for _, f := range fields {
-//		if f.Name == column {
-//			return true
-//		}
-//	}
-//	return false
-//}
 
 func (schema *TableSchema) HasAmbiguousColumn(schemaName, tableName, columnName string) bool {
 	if schemaName != "" && tableName != "" {
@@ -269,22 +234,16 @@ func (schema *TableSchema) HasAmbiguousColumn(schemaName, tableName, columnName 
 	}
 	times := 0
 	for _, column := range schema.Columns {
-		if schemaName != "" && column.SchemaName != schemaName {
-			continue
-		}
-		if tableName == "" && column.Name == columnName {
-			times++
-		}
-		if tableName != "" && tableName == column.TableName && column.Name == columnName {
+		if isSameColumn(schemaName, tableName, columnName, column) {
 			times++
 		}
 	}
 	return times > 1
 }
 
-func (schema *TableSchema) GetField(columnName string) *Field {
+func (schema *TableSchema) GetField(databaseName string, tableName string, columnName string) *Field {
 	for _, column := range schema.Columns {
-		if column.Name == columnName {
+		if isSameColumn(databaseName, tableName, columnName, column) {
 			return &column
 		}
 	}
@@ -310,9 +269,9 @@ func (recordBatch *RecordBatch) RowCount() int {
 	return recordBatch.Records[0].Size()
 }
 
-func (recordBatch *RecordBatch) GetColumnValue(colName string) *ColumnVector {
+func (recordBatch *RecordBatch) GetColumnValue(schemaName, tableName, colName string) *ColumnVector {
 	for _, col := range recordBatch.Records {
-		if col.Field.Name == colName {
+		if isSameColumn(schemaName, tableName, colName, col.Field) {
 			return col
 		}
 	}

@@ -115,6 +115,7 @@ type JoinLogicPlan struct {
 	RightLogicPlan LogicPlan       `json:"right"`
 	LeftBatch      *storage.RecordBatch
 	RightBatch     *storage.RecordBatch
+	Expr           LogicExpr
 }
 
 func NewJoinLogicPlan(left, right LogicPlan, tp parser.JoinType) *JoinLogicPlan {
@@ -174,28 +175,33 @@ func (join *JoinLogicPlan) Execute() (ret *storage.RecordBatch) {
 			return nil
 		}
 		ret = join.LeftBatch.Join(join.RightBatch, join.LeftLogicPlan.Schema(), join.Schema())
-		join.RightBatch = nil
+		join.RightBatch = join.RightLogicPlan.Execute()
+		if join.RightBatch == nil {
+			join.LeftBatch = join.LeftLogicPlan.Execute()
+			join.RightLogicPlan.Reset()
+		}
 	case parser.RightOuterJoin:
 		if join.RightBatch == nil {
 			return nil
 		}
 		ret = join.LeftBatch.Join(join.RightBatch, join.LeftLogicPlan.Schema(), join.Schema())
+		join.LeftBatch = join.LeftLogicPlan.Execute()
+		if join.LeftBatch == nil {
+			join.RightBatch = join.RightLogicPlan.Execute()
+			join.LeftLogicPlan.Reset()
+		}
 	case parser.InnerJoin:
 		if join.LeftBatch == nil || join.RightBatch == nil {
 			return nil
 		}
 		ret = join.LeftBatch.Join(join.RightBatch, join.LeftLogicPlan.Schema(), join.Schema())
-		join.RightBatch = nil
+		join.RightBatch = join.RightLogicPlan.Execute()
+		if join.RightBatch == nil {
+			join.LeftBatch = join.LeftLogicPlan.Execute()
+			join.RightLogicPlan.Reset()
+		}
 	}
-	if ret != nil {
-		return ret
-	}
-	join.RightBatch = join.RightLogicPlan.Execute()
-	if join.RightBatch == nil {
-		join.LeftBatch = join.LeftLogicPlan.Execute()
-		join.RightLogicPlan.Reset()
-	}
-	return join.Execute()
+	return ret
 }
 
 func (join JoinLogicPlan) Reset() {
@@ -333,34 +339,6 @@ func (orderBy *OrderByLogicPlan) Execute() *storage.RecordBatch {
 	orderBy.index += batchSize
 	return ret
 }
-
-//func printTestRecordBatchHeader(record *storage.RecordBatch) {
-//	buf := bytes.Buffer{}
-//	for i := 0; i < len(record.Fields); i++ {
-//		buf.WriteString(record.Fields[i].Name + ",")
-//	}
-//	println(buf.String())
-//}
-//
-//func printTestRecordBatchRowData(record *storage.RecordBatch, row int) {
-//	buf := bytes.Buffer{}
-//	for i := 0; i < record.ColumnCount(); i++ {
-//		buf.WriteString(record.Records[i].String(row) + ",")
-//	}
-//	println(buf.String())
-//}
-//
-//func printTestRecordBatch(record *storage.RecordBatch) {
-//	// Print header first.
-//	if record == nil {
-//		return
-//	}
-//	printTestRecordBatchHeader(record)
-//	for i := 0; i < record.RowCount(); i++ {
-//		printTestRecordBatchRowData(record, i)
-//	}
-//	println()
-//}
 
 func (orderBy *OrderByLogicPlan) InitializeAndSort() {
 	if orderBy.data != nil {

@@ -32,8 +32,8 @@ type IdentifierLogicExpr struct {
 func (ident IdentifierLogicExpr) toField() storage.Field {
 	// The column must be unique in the input schema.
 	schema := ident.input.Schema()
-	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
-	return *schema.GetField(columnName)
+	databaseName, tableName, columnName := getSchemaTableColumnName(string(ident.Ident))
+	return *schema.GetField(databaseName, tableName, columnName)
 }
 
 func (ident IdentifierLogicExpr) String() string {
@@ -54,13 +54,13 @@ func (ident IdentifierLogicExpr) TypeCheck() error {
 }
 
 func (ident IdentifierLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
-	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
-	return input.GetColumnValue(columnName)
+	schemaName, tableName, columnName := getSchemaTableColumnName(string(ident.Ident))
+	return input.GetColumnValue(schemaName, tableName, columnName)
 }
 
 func (ident IdentifierLogicExpr) EvaluateRow(row int, input *storage.RecordBatch) []byte {
-	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
-	return input.GetColumnValue(columnName).RawValue(row)
+	schemaName, tableName, columnName := getSchemaTableColumnName(string(ident.Ident))
+	return input.GetColumnValue(schemaName, tableName, columnName).RawValue(row)
 }
 
 func (ident IdentifierLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
@@ -94,8 +94,8 @@ func (ident IdentifierLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
 }
 
 func (ident IdentifierLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
-	_, _, columnName := getSchemaTableColumnName(string(ident.Ident))
-	col := input.GetColumnValue(columnName)
+	schemaName, tableName, columnName := getSchemaTableColumnName(string(ident.Ident))
+	col := input.GetColumnValue(schemaName, tableName, columnName)
 	ident.accumulator = col.RawValue(row)
 }
 
