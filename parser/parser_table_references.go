@@ -33,6 +33,8 @@ func (parser *Parser) parseTableReferenceStm() (stm TableReferenceStm, err error
 	case IDENT, WORD:
 		parser.UnReadToken()
 		tableFactorStm, err = parser.parseTableAsStm()
+	default:
+		return emptyTableRefStm, parser.MakeSyntaxError(parser.pos - 1)
 	}
 
 	// Also need to check join type, because maybe a joined_table reference.
@@ -51,8 +53,24 @@ func (parser *Parser) parseTableReferenceStm() (stm TableReferenceStm, err error
 			Tp:             TableReferenceTableFactorTp,
 			TableReference: tableFactorStm,
 		}
+		return stm, err
 	}
-	return stm, err
+	// We keep processing the possible remaining join.
+	// Todo: support multiple join.
+	//for {
+	//	token, ok = parser.NextToken()
+	//	switch token.Tp {
+	//	case LEFT:
+	//		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, LeftOuterJoin)
+	//	case RIGHT:
+	//		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, RightOuterJoin)
+	//	case INNER, JOIN:
+	//		stm, err = parser.parseInnerJoinStm(tableFactorStm, token.Tp == INNER)
+	//	default:
+	//		return
+	//	}
+	//}
+	return
 }
 
 func (parser *Parser) parseSubTableRefOrTableSubQuery() (stm TableReferenceTableFactorStm, err error) {

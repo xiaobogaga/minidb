@@ -563,6 +563,21 @@ func (f Field) CanIgnoreInInsert() bool {
 	return f.Name == DefaultRowKeyName || f.AllowNull
 }
 
+func (f Field) ColumnName() (name string) {
+	if f.SchemaName != "" {
+		name = f.SchemaName
+	}
+	if f.TableName != "" {
+		name = fmt.Sprintf("%s.%s", name, f.TableName)
+	}
+	if name != "" {
+		name = fmt.Sprintf("%s.%s", name, f.Name)
+	} else {
+		name = f.Name
+	}
+	return name
+}
+
 func RowIndexField(schemaName, tableName string) Field {
 	field := Field{
 		SchemaName:    schemaName,

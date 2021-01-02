@@ -97,10 +97,7 @@ func testSelect(t *testing.T, sql string, expectRowSize int, expectErr bool) {
 		fmt.Printf("err: %s\n", err)
 		return
 	}
-	if err != nil {
-		fmt.Printf("err: %s\n", err)
-		return
-	}
+	assert.Nil(t, err)
 	println("sql: ", sql)
 	i := 0
 	count := 0
@@ -180,6 +177,8 @@ func TestExecuteSelectStmWithJoin(t *testing.T) {
 	testSelect2(t, sql)
 	sql = "select test1.id from test1 left join test2 on test1.age > test2.age where test1.id = 1 or test1.id = 2 limit 1;"
 	testSelect2(t, sql)
+	sql = "select * from test1, test2, db2.test1;"
+	testSelect2(t, sql)
 }
 
 func TestExecuteSelectWithOrderBy(t *testing.T) {
@@ -208,6 +207,84 @@ func TestExecuteSelectWithLimit(t *testing.T) {
 	testSelect(t, sql, 3, false)
 }
 
+func TestExecuteSelectWithGroupBy(t *testing.T) {
+	initTestStorage(t)
+	var sql string
+	sql = "select * from test1;"
+	testSelect(t, sql, testDataSize, false)
+	sql = "select location from test1 group by location;"
+	testSelect(t, sql, testDataSize/2, false)
+	sql = "select location from test1 group by location order by location desc limit 1;"
+	testSelect(t, sql, 1, false)
+	sql = "select location from test1 group by location order by location desc;"
+	testSelect(t, sql, testDataSize/2, false)
+	sql = "select sum(id), location from test1 group by location;"
+	testSelect(t, sql, testDataSize/2, false)
+	sql = "select max(id), location from test1 group by location;"
+	testSelect(t, sql, testDataSize/2, false)
+	sql = "select min(id), location from test1 group by location;"
+	testSelect(t, sql, testDataSize/2, false)
+	sql = "select count(id), location from test1 group by location;"
+	testSelect(t, sql, testDataSize/2, false)
+	sql = "select id from test1 group by id order by id desc limit 2;"
+	testSelect(t, sql, 2, false)
+	sql = "select id, age from test1 group by id, age order by id, age limit 1;"
+	testSelect(t, sql, 1, false)
+	// Now we test group by and have.
+	sql = "select id from test1 having id > 0;"
+	testSelect(t, sql, 3, false)
+	sql = "select id, count(name) from test1 group by id having id > 0;"
+	testSelect(t, sql, 3, false)
+
+	// Now we do some fail check.
+	sql = "select * from test1 group by id;"
+	testSelect(t, sql, 0, true)
+	sql = "select id, name from test1 group by id;"
+	testSelect(t, sql, 0, true)
+	sql = "select id, name, age from test1 group by id, age;"
+	testSelect(t, sql, 0, true)
+	sql = "select id, name, age from test1 group by id, age order by id desc limit 1;"
+	testSelect(t, sql, 0, true)
+
+}
+
+func TestExecuteHavingPlan(t *testing.T) {
+	initTestStorage(t)
+	var sql string
+	sql = "select * from test1 having id > 0;"
+	testSelect(t, sql, testDataSize-1, false)
+	sql = "select * from test1 where id > 0 having id > 0;"
+	testSelect(t, sql, testDataSize-1, false)
+	sql = "select * from test1 where id < 0 having id > 0;"
+	testSelect(t, sql, 0, false)
+	sql = "select id from test1 having id > 0 order by id limit 2;"
+	testSelect(t, sql, 2, false)
+}
+
+func TestExecuteFuncCall(t *testing.T) {
+	initTestStorage(t)
+	var sql string
+	sql = "select * from test1;"
+	testSelect(t, sql, testDataSize, false)
+	sql = "select id, name, charlength(name) from test1;"
+	testSelect(t, sql, testDataSize, false)
+	sql = "select location, count(name) from test1 group by location;"
+	testSelect(t, sql, 2, false)
+	sql = "select location, max(name) from test1 group by location;"
+	testSelect(t, sql, 2, false)
+	sql = "select location, min(name) from test1 group by location;"
+	testSelect(t, sql, 2, false)
+	// Test several fails.
+	sql = "select sum(name) from test1 group by location;"
+	testSelect(t, sql, 0, true)
+	sql = "select count(id, age) from test1 group by id;"
+	testSelect(t, sql, 0, true)
+	sql = "select max(id, age) from test1 group by id;"
+	testSelect(t, sql, 0, true)
+	sql = "select sum(age) from test1;"
+	testSelect(t, sql, 1, false)
+}
+
 func TestExecuteSelectWithLargeData(t *testing.T) {
 	batchSize = 4
 	testDataSize = batchSize * 3
@@ -222,19 +299,4 @@ func TestExecuteSelectWithLargeData(t *testing.T) {
 	testSelect(t, sql, testDataSize, false)
 	sql = "select id, age from test1 order by age limit 2, 8;"
 	testSelect(t, sql, 8, false)
-}
-
-func TestExecuteSelectWithGroupBy(t *testing.T) {
-	initTestStorage(t)
-	var sql string
-	//sql = "select * from test1;"
-	//testSelect(t, sql, testDataSize, false)
-	//sql = "select location from test1 group by location;"
-	//testSelect(t, sql, testDataSize/2, false)
-	//sql = "select location from test1 group by location order by location desc limit 1;"
-	//testSelect(t, sql, 1, false)
-	//sql = "select location from test1 group by location order by location desc;"
-	//testSelect(t, sql, testDataSize/2, false)
-	sql = "select sum(id), location from test1 group by location;"
-	testSelect(t, sql, testDataSize/2, false)
 }

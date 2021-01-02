@@ -17,6 +17,10 @@ func MakeLogicPlan(ast *parser.SelectStm, currentDB string) (LogicPlan, error) {
 	if ast.Groupby != nil {
 		return MakeAggreLogicPlan(selectLogicPlan, ast)
 	}
+	// having is the same as where when no group by.
+	if ast.Having != nil {
+		selectLogicPlan = makeSelectLogicPlan(selectLogicPlan, parser.WhereStm(ast.Having))
+	}
 	orderByLogicPlan := makeOrderByLogicPlan(selectLogicPlan, ast.OrderBy, false)
 	projectionsLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, ast.SelectExpressions)
 	limitLogicPlan := makeLimitLogicPlan(projectionsLogicPlan, ast.LimitStm)

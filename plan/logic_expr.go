@@ -24,7 +24,7 @@ type LogicExpr interface {
 // can be a.b.c or a.b or a
 type IdentifierLogicExpr struct {
 	Ident       []byte
-	accumulator []byte // put accumulator here is not a good idea. It's better to separate.
+	Accumulator []byte // put Accumulator here is not a good idea. It's better to separate.
 	input       LogicPlan
 	Str         string // For debug only
 }
@@ -88,7 +88,7 @@ func (ident *IdentifierLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 func (ident *IdentifierLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
 	ret := &IdentifierLogicExpr{Ident: ident.Ident, Str: string(ident.Ident), input: ident.input}
 	if cloneAccumulate {
-		ret.accumulator = ident.accumulator
+		ret.Accumulator = ident.Accumulator
 	}
 	return ret
 }
@@ -96,11 +96,11 @@ func (ident *IdentifierLogicExpr) Clone(cloneAccumulate bool) LogicExpr {
 func (ident *IdentifierLogicExpr) Accumulate(row int, input *storage.RecordBatch) {
 	schemaName, tableName, columnName := getSchemaTableColumnName(string(ident.Ident))
 	col := input.GetColumnValue(schemaName, tableName, columnName)
-	ident.accumulator = col.RawValue(row)
+	ident.Accumulator = col.RawValue(row)
 }
 
 func (ident *IdentifierLogicExpr) AccumulateValue() []byte {
-	return ident.accumulator
+	return ident.Accumulator
 }
 
 func (ident *IdentifierLogicExpr) HasGroupFunc() bool { return false }
@@ -1679,9 +1679,6 @@ func (call *FuncCallLogicExpr) TypeCheck() error {
 	if f == nil {
 		return errors.New("no such func")
 	}
-	if len(call.Params) != f.FuncParamSize() {
-		return errors.New("func param doesn't match")
-	}
 	paramFields := make([]storage.Field, len(call.Params))
 	for i, param := range call.Params {
 		err := param.TypeCheck()
@@ -1700,7 +1697,7 @@ func (call *FuncCallLogicExpr) Evaluate(input *storage.RecordBatch) *storage.Col
 		columnVectors[i] = param.Evaluate(input)
 	}
 	ret := &storage.ColumnVector{Field: storage.Field{Name: call.Name, TP: f.ReturnType()}}
-	for i := 0; i < columnVectors[i].Size(); i++ {
+	for i := 0; i < columnVectors[0].Size(); i++ {
 		params := make([][]byte, len(columnVectors))
 		for j, columnVector := range columnVectors {
 			params[j] = columnVector.RawValue(i)

@@ -36,6 +36,25 @@ func (groupBy *GroupByLogicPlan) Child() []LogicPlan {
 	return []LogicPlan{groupBy.Input}
 }
 
+func (groupBy *GroupByLogicPlan) MakeAggrExprs() {
+	schema := groupBy.Input.Schema()
+	var ret []AsLogicExpr
+	for _, column := range schema.Columns {
+		if column.Name == storage.DefaultRowKeyName {
+			continue
+		}
+		name := column.ColumnName()
+		ret = append(ret, AsLogicExpr{
+			Expr: &IdentifierLogicExpr{
+				Ident: []byte(name),
+				input: groupBy.Input,
+				Str:   name,
+			},
+		})
+	}
+	groupBy.AggrExprs = ret
+}
+
 func (groupBy *GroupByLogicPlan) TypeCheck() error {
 	err := groupBy.Input.TypeCheck()
 	if err != nil {
@@ -49,6 +68,9 @@ func (groupBy *GroupByLogicPlan) TypeCheck() error {
 		if expr.HasGroupFunc() {
 			return errors.New("invalid use of group function")
 		}
+	}
+	if len(groupBy.AggrExprs) == 0 {
+		groupBy.MakeAggrExprs()
 	}
 	// Now we check whether aggrExprs is okay.
 	for _, aggrExpr := range groupBy.AggrExprs {
@@ -110,23 +132,23 @@ func (groupBy *GroupByLogicPlan) InitializeData() {
 	// Now builds accumulators.
 	groupBy.retData = MakeEmptyRecordBatchFromSchema(groupBy.Schema())
 	keyMap := map[string][]LogicExpr{}
+	var keys []string // To preserved the data order.
 	for i := 0; i < groupBy.keys.RowCount(); i++ {
-		key := groupBy.keys.RowKey(i)
-		value, ok := keyMap[string(key)]
+		key := string(groupBy.keys.RowKey(i))
+		value, ok := keyMap[key]
 		if !ok {
+			keys = append(keys, key)
 			value = groupBy.CloneAggrExpr(false)
-			keyMap[string(key)] = value
+			keyMap[key] = value
 		}
-		value, _ = keyMap[string(key)]
-		// fmt.Printf("key: %s\n", string(key))
-		for i, expr := range value {
+		for _, expr := range value {
 			// Accumulate row i at groupBy.data.
 			expr.Accumulate(i, groupBy.data)
-			// fmt.Printf("i: %d, value: %s\n", i, expr.AccumulateValue())
 		}
 	}
 	// Now we have accumulate all data. It's time to collect all individual group now.
-	for _, values := range keyMap {
+	for _, key := range keys {
+		values := keyMap[key]
 		for i, value := range values {
 			groupBy.retData.Records[i].Append(value.AccumulateValue())
 		}

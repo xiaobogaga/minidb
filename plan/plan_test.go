@@ -37,14 +37,14 @@ func initTestStorage(t *testing.T) {
 	currentDB = "db1"
 	// insert some data to db1 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1, '%d', 0);", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err := MakeExecutor(stm, &currentDB)
 		assert.Nil(t, err)
 		_, err = exec.Exec()
 		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1, '%d', 0);", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err = MakeExecutor(stm, &currentDB)
@@ -55,14 +55,14 @@ func initTestStorage(t *testing.T) {
 	currentDB = "db2"
 	// insert some data to db2 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d', %d.1, '%d', 0);", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
+		sql := fmt.Sprintf("insert into test1 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err := parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err := MakeExecutor(stm, &currentDB)
 		assert.Nil(t, err)
 		_, err = exec.Exec()
 		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d', %d.1, '%d', 0);", i, i, testDataSize-(i*int(random.Int31n(10))), i%2)
+		sql = fmt.Sprintf("insert into test2 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
 		stm, err = parser.Parse([]byte(sql))
 		assert.Nil(t, err)
 		exec, err = MakeExecutor(stm, &currentDB)
@@ -167,6 +167,8 @@ func TestMakeJoinLogicPlan(t *testing.T) {
 	verifyTestPlanFail(t, sql)
 	sql = "select test1.id from test1 right join test2 using (loc1);"
 	verifyTestPlanFail(t, sql)
+	//	sql = "select id from test1 left join test2 on test1.id = test2.id left join db2.test1 on db2.test1.id = db1.test1.id;"
+	//	verifyTestPlan(t, sql)
 }
 
 func TestMakeGroupByPlan(t *testing.T) {
@@ -192,6 +194,17 @@ func TestMakeGroupByPlan(t *testing.T) {
 	verifyTestPlanFail(t, sql)
 	sql = "select id, count(sum) from test1 group by id, name order by id limit 2;"
 	verifyTestPlanFail(t, sql)
+}
+
+func TestMakeHaveLogicPlan(t *testing.T) {
+	initTestStorage(t)
+	var sql string
+	sql = "select id from test1 having id > 0;"
+	verifyTestPlan(t, sql)
+	sql = "select id from test1 group by id having id > 0;"
+	verifyTestPlan(t, sql)
+	sql = "select id from test1 where id > 0 having id < 0;"
+	verifyTestPlan(t, sql)
 }
 
 func TestMakeLimitLogicPlan(t *testing.T) {
