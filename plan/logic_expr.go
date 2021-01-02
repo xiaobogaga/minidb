@@ -1687,7 +1687,21 @@ func (call *FuncCallLogicExpr) TypeCheck() error {
 		}
 		paramFields[i] = param.toField()
 	}
-	return f.TypeCheck()
+	err := f.TypeCheck()
+	if err != nil {
+		return err
+	}
+	// Now we check valid group by.
+	// It will fail in select sum(sum(id)) from test;
+	if !f.IsAggrFunc() {
+		return nil
+	}
+	for _, param := range call.Params {
+		if param.HasGroupFunc() {
+			return errors.New("invalid use of group function")
+		}
+	}
+	return nil
 }
 
 func (call *FuncCallLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {

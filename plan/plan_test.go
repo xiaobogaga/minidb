@@ -138,6 +138,8 @@ func TestMakeOrderByLogicPlan(t *testing.T) {
 	verifyTestPlan(t, sql)
 	sql = "select id, sum(id) from test1 order by id desc, name asc;"
 	verifyTestPlan(t, sql)
+	sql = "select sum(id) from test1 order by id;"
+	verifyTestPlan(t, sql)
 	sql = "select id from test1 order by id desc, col asc;"
 	verifyTestPlanFail(t, sql)
 	sql = "select id from test1 order by col asc, id asc;"
@@ -223,5 +225,22 @@ func TestMakeLimitLogicPlan(t *testing.T) {
 	sql = "select * from test1 limit 5 offset -2;"
 	verifyTestPlanFail(t, sql)
 	sql = "select * from test1 limit -5 offset 2;"
+	verifyTestPlanFail(t, sql)
+}
+
+func TestFuncPlan(t *testing.T) {
+	initTestStorage(t)
+	var sql string
+	sql = "select * from test1 where max(id) > 0;"
+	verifyTestPlanFail(t, sql)
+	sql = "select id from test1 where max(id) > 0;"
+	verifyTestPlanFail(t, sql)
+	sql = "select id from test1 having max(id) > 0;"
+	verifyTestPlanFail(t, sql)
+	sql = "select id from test1 where max(id) > 0 group by id;"
+	verifyTestPlanFail(t, sql)
+	sql = "select id from test1 where id > 0 group by id having max(id) > 0;"
+	verifyTestPlan(t, sql)
+	sql = "select id from test1 where id > 0 group by id having max(max(id)) > 0;"
 	verifyTestPlanFail(t, sql)
 }

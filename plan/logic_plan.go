@@ -239,7 +239,7 @@ func (sel *SelectionLogicPlan) TypeCheck() error {
 	if err != nil {
 		return err
 	}
-	// Note:
+	// Note: doesn't allow group by in where clause.
 	if sel.Expr.HasGroupFunc() {
 		return errors.New("invalid use of group function")
 	}
@@ -410,6 +410,16 @@ func (proj *ProjectionLogicPlan) TypeCheck() error {
 		if err != nil {
 			return err
 		}
+	}
+	// For full group by type check.
+	hasGroupBy, nonGroupBy := false, false
+	for _, expr := range proj.Exprs {
+		temp := expr.HasGroupFunc()
+		hasGroupBy = temp
+		nonGroupBy = !temp
+	}
+	if hasGroupBy && nonGroupBy {
+		return errors.New("doesn't mix groupBy and nonGroupBy expressions")
 	}
 	return nil
 }
