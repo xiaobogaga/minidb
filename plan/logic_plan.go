@@ -371,6 +371,7 @@ func (orderBy *OrderByLogicPlan) Reset() {
 type ProjectionLogicPlan struct {
 	Input LogicPlan     `json:"projection_input"`
 	Exprs []AsLogicExpr `json:"exprs"`
+	// ret   *storage.RecordBatch
 }
 
 // We don't support alias for now.
@@ -425,6 +426,9 @@ func (proj *ProjectionLogicPlan) TypeCheck() error {
 }
 
 func (proj *ProjectionLogicPlan) Execute() *storage.RecordBatch {
+	if proj.IsAggr() {
+		return proj.ExecuteAccumulate()
+	}
 	records := proj.Input.Execute()
 	if records == nil {
 		return nil
@@ -444,8 +448,40 @@ func (proj *ProjectionLogicPlan) Execute() *storage.RecordBatch {
 	return ret
 }
 
+// For query like: select sum(id) from test1;
+func (proj *ProjectionLogicPlan) ExecuteAccumulate() (ret *storage.RecordBatch) {
+	records := proj.Input.Execute()
+	if records == nil {
+		return nil
+	}
+	for records != nil {
+		for i := 0; i < records.RowCount(); i++ {
+			for _, expr := range proj.Exprs {
+				expr.Accumulate(i, records)
+			}
+		}
+		records = proj.Input.Execute()
+	}
+	ret = MakeEmptyRecordBatchFromSchema(proj.Schema())
+	ret.Records[0].Append(storage.EncodeInt(0))
+	for i, expr := range proj.Exprs {
+		value := expr.AccumulateValue()
+		ret.Records[i+1].Append(value)
+	}
+	return ret
+}
+
 func (proj *ProjectionLogicPlan) Reset() {
 	proj.Input.Reset()
+}
+
+func (proj *ProjectionLogicPlan) IsAggr() bool {
+	for _, expr := range proj.Exprs {
+		if expr.HasGroupFunc() {
+			return true
+		}
+	}
+	return false
 }
 
 type LimitLogicPlan struct {

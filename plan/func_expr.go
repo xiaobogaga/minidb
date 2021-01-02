@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"minidb/storage"
@@ -82,7 +83,17 @@ func (charLengthFunc CharLengthFunc) IsAggrFunc() bool {
 }
 
 func (charLengthFunc CharLengthFunc) String() string {
-	return fmt.Sprintf("%s", charLengthFunc.Name)
+	bf := bytes.Buffer{}
+	bf.WriteString(charLengthFunc.Name)
+	bf.WriteString("(")
+	for i, param := range charLengthFunc.Params {
+		bf.WriteString(param.String())
+		if i != len(charLengthFunc.Params)-1 {
+			bf.WriteString(", ")
+		}
+	}
+	bf.WriteString(")")
+	return bf.String()
 }
 
 func (charLengthFunc CharLengthFunc) F() funcInterface {
@@ -135,7 +146,17 @@ func (max *MaxFunc) IsAggrFunc() bool {
 }
 
 func (max *MaxFunc) String() string {
-	return fmt.Sprintf("MAX")
+	bf := bytes.Buffer{}
+	bf.WriteString(max.Name)
+	bf.WriteString("(")
+	for i, param := range max.Params {
+		bf.WriteString(param.String())
+		if i != len(max.Params)-1 {
+			bf.WriteString(", ")
+		}
+	}
+	bf.WriteString(")")
+	return bf.String()
 }
 
 type MinFunc struct {
@@ -182,7 +203,17 @@ func (min *MinFunc) IsAggrFunc() bool {
 }
 
 func (min *MinFunc) String() string {
-	return fmt.Sprintf("MIN")
+	bf := bytes.Buffer{}
+	bf.WriteString(min.Name)
+	bf.WriteString("(")
+	for i, param := range min.Params {
+		bf.WriteString(param.String())
+		if i != len(min.Params)-1 {
+			bf.WriteString(", ")
+		}
+	}
+	bf.WriteString(")")
+	return bf.String()
 }
 
 type CountFunc struct {
@@ -228,7 +259,17 @@ func (count *CountFunc) IsAggrFunc() bool {
 }
 
 func (count *CountFunc) String() string {
-	return fmt.Sprintf("COUNT")
+	bf := bytes.Buffer{}
+	bf.WriteString(count.Name)
+	bf.WriteString("(")
+	for i, param := range count.Params {
+		bf.WriteString(param.String())
+		if i != len(count.Params)-1 {
+			bf.WriteString(", ")
+		}
+	}
+	bf.WriteString(")")
+	return bf.String()
 }
 
 type SumFunc struct {
@@ -278,5 +319,15 @@ func (sum *SumFunc) IsAggrFunc() bool {
 }
 
 func (sum *SumFunc) String() string {
-	return fmt.Sprintf("SUM")
+	bf := bytes.Buffer{}
+	bf.WriteString(sum.Name)
+	bf.WriteString("(")
+	for i, param := range sum.Params {
+		bf.WriteString(param.String())
+		if i != len(sum.Params)-1 {
+			bf.WriteString(", ")
+		}
+	}
+	bf.WriteString(")")
+	return bf.String()
 }
