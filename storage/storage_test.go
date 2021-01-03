@@ -299,6 +299,7 @@ func TestField_CanAssign(t *testing.T) {
 	assert.Nil(t, field.CanAssign([]byte("2020-10-11 10:15:11")))
 	field.TP = FieldTP{Name: Date}
 	assert.Nil(t, field.CanAssign([]byte("2020-10-11")))
+	assert.Nil(t, field.CanAssign([]byte("0003-10-11")))
 	field.TP = FieldTP{Name: Time}
 	assert.Nil(t, field.CanAssign([]byte("10:15:11")))
 	// Several fail test.
@@ -306,6 +307,7 @@ func TestField_CanAssign(t *testing.T) {
 	assert.NotNil(t, field.CanAssign([]byte("2020-10-11 10:15:11x")))
 	field.TP = FieldTP{Name: Date}
 	assert.NotNil(t, field.CanAssign([]byte("2020-10-11x")))
+	assert.NotNil(t, field.CanAssign([]byte("3-10-11x")))
 	field.TP = FieldTP{Name: Time}
 	assert.NotNil(t, field.CanAssign([]byte("10:15:11x")))
 }

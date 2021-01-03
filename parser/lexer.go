@@ -491,7 +491,7 @@ func (l *Lexer) readWord() error {
 	// We will try to read word.word.word pattern
 	startPos := l.pos
 	word := wordPattern.FindString(string(l.Data[startPos:]))
-	if len(word) < 0 {
+	if len(word) <= 0 {
 		return l.MakeLexerError(1, startPos)
 	}
 	l.pos += len(word)
@@ -517,7 +517,7 @@ func (l *Lexer) readWord() error {
 		}
 		nextWordPattern := l.pos
 		word := wordPattern.FindString(string(l.Data[nextWordPattern:]))
-		if len(word) < 0 {
+		if len(word) <= 0 {
 			return l.MakeLexerError(1, nextWordPattern)
 		}
 		l.pos += len(word)
@@ -540,7 +540,7 @@ func (l *Lexer) readIdent() error {
 	l.pos++
 	startPos := l.pos
 	ident := identPattern.FindString(string(l.Data[startPos:]))
-	if len(ident) == 0 {
+	if len(ident) <= 0 {
 		return l.MakeLexerError(1, startPos)
 	}
 	l.pos += len(ident)
@@ -568,6 +568,9 @@ var numericValuePattern = regexp.MustCompile("^[0-9]*\\.?[0-9]*")
 func (l *Lexer) readNumeric() error {
 	startPos := l.pos
 	value := numericValuePattern.FindString(string(l.Data[startPos:]))
+	if len(value) <= 0 {
+		return l.MakeLexerError(1, startPos)
+	}
 	l.pos += len(value)
 	l.Tokens = append(l.Tokens, Token{Tp: VALUE, StartPos: startPos, EndPos: l.pos})
 	return nil

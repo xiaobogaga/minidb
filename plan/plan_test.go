@@ -1,9 +1,11 @@
 package plan
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"math"
 	"math/rand"
 	"minidb/parser"
 	"testing"
@@ -12,18 +14,223 @@ import (
 
 var testDataSize = 4
 
-func initTestStorage(t *testing.T) {
+func generateFloat(random *rand.Rand, max int64) string {
+	v := float64(max) * (random.Float64() / random.Float64())
+	if v >= float64(max) {
+		v = float64(max) - v
+	}
+	return fmt.Sprintf("%f", v)
+}
+
+func generateBool(random *rand.Rand) string {
+	i := random.Int()
+	if i%2 == 0 {
+		return "true"
+	}
+	return "false"
+}
+
+func generateInt(random *rand.Rand) string {
+	return fmt.Sprintf("%d", random.Int())
+}
+
+var testCharPrefix = "c"
+
+func generateChar(random *rand.Rand, size int) string {
+	bf := bytes.Buffer{}
+	bf.WriteString(testCharPrefix)
+	size = random.Intn(size)
+	for i := 1; i < size; i++ {
+		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+	}
+	return bf.String()
+}
+
+var testVarcharPrefix = "v"
+
+func generateVarchar(random *rand.Rand, size int) string {
+	bf := bytes.Buffer{}
+	bf.WriteString(testVarcharPrefix)
+	size = random.Intn(size)
+	for i := 1; i < size; i++ {
+		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+	}
+	return bf.String()
+}
+
+var testTextPrefix = "t"
+
+func generateText(random *rand.Rand, size int) string {
+	bf := bytes.Buffer{}
+	bf.WriteString(testTextPrefix)
+	size = random.Intn(size)
+	for i := 1; i < size; i++ {
+		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+	}
+	return bf.String()
+}
+
+var testBlobPrefix = "b"
+
+func generateBlob(random *rand.Rand, size int) string {
+	bf := bytes.Buffer{}
+	bf.WriteString(testBlobPrefix)
+	size = random.Intn(size)
+	for i := 1; i < size; i++ {
+		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+	}
+	return bf.String()
+}
+
+func generateDate(random *rand.Rand) string {
+	year := random.Intn(2020)
+	month := random.Intn(12)
+	day := random.Intn(30)
+	return fmt.Sprintf("%04d-%02d-%02d", year, month, day)
+}
+
+func generateTime(random *rand.Rand) string {
+	hour := random.Intn(24)
+	minute := random.Intn(60)
+	second := random.Intn(60)
+	return fmt.Sprintf("%02d-%02d-%02d", hour, minute, second)
+}
+
+func generateDateTime(random *rand.Rand) string {
+	date := generateDate(random)
+	time := generateTime(random)
+	return fmt.Sprintf("%s %s", date, time)
+}
+
+func generateInsertSql(row int, random *rand.Rand, table string) string {
+	colSize := 18
+	cols := make([]string, colSize)
+	cols[0] = fmt.Sprintf("%d", row)
+	cols[1] = generateVarchar(random, 20)
+	cols[2] = generateFloat(random, 100)
+	cols[3] = generateVarchar(random, 20)
+	cols[4] = generateBool(random)
+	cols[5] = generateInt(random)
+	cols[6] = generateFloat(random, math.MaxInt64)
+	cols[7] = generateBool(random)
+	cols[8] = generateChar(random, 1)
+	cols[9] = generateChar(random, 20)
+	cols[10] = generateVarchar(random, 20)
+	cols[11] = generateDate(random)
+	cols[12] = generateTime(random)
+	cols[13] = generateDateTime(random)
+	cols[14] = generateText(random, 100)
+	cols[15] = generateText(random, 100)
+	cols[16] = generateBlob(random, 100)
+	cols[17] = generateBlob(random, 100)
+	bf := bytes.Buffer{}
+	bf.WriteString(fmt.Sprintf("insert into %s values(", table))
+	for i := 0; i < colSize; i++ {
+		if i != colSize-1 {
+			bf.WriteString(fmt.Sprintf("%s, ", cols[i]))
+		} else {
+			bf.WriteString(cols[i])
+		}
+	}
+	bf.WriteString(")")
+	return bf.String()
+}
+
+func generateInsert(t *testing.T, row int, random *rand.Rand, currentDB *string, table string) {
 	parser := parser.NewParser()
+	sql := generateInsertSql(row, random, table)
+	stm, err := parser.Parse([]byte(sql))
+	assert.Nil(t, err)
+	exec, err := MakeExecutor(stm, currentDB)
+	assert.Nil(t, err)
+	_, err = exec.Exec()
+	assert.Nil(t, err)
+}
+
+func initTestStorage(t *testing.T) {
 	sqls := []string{
 		"create database db1;",
 		"use db1;",
-		"create table test1(id int primary key, name varchar(20), age float, location varchar(20), loc1 int);",
-		"create table test2(id int primary key, name varchar(20), age float, location varchar(20), loc2 int);",
+		"create table test1(" +
+			"id int primary key, " +
+			"name varchar(20), " +
+			"age float, " +
+			"location varchar(20), " +
+			"sex bool, " +
+			"c1 int(10), " +
+			"c2 float(10, 2), " +
+			"c3 bool, " +
+			"c4 char, " +
+			"c5 char(20), " +
+			"c6 varchar(20), " +
+			"c7 date, " +
+			"c8 time, " +
+			"c9 datetime, " +
+			"c10 text, " +
+			"c11 mediumtext, " +
+			"c12 blob, " +
+			"c13 mediumblob);",
+		"create table test2(" +
+			"id int primary key, " +
+			"name varchar(20), " +
+			"age float, " +
+			"location varchar(20), " +
+			"sex bool, " +
+			"c1 int(10), " +
+			"c2 float(10, 2), " +
+			"c3 bool, " +
+			"c4 char, " +
+			"c5 char(20), " +
+			"c6 varchar(20), " +
+			"c7 date, " +
+			"c8 time, " +
+			"c9 datetime, " +
+			"c10 text, " +
+			"c11 mediumtext, " +
+			"c12 blob, " +
+			"c13 mediumblob);",
 		"create database db2;",
 		"use db2;",
-		"create table test1(id int primary key, name varchar(20), age float, location varchar(20), loc1 int);",
-		"create table test2(id int primary key, name varchar(20), age float, location varchar(20), loc2 int);",
+		"create table test1(" +
+			"id int primary key, " +
+			"name varchar(20), " +
+			"age float, " +
+			"location varchar(20), " +
+			"sex bool, " +
+			"c1 int(10), " +
+			"c2 float(10, 2), " +
+			"c3 bool, " +
+			"c4 char, " +
+			"c5 char(20), " +
+			"c6 varchar(20), " +
+			"c7 date, " +
+			"c8 time, " +
+			"c9 datetime, " +
+			"c10 text, " +
+			"c11 mediumtext, " +
+			"c12 blob, " +
+			"c13 mediumblob);",
+		"create table test2(" +
+			"id int primary key, " +
+			"name varchar(20), " +
+			"age float, " +
+			"location varchar(20), " +
+			"sex bool, " +
+			"c1 int(10), " +
+			"c2 float(10, 2), " +
+			"c3 bool, " +
+			"c4 char, " +
+			"c5 char(20), " +
+			"c6 varchar(20), " +
+			"c7 date, " +
+			"c8 time, " +
+			"c9 datetime, " +
+			"c10 text, " +
+			"c11 mediumtext, " +
+			"c12 blob, " +
+			"c13 mediumblob);",
 	}
+	parser := parser.NewParser()
 	currentDB := ""
 	for _, sql := range sqls {
 		stm, err := parser.Parse([]byte(sql))
@@ -37,38 +244,14 @@ func initTestStorage(t *testing.T) {
 	currentDB = "db1"
 	// insert some data to db1 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
-		stm, err := parser.Parse([]byte(sql))
-		assert.Nil(t, err)
-		exec, err := MakeExecutor(stm, &currentDB)
-		assert.Nil(t, err)
-		_, err = exec.Exec()
-		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
-		stm, err = parser.Parse([]byte(sql))
-		assert.Nil(t, err)
-		exec, err = MakeExecutor(stm, &currentDB)
-		assert.Nil(t, err)
-		_, err = exec.Exec()
-		assert.Nil(t, err)
+		generateInsert(t, i, random, &currentDB, "test1")
+		generateInsert(t, i, random, &currentDB, "test2")
 	}
 	currentDB = "db2"
 	// insert some data to db2 tables.
 	for i := 0; i < testDataSize; i++ {
-		sql := fmt.Sprintf("insert into test1 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
-		stm, err := parser.Parse([]byte(sql))
-		assert.Nil(t, err)
-		exec, err := MakeExecutor(stm, &currentDB)
-		assert.Nil(t, err)
-		_, err = exec.Exec()
-		assert.Nil(t, err)
-		sql = fmt.Sprintf("insert into test2 values(%d, '%d.%d', %d.1, '%d', 0);", i, random.Int31n(1000), i, testDataSize-(i*int(random.Int31n(10))), i%2)
-		stm, err = parser.Parse([]byte(sql))
-		assert.Nil(t, err)
-		exec, err = MakeExecutor(stm, &currentDB)
-		assert.Nil(t, err)
-		_, err = exec.Exec()
-		assert.Nil(t, err)
+		generateInsert(t, i, random, &currentDB, "test1")
+		generateInsert(t, i, random, &currentDB, "test2")
 	}
 }
 
