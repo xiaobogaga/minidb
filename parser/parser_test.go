@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -17,8 +18,12 @@ func testSqls(t *testing.T, sqls []testEntity) {
 		stm, err := parser.Parse([]byte(sql.sql))
 		assert.Nil(t, err, sql)
 		assert.Equal(t, sql.stm, stm, sql)
-		data, _ := json.MarshalIndent(stm, "", "\t")
-		println(string(data))
+		buf := bytes.Buffer{}
+		encoder := json.NewEncoder(&buf)
+		encoder.SetEscapeHTML(false)
+		encoder.SetIndent("", "\t")
+		encoder.Encode(stm)
+		//println(buf.String())
 	}
 }
 
@@ -647,21 +652,25 @@ func TestJoin(t *testing.T) {
 					{
 						Tp: TableReferenceJoinTableTp,
 						TableReference: JoinedTableStm{
-							TableReference: TableReferenceTableFactorStm{
+							TableFactor: TableReferenceTableFactorStm{
 								Tp:                   TableReferencePureTableNameTp,
 								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
 							},
-							JoinTp: InnerJoin,
-							JoinedTableReference: TableReferenceStm{
-								Tp: TableReferenceTableFactorTp,
-								TableReference: TableReferenceTableFactorStm{
-									Tp: TableReferencePureTableNameTp,
-									TableFactorReference: TableReferencePureTableRefStm{
-										TableName: "test2",
+							JoinFactors: []JoinFactor{
+								{
+									JoinTp: InnerJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test2",
+											},
+										},
 									},
+									JoinSpec: nil,
 								},
 							},
-							JoinSpec: nil,
 						},
 					},
 				},
@@ -681,31 +690,35 @@ func TestJoin(t *testing.T) {
 					{
 						Tp: TableReferenceJoinTableTp,
 						TableReference: JoinedTableStm{
-							TableReference: TableReferenceTableFactorStm{
+							TableFactor: TableReferenceTableFactorStm{
 								Tp:                   TableReferencePureTableNameTp,
 								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
 							},
-							JoinTp: InnerJoin,
-							JoinedTableReference: TableReferenceStm{
-								Tp: TableReferenceTableFactorTp,
-								TableReference: TableReferenceTableFactorStm{
-									Tp: TableReferencePureTableNameTp,
-									TableFactorReference: TableReferencePureTableRefStm{
-										TableName: "test2",
+							JoinFactors: []JoinFactor{
+								{
+									JoinTp: InnerJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test2",
+											},
+										},
 									},
-								},
-							},
-							JoinSpec: &JoinSpecification{
-								Tp: JoinSpecificationON,
-								Condition: &ExpressionStm{
-									LeftExpr: &ExpressionTerm{
-										Tp:           IdentifierExpressionTermTP,
-										RealExprTerm: IdentifierExpression(ColumnValue("id")),
-									},
-									Op: OperationEqual,
-									RightExpr: &ExpressionTerm{
-										Tp:           IdentifierExpressionTermTP,
-										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									JoinSpec: &JoinSpecification{
+										Tp: JoinSpecificationON,
+										Condition: &ExpressionStm{
+											LeftExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("id")),
+											},
+											Op: OperationEqual,
+											RightExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("id")),
+											},
+										},
 									},
 								},
 							},
@@ -728,31 +741,35 @@ func TestJoin(t *testing.T) {
 					{
 						Tp: TableReferenceJoinTableTp,
 						TableReference: JoinedTableStm{
-							TableReference: TableReferenceTableFactorStm{
+							TableFactor: TableReferenceTableFactorStm{
 								Tp:                   TableReferencePureTableNameTp,
 								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
 							},
-							JoinTp: LeftOuterJoin,
-							JoinedTableReference: TableReferenceStm{
-								Tp: TableReferenceTableFactorTp,
-								TableReference: TableReferenceTableFactorStm{
-									Tp: TableReferencePureTableNameTp,
-									TableFactorReference: TableReferencePureTableRefStm{
-										TableName: "test2",
+							JoinFactors: []JoinFactor{
+								{
+									JoinTp: LeftOuterJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test2",
+											},
+										},
 									},
-								},
-							},
-							JoinSpec: &JoinSpecification{
-								Tp: JoinSpecificationON,
-								Condition: &ExpressionStm{
-									LeftExpr: &ExpressionTerm{
-										Tp:           IdentifierExpressionTermTP,
-										RealExprTerm: IdentifierExpression(ColumnValue("id")),
-									},
-									Op: OperationEqual,
-									RightExpr: &ExpressionTerm{
-										Tp:           IdentifierExpressionTermTP,
-										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									JoinSpec: &JoinSpecification{
+										Tp: JoinSpecificationON,
+										Condition: &ExpressionStm{
+											LeftExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("id")),
+											},
+											Op: OperationEqual,
+											RightExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("id")),
+											},
+										},
 									},
 								},
 							},
@@ -775,31 +792,35 @@ func TestJoin(t *testing.T) {
 					{
 						Tp: TableReferenceJoinTableTp,
 						TableReference: JoinedTableStm{
-							TableReference: TableReferenceTableFactorStm{
+							TableFactor: TableReferenceTableFactorStm{
 								Tp:                   TableReferencePureTableNameTp,
 								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
 							},
-							JoinTp: RightOuterJoin,
-							JoinedTableReference: TableReferenceStm{
-								Tp: TableReferenceTableFactorTp,
-								TableReference: TableReferenceTableFactorStm{
-									Tp: TableReferencePureTableNameTp,
-									TableFactorReference: TableReferencePureTableRefStm{
-										TableName: "test2",
+							JoinFactors: []JoinFactor{
+								{
+									JoinTp: RightOuterJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test2",
+											},
+										},
 									},
-								},
-							},
-							JoinSpec: &JoinSpecification{
-								Tp: JoinSpecificationON,
-								Condition: &ExpressionStm{
-									LeftExpr: &ExpressionTerm{
-										Tp:           IdentifierExpressionTermTP,
-										RealExprTerm: IdentifierExpression(ColumnValue("id")),
-									},
-									Op: OperationEqual,
-									RightExpr: &ExpressionTerm{
-										Tp:           IdentifierExpressionTermTP,
-										RealExprTerm: IdentifierExpression(ColumnValue("id")),
+									JoinSpec: &JoinSpecification{
+										Tp: JoinSpecificationON,
+										Condition: &ExpressionStm{
+											LeftExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("id")),
+											},
+											Op: OperationEqual,
+											RightExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("id")),
+											},
+										},
 									},
 								},
 							},
@@ -822,23 +843,27 @@ func TestJoin(t *testing.T) {
 					{
 						Tp: TableReferenceJoinTableTp,
 						TableReference: JoinedTableStm{
-							TableReference: TableReferenceTableFactorStm{
+							TableFactor: TableReferenceTableFactorStm{
 								Tp:                   TableReferencePureTableNameTp,
 								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
 							},
-							JoinTp: RightOuterJoin,
-							JoinedTableReference: TableReferenceStm{
-								Tp: TableReferenceTableFactorTp,
-								TableReference: TableReferenceTableFactorStm{
-									Tp: TableReferencePureTableNameTp,
-									TableFactorReference: TableReferencePureTableRefStm{
-										TableName: "test2",
+							JoinFactors: []JoinFactor{
+								{
+									JoinTp: RightOuterJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test2",
+											},
+										},
+									},
+									JoinSpec: &JoinSpecification{
+										Tp:        JoinSpecificationUsing,
+										Condition: []string{"id", "id2"},
 									},
 								},
-							},
-							JoinSpec: &JoinSpecification{
-								Tp:        JoinSpecificationUsing,
-								Condition: []string{"id", "id2"},
 							},
 						},
 					},
@@ -859,23 +884,27 @@ func TestJoin(t *testing.T) {
 					{
 						Tp: TableReferenceJoinTableTp,
 						TableReference: JoinedTableStm{
-							TableReference: TableReferenceTableFactorStm{
+							TableFactor: TableReferenceTableFactorStm{
 								Tp:                   TableReferencePureTableNameTp,
 								TableFactorReference: TableReferencePureTableRefStm{TableName: "test1"},
 							},
-							JoinTp: InnerJoin,
-							JoinedTableReference: TableReferenceStm{
-								Tp: TableReferenceTableFactorTp,
-								TableReference: TableReferenceTableFactorStm{
-									Tp: TableReferencePureTableNameTp,
-									TableFactorReference: TableReferencePureTableRefStm{
-										TableName: "test2",
+							JoinFactors: []JoinFactor{
+								{
+									JoinTp: InnerJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test2",
+											},
+										},
+									},
+									JoinSpec: &JoinSpecification{
+										Tp:        JoinSpecificationUsing,
+										Condition: []string{"id", "id2"},
 									},
 								},
-							},
-							JoinSpec: &JoinSpecification{
-								Tp:        JoinSpecificationUsing,
-								Condition: []string{"id", "id2"},
 							},
 						},
 					},
@@ -1037,6 +1066,153 @@ func TestParser_ParseGroupByStm(t *testing.T) {
 				LimitStm: &LimitStm{
 					Count: 10,
 				},
+			},
+		},
+	}
+	testSqls(t, sqls)
+}
+
+func TestParser_MultipleJoin(t *testing.T) {
+	sqls := []testEntity{
+		{
+			sql: "select test1.id, test2.id, test3.id from test1 left join test2 on test1.id=test2.id right join test3 using (id) " +
+				"inner join test4 where id > 0 group by id order by id limit 1;",
+			stm: &SelectStm{
+				Tp: SelectAllTp,
+				SelectExpressions: &SelectExpressionStm{
+					Tp: ExprSelectExpressionTp,
+					Expr: []*SelectExpr{
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("test1.id")),
+								},
+							},
+						},
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("test2.id")),
+								},
+							},
+						},
+						{
+							Expr: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									UnaryOp:      NoneUnaryOpTp,
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression([]byte("test3.id")),
+								},
+							},
+						},
+					},
+				},
+				TableReferences: []TableReferenceStm{
+					{
+						Tp: TableReferenceJoinTableTp,
+						TableReference: JoinedTableStm{
+							TableFactor: TableReferenceTableFactorStm{
+								Tp: TableReferencePureTableNameTp,
+								TableFactorReference: TableReferencePureTableRefStm{
+									TableName: "test1",
+								},
+							},
+							JoinFactors: []JoinFactor{
+								{
+									JoinTp: LeftOuterJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test2",
+											},
+										},
+									},
+									JoinSpec: &JoinSpecification{
+										Tp: JoinSpecificationON,
+										Condition: WhereStm(&ExpressionStm{
+											LeftExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("test1.id")),
+											},
+											Op: OperationEqual,
+											RightExpr: &ExpressionTerm{
+												Tp:           IdentifierExpressionTermTP,
+												RealExprTerm: IdentifierExpression(ColumnValue("test2.id")),
+											},
+										}),
+									},
+								},
+								{
+									JoinTp: RightOuterJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test3",
+											},
+										},
+									},
+									JoinSpec: &JoinSpecification{
+										Tp:        JoinSpecificationUsing,
+										Condition: []string{"id"},
+									},
+								},
+								{
+									JoinTp: InnerJoin,
+									JoinedTableReference: TableReferenceStm{
+										Tp: TableReferenceTableFactorTp,
+										TableReference: TableReferenceTableFactorStm{
+											Tp: TableReferencePureTableNameTp,
+											TableFactorReference: TableReferencePureTableRefStm{
+												TableName: "test4",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Where: &ExpressionStm{
+					LeftExpr: &ExpressionTerm{
+						Tp:           IdentifierExpressionTermTP,
+						RealExprTerm: IdentifierExpression(ColumnValue("id")),
+					},
+					Op: OperationGreat,
+					RightExpr: &ExpressionTerm{
+						Tp:           LiteralExpressionTermTP,
+						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("0"))),
+					},
+				},
+				Groupby: &GroupByStm{
+					{
+						LeftExpr: &ExpressionTerm{
+							Tp:           IdentifierExpressionTermTP,
+							RealExprTerm: IdentifierExpression(ColumnValue("id")),
+						},
+					},
+				},
+				OrderBy: &OrderByStm{
+					Expressions: []*OrderedExpressionStm{
+						{
+							Expression: &ExpressionStm{
+								LeftExpr: &ExpressionTerm{
+									Tp:           IdentifierExpressionTermTP,
+									RealExprTerm: IdentifierExpression(ColumnValue("id")),
+								},
+							},
+							Asc: true,
+						},
+					},
+				},
+				LimitStm: &LimitStm{Count: 1},
 			},
 		},
 	}

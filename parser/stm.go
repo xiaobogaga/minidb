@@ -435,7 +435,11 @@ type TableReferencePureTableRefStm struct {
 // on where_condition | using (col...)
 
 type JoinedTableStm struct {
-	TableReference       TableReferenceTableFactorStm
+	TableFactor TableReferenceTableFactorStm
+	JoinFactors []JoinFactor
+}
+
+type JoinFactor struct {
 	JoinTp               JoinType
 	JoinedTableReference TableReferenceStm
 	JoinSpec             *JoinSpecification

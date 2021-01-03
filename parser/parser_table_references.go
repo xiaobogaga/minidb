@@ -40,12 +40,9 @@ func (parser *Parser) parseTableReferenceStm() (stm TableReferenceStm, err error
 	// Also need to check join type, because maybe a joined_table reference.
 	token, ok = parser.NextToken()
 	switch token.Tp {
-	case LEFT:
-		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, LeftOuterJoin)
-	case RIGHT:
-		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, RightOuterJoin)
-	case INNER, JOIN:
-		stm, err = parser.parseInnerJoinStm(tableFactorStm, token.Tp == INNER)
+	case LEFT, RIGHT, INNER, JOIN:
+		parser.UnReadToken()
+		stm, err = parser.ParseJoinStm(tableFactorStm)
 	default:
 		// If not, unread this token.
 		parser.UnReadToken()
@@ -55,22 +52,8 @@ func (parser *Parser) parseTableReferenceStm() (stm TableReferenceStm, err error
 		}
 		return stm, err
 	}
-	// We keep processing the possible remaining join.
-	// Todo: support multiple join.
-	//for {
-	//	token, ok = parser.NextToken()
-	//	switch token.Tp {
-	//	case LEFT:
-	//		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, LeftOuterJoin)
-	//	case RIGHT:
-	//		stm, err = parser.parseLeftRightOuterJoinStm(tableFactorStm, RightOuterJoin)
-	//	case INNER, JOIN:
-	//		stm, err = parser.parseInnerJoinStm(tableFactorStm, token.Tp == INNER)
-	//	default:
-	//		return
-	//	}
-	//}
 	return
+
 }
 
 func (parser *Parser) parseSubTableRefOrTableSubQuery() (stm TableReferenceTableFactorStm, err error) {
@@ -164,61 +147,14 @@ func (parser *Parser) parseTableSubQuery() (TableReferenceTableFactorStm, error)
 	}, nil
 }
 
-func (parser *Parser) parseLeftRightOuterJoinStm(tableRef TableReferenceTableFactorStm, leftOrRight JoinType) (TableReferenceStm, error) {
-	parser.matchTokenTypes(true, OUTER)
-	if !parser.matchTokenTypes(false, JOIN) {
-		return emptyTableRefStm, parser.MakeSyntaxError(parser.pos - 1)
-	}
-	joinedTableRef, err := parser.parseTableReferenceStm()
-	if err != nil {
-		return emptyTableRefStm, err
-	}
-	joinSpec, err := parser.parseJoinSpecification()
-	if err != nil {
-		return emptyTableRefStm, err
-	}
-	return TableReferenceStm{
-		Tp: TableReferenceJoinTableTp,
-		TableReference: JoinedTableStm{
-			TableReference:       tableRef,
-			JoinTp:               leftOrRight,
-			JoinedTableReference: joinedTableRef,
-			JoinSpec:             joinSpec,
-		},
-	}, nil
-}
-
-func (parser *Parser) parseInnerJoinStm(tableRef TableReferenceTableFactorStm, isImplicitInner bool) (TableReferenceStm, error) {
-	if isImplicitInner && !parser.matchTokenTypes(false, JOIN) {
-		return emptyTableRefStm, parser.MakeSyntaxError(parser.pos - 1)
-	}
-	joinedTableRef, err := parser.parseTableReferenceStm()
-	if err != nil {
-		return emptyTableRefStm, err
-	}
-	var joinSpec *JoinSpecification
-	if parser.matchTokenTypes(true, ON) || parser.matchTokenTypes(true, USING) {
-		parser.UnReadToken()
-		joinSpec, err = parser.parseJoinSpecification()
-		if err != nil {
-			return emptyTableRefStm, err
-		}
-	}
-	return TableReferenceStm{
-		Tp: TableReferenceJoinTableTp,
-		TableReference: JoinedTableStm{
-			TableReference:       tableRef,
-			JoinTp:               InnerJoin,
-			JoinedTableReference: joinedTableRef,
-			JoinSpec:             joinSpec,
-		},
-	}, nil
-}
-
-func (parser *Parser) parseJoinSpecification() (*JoinSpecification, error) {
+func (parser *Parser) parseJoinSpecification(joinType JoinType) (*JoinSpecification, error) {
+	// Note: for inner join, it's okay if it doesn't have join specification.
 	token, ok := parser.NextToken()
-	if !ok {
+	if !ok && joinType != InnerJoin {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
+	}
+	if !ok {
+		return nil, nil
 	}
 	switch token.Tp {
 	case ON:
@@ -226,7 +162,72 @@ func (parser *Parser) parseJoinSpecification() (*JoinSpecification, error) {
 		return parser.parseOnJoinSpec()
 	case USING:
 		return parser.parseUsingJoinSpec()
-	default:
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
+	if joinType == InnerJoin {
+		parser.UnReadToken()
+		return nil, nil
+	}
+	return nil, parser.MakeSyntaxError(parser.pos - 1)
+}
+
+func (parser *Parser) parseJoinType() (JoinType, error) {
+	if parser.matchTokenTypes(true, JOIN) || parser.matchTokenTypes(true, INNER, JOIN) {
+		return InnerJoin, nil
+	}
+	if parser.matchTokenTypes(true, LEFT, JOIN) || parser.matchTokenTypes(true, LEFT, OUTER, JOIN) {
+		return LeftOuterJoin, nil
+	}
+	if parser.matchTokenTypes(true, RIGHT, JOIN) || parser.matchTokenTypes(true, RIGHT, OUTER, JOIN) {
+		return RightOuterJoin, nil
+	}
+	return 0, parser.MakeSyntaxError(parser.pos)
+}
+
+func isJoinTypeToken(t Token) bool {
+	tp := t.Tp
+	return tp == LEFT || tp == RIGHT || tp == INNER || tp == JOIN
+}
+
+func (parser *Parser) ParseJoinFactors() (factors []JoinFactor, err error) {
+	for {
+		token, ok := parser.NextToken()
+		if !ok || !isJoinTypeToken(token) {
+			parser.UnReadToken()
+			break
+		}
+		parser.UnReadToken()
+		joinType, err := parser.parseJoinType()
+		if err != nil {
+			return nil, err
+		}
+		joinedTableRef, err := parser.parseTableReferenceStm()
+		if err != nil {
+			return nil, err
+		}
+		joinSpec, err := parser.parseJoinSpecification(joinType)
+		if err != nil {
+			return nil, err
+		}
+		joinFactor := JoinFactor{
+			JoinTp:               joinType,
+			JoinedTableReference: joinedTableRef,
+			JoinSpec:             joinSpec,
+		}
+		factors = append(factors, joinFactor)
+	}
+	return
+}
+
+func (parser *Parser) ParseJoinStm(tableRef TableReferenceTableFactorStm) (TableReferenceStm, error) {
+	joinFactos, err := parser.ParseJoinFactors()
+	if err != nil {
+		return emptyTableRefStm, err
+	}
+	return TableReferenceStm{
+		Tp: TableReferenceJoinTableTp,
+		TableReference: JoinedTableStm{
+			TableFactor: tableRef,
+			JoinFactors: joinFactos,
+		},
+	}, nil
 }

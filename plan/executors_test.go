@@ -287,6 +287,8 @@ func TestExecuteFuncCall(t *testing.T) {
 	testSelect(t, sql, 1, false)
 	sql = "select max(id), min(id), count(name) from test1;"
 	testSelect(t, sql, 1, false)
+	sql = "select max(id), min(id), count(name) from test1 where id > 0;"
+	testSelect(t, sql, 1, false)
 }
 
 func TestExecuteSelectWithLargeData(t *testing.T) {

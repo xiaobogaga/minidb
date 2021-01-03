@@ -132,22 +132,42 @@ func buildLogicExprForUsing(joinSpex *parser.JoinSpecification, input *JoinLogic
 	return
 }
 
+// Build join plan recursively.
 func makeScanLogicPlanForJoin(joinTableStm parser.JoinedTableStm, currentDB string) (LogicPlan, error) {
 	// a inorder traversal to build logic plan.
-	leftLogicPlan, err := makeScanLogicPlan(joinTableStm.TableReference, currentDB)
+	leftLogicPlan, err := makeScanLogicPlan(joinTableStm.TableFactor, currentDB)
 	if err != nil {
 		return nil, err
 	}
-	rightLogicPlan, err := buildLogicPlanForTableReferenceStm(joinTableStm.JoinedTableReference, currentDB)
+	rightLogicPlan, err := makeScanLogicPlan(joinTableStm.JoinFactors[0].JoinedTableReference.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
 	if err != nil {
 		return nil, err
 	}
-	joinPlan := NewJoinLogicPlan(leftLogicPlan, rightLogicPlan, joinTableStm.JoinTp)
-	if joinTableStm.JoinSpec == nil {
-		return joinPlan, nil
+	joinPlan := NewJoinLogicPlan(leftLogicPlan, rightLogicPlan, joinTableStm.JoinFactors[0].JoinTp)
+	expr := joinSpecToExpr(joinTableStm.JoinFactors[0].JoinSpec, joinPlan)
+	if expr == nil {
+		return buildRemainJoinPlan(joinPlan, joinTableStm.JoinFactors[1:], currentDB)
 	}
-	expr := joinSpecToExpr(joinTableStm.JoinSpec, joinPlan)
-	return &SelectionLogicPlan{Input: joinPlan, Expr: expr}, nil
+	plan := &SelectionLogicPlan{Input: joinPlan, Expr: expr}
+	return buildRemainJoinPlan(plan, joinTableStm.JoinFactors[1:], currentDB)
+}
+
+// Build logic plan for tableFactors[1:]
+func buildRemainJoinPlan(selectionPlan LogicPlan, tableFactors []parser.JoinFactor, currentDB string) (LogicPlan, error) {
+	if len(tableFactors) == 0 {
+		return selectionPlan, nil
+	}
+	rightLogicPlan, err := makeScanLogicPlan(tableFactors[0].JoinedTableReference.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
+	if err != nil {
+		return nil, err
+	}
+	joinPlan := NewJoinLogicPlan(selectionPlan, rightLogicPlan, tableFactors[0].JoinTp)
+	expr := joinSpecToExpr(tableFactors[0].JoinSpec, joinPlan)
+	if expr == nil {
+		return buildRemainJoinPlan(joinPlan, tableFactors[1:], currentDB)
+	}
+	plan := &SelectionLogicPlan{Input: joinPlan, Expr: expr}
+	return buildRemainJoinPlan(plan, tableFactors[1:], currentDB)
 }
 
 func buildLogicPlanForTableReferenceStm(tableRef parser.TableReferenceStm, currentDB string) (LogicPlan, error) {
