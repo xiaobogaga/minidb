@@ -172,6 +172,8 @@ func TestMakeJoinLogicPlan(t *testing.T) {
 	sql = "select id from test1 left join test2 on test1.id = test2.id left join db2.test1 on db2.test1.id = db1.test1.id;"
 	verifyTestPlanFail(t, sql)
 	sql = "select test1.id from test1 left join test2 on test1.id = test2.id left join db2.test1 on db2.test1.id = db1.test1.id;"
+	verifyTestPlanFail(t, sql)
+	sql = "select db1.test1.id from test1 left join test2 on test1.id = test2.id left join db2.test1 on db2.test1.id = db1.test1.id;"
 	verifyTestPlan(t, sql)
 }
 

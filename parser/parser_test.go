@@ -23,7 +23,7 @@ func testSqls(t *testing.T, sqls []testEntity) {
 		encoder.SetEscapeHTML(false)
 		encoder.SetIndent("", "\t")
 		encoder.Encode(stm)
-		//println(buf.String())
+		println(buf.String())
 	}
 }
 
@@ -935,8 +935,8 @@ func TestShowStm(t *testing.T) {
 func TestParser_ParseGroupByStm(t *testing.T) {
 	sqls := []testEntity{
 		{
-			sql: "select id from test group by id having id > 0;",
-			stm: &SelectStm{
+			"select id from test group by id having id > 0;",
+			&SelectStm{
 				Tp: SelectAllTp,
 				SelectExpressions: &SelectExpressionStm{
 					Tp: ExprSelectExpressionTp,
@@ -1072,152 +1072,151 @@ func TestParser_ParseGroupByStm(t *testing.T) {
 	testSqls(t, sqls)
 }
 
-func TestParser_MultipleJoin(t *testing.T) {
-	sqls := []testEntity{
-		{
-			sql: "select test1.id, test2.id, test3.id from test1 left join test2 on test1.id=test2.id right join test3 using (id) " +
-				"inner join test4 where id > 0 group by id order by id limit 1;",
-			stm: &SelectStm{
-				Tp: SelectAllTp,
-				SelectExpressions: &SelectExpressionStm{
-					Tp: ExprSelectExpressionTp,
-					Expr: []*SelectExpr{
-						{
-							Expr: &ExpressionStm{
-								LeftExpr: &ExpressionTerm{
-									UnaryOp:      NoneUnaryOpTp,
-									Tp:           IdentifierExpressionTermTP,
-									RealExprTerm: IdentifierExpression([]byte("test1.id")),
-								},
-							},
-						},
-						{
-							Expr: &ExpressionStm{
-								LeftExpr: &ExpressionTerm{
-									UnaryOp:      NoneUnaryOpTp,
-									Tp:           IdentifierExpressionTermTP,
-									RealExprTerm: IdentifierExpression([]byte("test2.id")),
-								},
-							},
-						},
-						{
-							Expr: &ExpressionStm{
-								LeftExpr: &ExpressionTerm{
-									UnaryOp:      NoneUnaryOpTp,
-									Tp:           IdentifierExpressionTermTP,
-									RealExprTerm: IdentifierExpression([]byte("test3.id")),
-								},
-							},
-						},
-					},
-				},
-				TableReferences: []TableReferenceStm{
-					{
-						Tp: TableReferenceJoinTableTp,
-						TableReference: JoinedTableStm{
-							TableFactor: TableReferenceTableFactorStm{
-								Tp: TableReferencePureTableNameTp,
-								TableFactorReference: TableReferencePureTableRefStm{
-									TableName: "test1",
-								},
-							},
-							JoinFactors: []JoinFactor{
-								{
-									JoinTp: LeftOuterJoin,
-									JoinedTableReference: TableReferenceStm{
-										Tp: TableReferenceTableFactorTp,
-										TableReference: TableReferenceTableFactorStm{
-											Tp: TableReferencePureTableNameTp,
-											TableFactorReference: TableReferencePureTableRefStm{
-												TableName: "test2",
-											},
-										},
-									},
-									JoinSpec: &JoinSpecification{
-										Tp: JoinSpecificationON,
-										Condition: WhereStm(&ExpressionStm{
-											LeftExpr: &ExpressionTerm{
-												Tp:           IdentifierExpressionTermTP,
-												RealExprTerm: IdentifierExpression(ColumnValue("test1.id")),
-											},
-											Op: OperationEqual,
-											RightExpr: &ExpressionTerm{
-												Tp:           IdentifierExpressionTermTP,
-												RealExprTerm: IdentifierExpression(ColumnValue("test2.id")),
-											},
-										}),
-									},
-								},
-								{
-									JoinTp: RightOuterJoin,
-									JoinedTableReference: TableReferenceStm{
-										Tp: TableReferenceTableFactorTp,
-										TableReference: TableReferenceTableFactorStm{
-											Tp: TableReferencePureTableNameTp,
-											TableFactorReference: TableReferencePureTableRefStm{
-												TableName: "test3",
-											},
-										},
-									},
-									JoinSpec: &JoinSpecification{
-										Tp:        JoinSpecificationUsing,
-										Condition: []string{"id"},
-									},
-								},
-								{
-									JoinTp: InnerJoin,
-									JoinedTableReference: TableReferenceStm{
-										Tp: TableReferenceTableFactorTp,
-										TableReference: TableReferenceTableFactorStm{
-											Tp: TableReferencePureTableNameTp,
-											TableFactorReference: TableReferencePureTableRefStm{
-												TableName: "test4",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-				Where: &ExpressionStm{
-					LeftExpr: &ExpressionTerm{
-						Tp:           IdentifierExpressionTermTP,
-						RealExprTerm: IdentifierExpression(ColumnValue("id")),
-					},
-					Op: OperationGreat,
-					RightExpr: &ExpressionTerm{
-						Tp:           LiteralExpressionTermTP,
-						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("0"))),
-					},
-				},
-				Groupby: &GroupByStm{
-					{
-						LeftExpr: &ExpressionTerm{
-							Tp:           IdentifierExpressionTermTP,
-							RealExprTerm: IdentifierExpression(ColumnValue("id")),
-						},
-					},
-				},
-				OrderBy: &OrderByStm{
-					Expressions: []*OrderedExpressionStm{
-						{
-							Expression: &ExpressionStm{
-								LeftExpr: &ExpressionTerm{
-									Tp:           IdentifierExpressionTermTP,
-									RealExprTerm: IdentifierExpression(ColumnValue("id")),
-								},
-							},
-							Asc: true,
-						},
-					},
-				},
-				LimitStm: &LimitStm{Count: 1},
-			},
-		},
-	}
-	testSqls(t, sqls)
-}
+//func TestParser_MultipleJoin(t *testing.T) {
+//	sqls := []testEntity{
+//		{
+//			sql: "select test1.id, test2.id, test3.id from test1 left join test2 on test1.id=test2.id right join test3 using (id) " +
+//				"inner join test4 where id > 0 group by id order by id limit 1;",
+//			stm: &SelectStm{
+//				SelectExpressions: &SelectExpressionStm{
+//					Tp: ExprSelectExpressionTp,
+//					Expr: []*SelectExpr{
+//						{
+//							Expr: &ExpressionStm{
+//								LeftExpr: &ExpressionTerm{
+//									UnaryOp:      NoneUnaryOpTp,
+//									Tp:           IdentifierExpressionTermTP,
+//									RealExprTerm: IdentifierExpression([]byte("test1.id")),
+//								},
+//							},
+//						},
+//						{
+//							Expr: &ExpressionStm{
+//								LeftExpr: &ExpressionTerm{
+//									UnaryOp:      NoneUnaryOpTp,
+//									Tp:           IdentifierExpressionTermTP,
+//									RealExprTerm: IdentifierExpression([]byte("test2.id")),
+//								},
+//							},
+//						},
+//						{
+//							Expr: &ExpressionStm{
+//								LeftExpr: &ExpressionTerm{
+//									UnaryOp:      NoneUnaryOpTp,
+//									Tp:           IdentifierExpressionTermTP,
+//									RealExprTerm: IdentifierExpression([]byte("test3.id")),
+//								},
+//							},
+//						},
+//					},
+//				},
+//				TableReferences: []TableReferenceStm{
+//					{
+//						Tp: TableReferenceJoinTableTp,
+//						TableReference: JoinedTableStm{
+//							TableFactor: TableReferenceTableFactorStm{
+//								Tp: TableReferencePureTableNameTp,
+//								TableFactorReference: TableReferencePureTableRefStm{
+//									TableName: "test1",
+//								},
+//							},
+//							JoinFactors: []JoinFactor{
+//								{
+//									JoinTp: LeftOuterJoin,
+//									JoinedTableReference: TableReferenceStm{
+//										Tp: TableReferenceTableFactorTp,
+//										TableReference: TableReferenceTableFactorStm{
+//											Tp: TableReferencePureTableNameTp,
+//											TableFactorReference: TableReferencePureTableRefStm{
+//												TableName: "test2",
+//											},
+//										},
+//									},
+//									JoinSpec: &JoinSpecification{
+//										Tp: JoinSpecificationON,
+//										Condition: WhereStm(&ExpressionStm{
+//											LeftExpr: &ExpressionTerm{
+//												Tp:           IdentifierExpressionTermTP,
+//												RealExprTerm: IdentifierExpression(ColumnValue("test1.id")),
+//											},
+//											Op: OperationEqual,
+//											RightExpr: &ExpressionTerm{
+//												Tp:           IdentifierExpressionTermTP,
+//												RealExprTerm: IdentifierExpression(ColumnValue("test2.id")),
+//											},
+//										}),
+//									},
+//								},
+//								{
+//									JoinTp: RightOuterJoin,
+//									JoinedTableReference: TableReferenceStm{
+//										Tp: TableReferenceTableFactorTp,
+//										TableReference: TableReferenceTableFactorStm{
+//											Tp: TableReferencePureTableNameTp,
+//											TableFactorReference: TableReferencePureTableRefStm{
+//												TableName: "test3",
+//											},
+//										},
+//									},
+//									JoinSpec: &JoinSpecification{
+//										Tp:        JoinSpecificationUsing,
+//										Condition: []string{"id"},
+//									},
+//								},
+//								{
+//									JoinTp: InnerJoin,
+//									JoinedTableReference: TableReferenceStm{
+//										Tp: TableReferenceTableFactorTp,
+//										TableReference: TableReferenceTableFactorStm{
+//											Tp: TableReferencePureTableNameTp,
+//											TableFactorReference: TableReferencePureTableRefStm{
+//												TableName: "test4",
+//											},
+//										},
+//									},
+//								},
+//							},
+//						},
+//					},
+//				},
+//				Where: &ExpressionStm{
+//					LeftExpr: &ExpressionTerm{
+//						Tp:           IdentifierExpressionTermTP,
+//						RealExprTerm: IdentifierExpression(ColumnValue("id")),
+//					},
+//					Op: OperationGreat,
+//					RightExpr: &ExpressionTerm{
+//						Tp:           LiteralExpressionTermTP,
+//						RealExprTerm: LiteralExpressionStm(ColumnValue([]byte("0"))),
+//					},
+//				},
+//				OrderBy: &OrderByStm{
+//					Expressions: []*OrderedExpressionStm{
+//						{
+//							Expression: &ExpressionStm{
+//								LeftExpr: &ExpressionTerm{
+//									Tp:           IdentifierExpressionTermTP,
+//									RealExprTerm: IdentifierExpression(ColumnValue("id")),
+//								},
+//							},
+//							Asc: true,
+//						},
+//					},
+//				},
+//				Groupby: &GroupByStm{
+//					{
+//						LeftExpr: &ExpressionTerm{
+//							Tp:           IdentifierExpressionTermTP,
+//							RealExprTerm: IdentifierExpression(ColumnValue("id")),
+//						},
+//					},
+//				},
+//				LimitStm: &LimitStm{Count: 1},
+//			},
+//		},
+//	}
+//	testSqls(t, sqls)
+//}
 
 //func TestAlterStm(t *testing.T) {
 //	sqls := []testEntity{
