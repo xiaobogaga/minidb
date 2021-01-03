@@ -476,6 +476,10 @@ func (recordBatch *RecordBatch) RowIndex(tableName string, row int) (int, error)
 	return 0, errors.New("unable found such table")
 }
 
+func (recordBatch *RecordBatch) IsRowIdColumn(col int) bool {
+	return col < recordBatch.ColumnCount() && recordBatch.Fields[col].Name == DefaultRowKeyName
+}
+
 // For type check.
 type Field struct {
 	TP            FieldTP

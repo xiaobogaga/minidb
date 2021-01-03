@@ -22,9 +22,10 @@ var (
 	port         = flag.Int("p", protocol.DefaultPort, "the server port")
 	readTimeout  = flag.Int("r", protocol.DefaultTimeout, "the read timeout in millisecond")
 	writeTimeout = flag.Int("w", protocol.DefaultTimeout, "the write timeout in millisecond")
+	log          = flag.String("l", fmt.Sprintf("/tmp/minidb/client-%d.log", time.Now().Unix()), "the log path")
 )
 
-var welcomeMessage = "hi :)."
+var welcomeMessage = "hi :)"
 
 var prompt = "minidb> "
 
@@ -53,6 +54,9 @@ func columnWidth(record *storage.RecordBatch, column int) int {
 func columnsWidth(record *storage.RecordBatch) []int {
 	ret := make([]int, record.ColumnCount())
 	for i := 0; i < record.ColumnCount(); i++ {
+		if record.IsRowIdColumn(i) {
+			continue
+		}
 		ret[i] = columnWidth(record, i)
 	}
 	return ret
@@ -73,6 +77,9 @@ func printHeader(record *storage.RecordBatch, columnWidths []int) {
 	// +-width-+
 	buf := bytes.Buffer{}
 	for i := 0; i < record.ColumnCount(); i++ {
+		if record.IsRowIdColumn(i) {
+			continue
+		}
 		width := columnWidths[i]
 		buf.WriteString("+-")
 		buf.WriteString(nHyphen(width))
@@ -80,6 +87,9 @@ func printHeader(record *storage.RecordBatch, columnWidths []int) {
 	}
 	buf.WriteString("+\n")
 	for i := 0; i < record.ColumnCount(); i++ {
+		if record.IsRowIdColumn(i) {
+			continue
+		}
 		buf.WriteString("+ ")
 		buf.WriteString(fmt.Sprintf("%"+fmt.Sprintf("%ds", columnWidths[i]), record.Fields[i].Name))
 		buf.WriteString(" ")
@@ -91,6 +101,9 @@ func printHeader(record *storage.RecordBatch, columnWidths []int) {
 func printTail(record *storage.RecordBatch, columnWidths []int) {
 	buf := bytes.Buffer{}
 	for i := 0; i < record.ColumnCount(); i++ {
+		if record.IsRowIdColumn(i) {
+			continue
+		}
 		width := columnWidths[i]
 		buf.WriteString("+-")
 		buf.WriteString(nHyphen(width))
@@ -103,6 +116,9 @@ func printTail(record *storage.RecordBatch, columnWidths []int) {
 func printRow(record *storage.RecordBatch, row int, columnWidths []int) {
 	buf := bytes.Buffer{}
 	for i := 0; i < record.ColumnCount(); i++ {
+		if record.IsRowIdColumn(i) {
+			continue
+		}
 		buf.WriteString("+ ")
 		buf.WriteString(fmt.Sprintf("%"+fmt.Sprintf("%ds", columnWidths[i]), record.Records[i].ToString(row)))
 		buf.WriteString(" ")
@@ -119,13 +135,12 @@ func printRow(record *storage.RecordBatch, row int, columnWidths []int) {
 // +------+--------+
 // + 1    + hello  +
 // +------+--------+
-func printRecord(record *storage.RecordBatch, needPrintHeader bool, columnWidths []int) {
+func printRecord(record *storage.RecordBatch) {
 	if record == nil {
 		return
 	}
-	if needPrintHeader {
-		printHeader(record, columnWidths)
-	}
+	columnWidths := columnsWidth(record)
+	printHeader(record, columnWidths)
 	for i := 0; i < record.RowCount(); i++ {
 		printTail(record, columnWidths)
 		printRow(record, i, columnWidths)
@@ -133,57 +148,64 @@ func printRecord(record *storage.RecordBatch, needPrintHeader bool, columnWidths
 	printTail(record, columnWidths)
 }
 
-func printMsg(msg protocol.Msg, printHeader bool, columnWidths []int) {
+func printMsg(msg protocol.Msg) {
 	switch msg.TP {
 	case protocol.OkMsgType, protocol.ErrMsgType:
 		println("server: ", msg.Msg.(protocol.ErrMsg).Msg)
-	case protocol.DataMsgType:
-		printRecord(msg.Msg.(*storage.RecordBatch), printHeader, columnWidths)
 	default:
-		panic("unknown message type")
+		panic("cannot print such message")
 	}
 }
 
 func handleResp(packetCounter byte, conn net.Conn) error {
-	i := 0
-	var columnWidths []int
+	var records *storage.RecordBatch
+	var msg protocol.Msg
 	for {
-		msg := protocol.ReadResp(conn, packetCounter, time.Millisecond*time.Duration(*readTimeout))
+		msg = protocol.ReadResp(conn, packetCounter, time.Millisecond*time.Duration(*readTimeout))
 		if msg.IsFatal() {
 			return errors.New(msg.Msg.(protocol.ErrMsg).Msg)
 		}
-		if i == 0 && msg.TP == protocol.DataMsgType {
-			columnWidths = columnsWidth(msg.Msg.(*storage.RecordBatch))
+		if msg.TP == protocol.DataMsgType && msg.Msg.(*storage.RecordBatch) == nil {
+			break
 		}
-		// Only print header for dataMsg once.
-		printMsg(msg, i == 0, columnWidths)
 		if msg.TP != protocol.DataMsgType {
-			return nil
+			break
 		}
-		if msg.Msg.(*storage.RecordBatch) == nil {
-			return nil
+		// append records.
+		record := msg.Msg.(*storage.RecordBatch)
+		if records == nil {
+			records = record
+		} else {
+			records.Append(record)
 		}
-		i += 1
 	}
+	printRecord(records)
+	printMsg(msg)
+	return nil
 }
 
-func interact(cancel context.CancelFunc, log util.SimpleLogWrapper, conn net.Conn) {
+func showWelcomeMessage() {
+	println(welcomeMessage)
+}
+
+func interact(cancel context.CancelFunc, conn net.Conn) {
 	defer cancel()
 	var packetCounter byte = 0
+	showWelcomeMessage()
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		showPrompt()
 		input, _, _ := reader.ReadLine()
 		command, err := protocol.StrToCommand(string(input))
 		if err != nil {
-			log.ErrorF("parse command error: %v", err)
+			fmt.Printf("parse command error: %v\n", err)
 			continue
 		}
 		errMsg := protocol.WriteCommand(conn, packetCounter, command,
 			time.Millisecond*time.Duration(*writeTimeout))
 		if !errMsg.IsOk() {
-			log.ErrorF("failed to send command: err: %v", err)
-			continue
+			fmt.Printf("failed to send command: err: %v\n", err)
+			return
 		}
 		if command.Tp == protocol.TpComQuit {
 			return
@@ -191,7 +213,7 @@ func interact(cancel context.CancelFunc, log util.SimpleLogWrapper, conn net.Con
 		// Now can wait for server response.
 		err = handleResp(packetCounter, conn)
 		if err != nil {
-			log.ErrorF("failed to handle resp: err: %v", err)
+			fmt.Printf("failed to handle resp: err: %v\n", err)
 			return
 		}
 		packetCounter++
@@ -200,17 +222,16 @@ func interact(cancel context.CancelFunc, log util.SimpleLogWrapper, conn net.Con
 
 func main() {
 	// Initialize log
-	err := util.InitLogger("", 1024*4, time.Second*1, true)
+	err := util.InitLogger(*log, 1024*4, time.Second*1, false)
 	if err != nil {
-		fmt.Printf("err: %v", err)
+		fmt.Printf("err: %v\n", err)
 		return
 	}
-	log := util.GetLog("client")
 	// Create connection.
 	address := fmt.Sprintf("localhost:%d", *port)
 	con, err := net.Dial("tcp", address)
 	if err != nil {
-		log.ErrorF("connect to server failed: %v", err)
+		fmt.Printf("connect to server failed: %v\n", err)
 		return
 	}
 	defer con.Close()
@@ -218,7 +239,7 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 	ctx, cancel := context.WithCancel(context.Background())
-	go interact(cancel, log, con)
+	go interact(cancel, con)
 	select {
 	case <-sig:
 		println("bye")
