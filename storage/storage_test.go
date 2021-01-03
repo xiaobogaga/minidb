@@ -287,3 +287,40 @@ func TestColumnVector_Sort(t *testing.T) {
 func TestTableInfo_FetchData(t *testing.T) {
 	// Todo
 }
+
+func TestField_CanAssign(t *testing.T) {
+	field := Field{TP: DefaultFieldTpMap[Int]}
+	assert.Nil(t, field.CanAssign(EncodeInt(1)))
+	field.TP.Name = Float
+	assert.Nil(t, field.CanAssign(EncodeInt(1)))
+	field.TP = FieldTP{Name: VarChar, Range: [2]int{10}}
+	assert.NotNil(t, field.CanAssign([]byte("xxxxxxxxxxxxx")))
+	field.TP = FieldTP{Name: DateTime}
+	assert.Nil(t, field.CanAssign([]byte("2020-10-11 10:15:11")))
+	field.TP = FieldTP{Name: Date}
+	assert.Nil(t, field.CanAssign([]byte("2020-10-11")))
+	field.TP = FieldTP{Name: Time}
+	assert.Nil(t, field.CanAssign([]byte("10:15:11")))
+	// Several fail test.
+	field.TP = FieldTP{Name: DateTime}
+	assert.NotNil(t, field.CanAssign([]byte("2020-10-11 10:15:11x")))
+	field.TP = FieldTP{Name: Date}
+	assert.NotNil(t, field.CanAssign([]byte("2020-10-11x")))
+	field.TP = FieldTP{Name: Time}
+	assert.NotNil(t, field.CanAssign([]byte("10:15:11x")))
+}
+
+//func TestField_Cascade(t *testing.T) {
+//	field := Field{TP: DefaultFieldTpMap[Int]}
+//	assert.Equal(t, int64(1), DecodeInt(field.Cascade(EncodeInt(1))))
+//	field.TP.Name = Float
+//	field.TP.Range = [2]int{10, 2}
+//	println(DecodeToString(field.Cascade(EncodeFloat(1111111111.1)), field.TP))
+//}
+
+func TestDecodeToString(t *testing.T) {
+	val := EncodeFloat(10.20000)
+	tp := FieldTP{Name: Float, Range: [2]int{10, 2}}
+	str := DecodeToString(val, tp)
+	assert.Equal(t, "10.20", str)
+}

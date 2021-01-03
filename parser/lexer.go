@@ -59,6 +59,8 @@ const (
 	CHAR    // char([0-255])
 	VARCHAR // varchar([0 - 65535])
 	DATETIME
+	DATE
+	TIME
 	BLOB
 	MEDIUMBLOB
 	TEXT
@@ -270,6 +272,8 @@ var (
 		"CHAR":           CHAR,
 		"VARCHAR":        VARCHAR,
 		"DATETIME":       DATETIME,
+		"DATE":           DATE,
+		"TIME":           TIME,
 		"BLOB":           BLOB,
 		"MEDIUMBLOB":     MEDIUMBLOB,
 		"TEXT":           TEXT,

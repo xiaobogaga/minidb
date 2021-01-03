@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Storage struct {
@@ -112,13 +113,14 @@ func (table *TableInfo) FillRowInfo(ret *RecordBatch, row int) {
 	}
 }
 
-func (table *TableInfo) GetColumnInfo(column string) *Field {
-	for _, col := range table.Datas {
+// Return the column index in table and it's field.
+func (table *TableInfo) GetColumnInfo(column string) (int, *Field) {
+	for i, col := range table.Datas {
 		if col.Field.Name == column {
-			return &col.Field
+			return i, &col.Field
 		}
 	}
-	return nil
+	return -1, nil
 }
 
 func (table *TableInfo) HasColumn(column string) bool {
@@ -140,14 +142,14 @@ const (
 //}
 
 // update tableInfo col to new value `value` at row index row.
-func (table *TableInfo) UpdateData(colName string, row int, value []byte) {
-	for _, col := range table.Datas {
-		if col.Field.Name == colName {
-			// update this column.
-			// Todo: need to do cascade.
-			col.Values[row] = value
-		}
+func (table *TableInfo) UpdateData(colName string, row int, value []byte) error {
+	index, col := table.GetColumnInfo(colName)
+	err := col.CanAssign(value)
+	if err != nil {
+		return err
 	}
+	table.Datas[index].Values[row] = value
+	return nil
 }
 
 func (table *TableInfo) DeleteRow(row int) {
@@ -166,7 +168,6 @@ func (table *TableInfo) InsertData(cols []string, values [][]byte) {
 	for i, col := range cols {
 		for _, tableCol := range table.Datas {
 			if tableCol.Field.Name == col {
-				// Todo: need cascade.
 				tableCol.Append(values[i])
 				break
 			}
@@ -498,7 +499,7 @@ type Field struct {
 
 func (f Field) IsString() bool {
 	return f.TP.Name == Char || f.TP.Name == VarChar || f.TP.Name == Text || f.TP.Name == MediumText ||
-		f.TP.Name == DateTime || f.TP.Name == Blob || f.TP.Name == MediumBlob
+		f.TP.Name == DateTime || f.TP.Name == Date || f.TP.Name == Time || f.TP.Name == Blob || f.TP.Name == MediumBlob
 }
 
 func (f Field) IsNumerical() bool {
@@ -565,6 +566,51 @@ func (f Field) CanOp(another Field, opType OpType) (err error) {
 		panic("wrong opType")
 	}
 }
+
+var (
+	dateTimeLayout = "2006-01-02 15:04:05"
+	dateLayout     = "2006-01-02"
+	timeLayout     = "15:04:05"
+)
+
+// Check whether we can assign val to this field.
+// Will do several checking:
+// * length check for varchar and char.
+// * datetime format check.
+func (f Field) CanAssign(val []byte) (err error) {
+	switch f.TP.Name {
+	case Char, VarChar:
+		if len(val) > f.TP.Range[0] {
+			err = errors.New("data too long")
+		}
+	case DateTime:
+		_, err = time.Parse(dateTimeLayout, string(val))
+		if err != nil {
+			err = errors.New("wrong datetime format")
+		}
+	case Date:
+		_, err = time.Parse(dateLayout, string(val))
+		if err != nil {
+			err = errors.New("wrong date format")
+		}
+	case Time:
+		_, err = time.Parse(timeLayout, string(val))
+		if err != nil {
+			err = errors.New("wrong time format")
+		}
+	}
+	return
+}
+
+//func (f Field) Cascade(val []byte) []byte {
+//	if f.TP.Name != Float {
+//		return val
+//	}
+//	digits, decimals := f.TP.Range[0], f.TP.Range[1]
+//	value := fmt.Sprintf(fmt.Sprintf("%s%d.%df", "%", digits, decimals), DecodeFloat(val))
+//	v, _ := strconv.ParseFloat(value, 64)
+//	return EncodeFloat(v)
+//}
 
 func (f Field) CanIgnoreInInsert() bool {
 	return f.Name == DefaultRowKeyName || f.AllowNull
@@ -1010,7 +1056,7 @@ func (column *ColumnVector) ToString(row int) string {
 		return NULL
 	}
 	switch column.Field.TP.Name {
-	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
+	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime, Date, Time:
 		// we can compare them by bytes.
 		return string(column.Values[row])
 	case Bool:
@@ -1022,7 +1068,7 @@ func (column *ColumnVector) ToString(row int) string {
 		return strconv.FormatInt(DecodeInt(column.Values[row]), 10)
 	case Float:
 		v := DecodeFloat(column.Values[row])
-		return fmt.Sprintf("%f", v)
+		return fmt.Sprintf(fmt.Sprintf("%s.%df", "%", column.Field.TP.Range[1]), v)
 	default:
 		panic("unknown type")
 	}
@@ -1052,6 +1098,8 @@ const (
 	Char       FieldTPName = "char"
 	VarChar    FieldTPName = "varchar"
 	DateTime   FieldTPName = "datetime"
+	Date       FieldTPName = "date"
+	Time       FieldTPName = "time"
 	Blob       FieldTPName = "blob"
 	MediumBlob FieldTPName = "mediumBlob"
 	Text       FieldTPName = "text"
@@ -1062,6 +1110,8 @@ const (
 var DefaultFieldTpMap = map[FieldTPName]FieldTP{
 	Bool:       {Name: Bool},
 	DateTime:   {Name: DateTime},
+	Date:       {Name: Date},
+	Time:       {Name: Time},
 	Blob:       {Name: Blob},
 	MediumBlob: {Name: MediumBlob},
 	Text:       {Name: Text},

@@ -131,11 +131,19 @@ func (insert Insert) TypeCheck() error {
 			return err
 		}
 		_, _, realCol := getSchemaTableColumnName(col)
-		colInfo := tableInfo.GetColumnInfo(realCol)
+		_, colInfo := tableInfo.GetColumnInfo(realCol)
 		if colInfo == nil {
 			return errors.New("unknown column")
 		}
 		err = colInfo.CanOp(insert.Values[i].toField(), storage.EqualOpType)
+		if err != nil {
+			return err
+		}
+		value, err := insert.Values[i].Compute()
+		if err != nil {
+			return err
+		}
+		err = colInfo.CanAssign(value)
 		if err != nil {
 			return err
 		}
@@ -212,7 +220,7 @@ func (update Update) TypeCheck() error {
 		}
 		tableInfo := storage.GetStorage().GetDbInfo(schemaName).GetTable(tableName)
 		_, _, columnName := getSchemaTableColumnName(assign.Col)
-		f := tableInfo.GetColumnInfo(assign.Col)
+		_, f := tableInfo.GetColumnInfo(assign.Col)
 		if f == nil {
 			return errors.New(fmt.Sprintf("cannot find such column %s", util.BuildDotString(schemaName, tableName, columnName)))
 		}

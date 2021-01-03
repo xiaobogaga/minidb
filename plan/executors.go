@@ -154,6 +154,12 @@ func columnTypeToFieldType(col parser.ColumnType) (ret storage.FieldTP) {
 	case parser.DATETIME:
 		ret.Name = storage.DateTime
 		return
+	case parser.DATE:
+		ret.Name = storage.Date
+		return
+	case parser.TIME:
+		ret.Name = storage.Time
+		return
 	default:
 		panic("unknown col type")
 	}

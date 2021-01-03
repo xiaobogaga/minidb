@@ -154,7 +154,7 @@ func (parser *Parser) parseColumnType() (ColumnType, error) {
 		ranges, success = parser.parseTypeRanges(true, 1, false)
 	case VARCHAR:
 		ranges, success = parser.parseTypeRanges(true, 1, true)
-	case BOOL, DATETIME, BLOB, MEDIUMBLOB, TEXT, MEDIUMTEXT:
+	case BOOL, DATETIME, DATE, TIME, BLOB, MEDIUMBLOB, TEXT, MEDIUMTEXT:
 		success = true
 	default:
 	}

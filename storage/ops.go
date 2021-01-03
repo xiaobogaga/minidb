@@ -241,7 +241,7 @@ func Min(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 // Return 0 if val1 == val2. <0 if val1 < val2 And 1 otherwise.
 func compare(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) int {
 	switch tp1.Name {
-	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
+	case Text, Char, VarChar, MediumText, Blob, MediumBlob, Date, DateTime, Time:
 		// we can compare them by bytes.
 		return bytes.Compare(val1, val2)
 	case Bool:
@@ -339,12 +339,44 @@ func Encode(value []byte) []byte {
 	}
 }
 
+//func fmtFloat(value float64, tp FieldTP) string {
+//	if value < 0 {
+//		return fmtNegativeFloat(value, tp)
+//	}
+//	str := fmt.Sprintf("%f", value)
+//	digits, decimals := tp.Range[0], tp.Range[1]
+//	splits := strings.Split(str, ".")
+//	if len(splits) == 1 {
+//		if len(splits[0]) > digits {
+//			return splits[0][len(splits[0])-digits:]
+//		}
+//		return splits[0]
+//	}
+//	// Now has .
+//	digitSize := len(splits[1])
+//	if decimals >= digits {
+//
+//	}
+//}
+//
+//func fmtNegativeFloat(value float64, tp FieldTP) string {
+//	str := fmt.Sprintf("%f", value)
+//	digits, decimals := tp.Range[0], tp.Range[1]
+//	splits := strings.Split(str, ".")
+//	if len(splits) == 1 {
+//		if len(splits[0]) > digits+1 {
+//			return splits[0][len(splits[0])-digits:]
+//		}
+//		return splits[0]
+//	}
+//}
+
 func DecodeToString(value []byte, tp FieldTP) string {
 	switch tp.Name {
 	case Int:
 		return fmt.Sprintf("%d", DecodeInt(value))
 	case Float:
-		return fmt.Sprintf("%f", DecodeFloat(value))
+		return fmt.Sprintf(fmt.Sprintf("%s.%df", "%", tp.Range[1]), DecodeFloat(value))
 	case Bool:
 		if DecodeBool(value) {
 			return "true"
@@ -374,7 +406,7 @@ func DecodeToString(value []byte, tp FieldTP) string {
 // Return the len of value in this field.
 func FieldLen(field Field, value []byte) int {
 	switch field.TP.Name {
-	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
+	case Text, Char, VarChar, MediumText, Blob, MediumBlob, Date, DateTime, Time:
 		// we can compare them by bytes.
 		return len(value)
 	case Bool:
@@ -383,7 +415,7 @@ func FieldLen(field Field, value []byte) int {
 		return len(strconv.FormatInt(DecodeInt(value), 10))
 	case Float:
 		v := DecodeFloat(value)
-		return len(fmt.Sprintf("%f", v))
+		return len(fmt.Sprintf(fmt.Sprintf("%s.%df", "%", field.TP.Range[1]), v))
 	default:
 		panic("unknown type")
 	}
