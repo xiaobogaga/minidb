@@ -1555,7 +1555,7 @@ type OrderByLogicExpr struct {
 }
 
 func (orderBy OrderByLogicExpr) toField(input LogicPlan) storage.Field {
-	return storage.Field{Name: "order", TP: storage.Int}
+	return storage.Field{Name: "order", TP: storage.DefaultFieldTpMap[storage.Int]}
 }
 
 func (orderBy OrderByLogicExpr) String() string {
@@ -1630,7 +1630,7 @@ func (orderBy OrderByLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {
 // 10, 1
 // 11, 3
 func (orderBy OrderByLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
-	ret := &storage.ColumnVector{Field: storage.Field{Name: "order", TP: storage.Int}}
+	ret := &storage.ColumnVector{Field: storage.Field{Name: "order", TP: storage.DefaultFieldTpMap[storage.Int]}}
 	for i := 0; i < input.RowCount(); i++ {
 		val := storage.EncodeInt(int64(i))
 		ret.Append(val)

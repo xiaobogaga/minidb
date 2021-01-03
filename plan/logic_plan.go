@@ -245,7 +245,7 @@ func (sel *SelectionLogicPlan) TypeCheck() error {
 		return errors.New("invalid use of group function")
 	}
 	f := sel.Expr.toField()
-	if f.TP != storage.Bool {
+	if f.TP.Name != storage.Bool {
 		return errors.New(fmt.Sprintf("%s doesn't return bool value", sel.Expr.String()))
 	}
 	return nil

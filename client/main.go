@@ -33,20 +33,13 @@ func showPrompt() {
 	fmt.Print(prompt)
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Return the maximum width of the column in record.
 func columnWidth(record *storage.RecordBatch, column int) int {
 	field := record.Fields[column]
 	ret := len(field.Name)
 	col := record.Records[column]
 	for i := 0; i < col.Size(); i++ {
-		ret = max(ret, storage.FieldLen(field, col.RawValue(i)))
+		ret = util.Max(ret, storage.FieldLen(field, col.RawValue(i)))
 	}
 	return ret
 }

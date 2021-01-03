@@ -136,38 +136,47 @@ func (parser *Parser) matchTokenTypes(ifNotRollback bool, tokenTypes ...TokenTyp
 
 var emptyColumnTp = ColumnType{}
 
-func (parser *Parser) parseColumnType(ifNotRollback bool) (ColumnType, bool) {
+func (parser *Parser) parseColumnType() (ColumnType, error) {
 	t, ok := parser.NextToken()
 	if !ok {
-		if ifNotRollback {
-			parser.UnReadToken()
-		}
-		return emptyColumnTp, false
+		return emptyColumnTp, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	var ranges [2]int
 	var success bool
 	switch t.Tp {
 	case INT:
-		ranges, success = parser.parseTypeRanges(true, 1)
+		ranges, success = parser.parseTypeRanges(true, 1, false)
 	case BIGINT:
-		ranges, success = parser.parseTypeRanges(true, 1)
+		ranges, success = parser.parseTypeRanges(true, 1, false)
 	case FLOAT:
-		ranges, success = parser.parseTypeRanges(true, 2)
+		ranges, success = parser.parseTypeRanges(true, 2, false)
 	case CHAR:
-		ranges, success = parser.parseTypeRanges(true, 1)
+		ranges, success = parser.parseTypeRanges(true, 1, false)
 	case VARCHAR:
-		ranges, success = parser.parseTypeRanges(true, 1)
+		ranges, success = parser.parseTypeRanges(true, 1, true)
 	case BOOL, DATETIME, BLOB, MEDIUMBLOB, TEXT, MEDIUMTEXT:
 		success = true
 	default:
 	}
 	if !success {
-		if ifNotRollback {
-			parser.UnReadToken()
-		}
-		return emptyColumnTp, false
+		return emptyColumnTp, parser.MakeSyntaxError(parser.pos - 1)
 	}
-	return ColumnType{Tp: t.Tp, Ranges: ranges}, true
+	// If range is empty, we need to set it to default range.
+	ranges = getDefaultRanges(ranges, t.Tp)
+	return ColumnType{Tp: t.Tp, Ranges: ranges}, nil
+}
+
+func getDefaultRanges(ranges [2]int, tp TokenType) [2]int {
+	if ranges[0] != -1 {
+		return ranges
+	}
+	switch tp {
+	case FLOAT:
+		ranges[0], ranges[1] = 10, 2
+	case CHAR:
+		ranges[0], ranges[1] = 1, 0
+	}
+	return ranges
 }
 
 func DecodeInt(data []byte) (int, bool) {
@@ -175,12 +184,12 @@ func DecodeInt(data []byte) (int, bool) {
 	return int(value), err == nil
 }
 
-var emptyRange = [2]int{0, 0}
+var emptyRange = [2]int{-1, -1}
 
 // parseTypeRanges try to parse a range from a type def, such as (5) of int(5), (10, 2) of float(10, 2).
-func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2]int, success bool) {
+func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int, mandatory bool) (ret [2]int, success bool) {
 	if !parser.matchTokenTypes(true, LEFTBRACKET) {
-		return emptyRange, true
+		return emptyRange, !mandatory
 	}
 	for i := 0; i < rangeSize; i++ {
 		if i != 0 && !parser.matchTokenTypes(true, COMMA) {
@@ -194,11 +203,11 @@ func (parser *Parser) parseTypeRanges(ifNotRollback bool, rangeSize int) (ret [2
 			return
 		}
 		r, success := DecodeInt(value)
-		if !success {
+		if !success || r < 0 {
 			if ifNotRollback {
 				parser.pos -= i + 2
 			}
-			return ret, success
+			return ret, false
 		}
 		ret[i] = r
 	}

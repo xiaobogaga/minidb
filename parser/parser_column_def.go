@@ -10,9 +10,9 @@ func (parser *Parser) parseColumnDef() (*ColumnDefStm, error) {
 	if !ret {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
-	colType, success := parser.parseColumnType(false)
-	if !success {
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
+	colType, err := parser.parseColumnType()
+	if err != nil {
+		return nil, err
 	}
 	col := &ColumnDefStm{ColName: string(columnName), ColumnType: colType}
 	if parser.matchTokenTypes(true, NULL) {

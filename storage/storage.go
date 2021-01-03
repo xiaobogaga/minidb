@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"minidb/util"
 	"sort"
 	"strconv"
 	"strings"
@@ -143,6 +144,7 @@ func (table *TableInfo) UpdateData(colName string, row int, value []byte) {
 	for _, col := range table.Datas {
 		if col.Field.Name == colName {
 			// update this column.
+			// Todo: need to do cascade.
 			col.Values[row] = value
 		}
 	}
@@ -164,6 +166,7 @@ func (table *TableInfo) InsertData(cols []string, values [][]byte) {
 	for i, col := range cols {
 		for _, tableCol := range table.Datas {
 			if tableCol.Field.Name == col {
+				// Todo: need cascade.
 				tableCol.Append(values[i])
 				break
 			}
@@ -494,24 +497,24 @@ type Field struct {
 }
 
 func (f Field) IsString() bool {
-	return f.TP == Char || f.TP == VarChar || f.TP == Text || f.TP == MediumText || f.TP == DateTime ||
-		f.TP == Blob || f.TP == MediumBlob
+	return f.TP.Name == Char || f.TP.Name == VarChar || f.TP.Name == Text || f.TP.Name == MediumText ||
+		f.TP.Name == DateTime || f.TP.Name == Blob || f.TP.Name == MediumBlob
 }
 
 func (f Field) IsNumerical() bool {
-	return f.TP == Int || f.TP == Float
+	return f.TP.Name == Int || f.TP.Name == Float
 }
 
 func (f Field) IsBool() bool {
-	return f.TP == Bool
+	return f.TP.Name == Bool
 }
 
 func (f Field) IsInteger() bool {
-	return f.TP == Int
+	return f.TP.Name == Int
 }
 
 func (f Field) IsFloat() bool {
-	return f.TP == Float
+	return f.TP.Name == Float
 }
 
 func (f Field) CanOp(another Field, opType OpType) (err error) {
@@ -587,7 +590,7 @@ func RowIndexField(schemaName, tableName string) Field {
 		SchemaName:    schemaName,
 		TableName:     tableName,
 		Name:          DefaultRowKeyName,
-		TP:            Int,
+		TP:            FieldTP{Name: Int},
 		AllowNull:     true,
 		AutoIncrement: false,
 		PrimaryKey:    false,
@@ -661,7 +664,7 @@ func (tp OpType) Logic() bool {
 	return tp == AndOpType || tp == OrOpType
 }
 
-var typeOpMap = map[string]FieldTP{
+var typeOpMap = map[string]FieldTPName{
 	"int + int":      Int,
 	"int + float":    Float,
 	"float + int":    Float,
@@ -694,33 +697,41 @@ var typeOpMap = map[string]FieldTP{
 // Didn't do type match check here and assume user already did type checking.
 func (f Field) InferenceType(another Field, op OpType) FieldTP {
 	if op.Comparator() {
-		return Bool
+		return DefaultFieldTpMap[Bool]
 	}
 	if op.Logic() {
-		return Bool
+		return DefaultFieldTpMap[Bool]
 	}
-	key := fmt.Sprintf("%s %s %s", f.TP, op, another.TP)
-	return typeOpMap[key]
+	key := fmt.Sprintf("%s %s %s", f.TP.Name, op, another.TP.Name)
+	fieldTpName := typeOpMap[key]
+	ret := FieldTP{Name: fieldTpName}
+	// Return the maximum range of these two types.
+	if ret.Name == Float {
+		ret.Range[0] = util.Max(f.TP.Range[0], another.TP.Range[0])
+		ret.Range[1] = util.Max(f.TP.Range[1], another.TP.Range[1])
+	}
+	return ret
 }
 
 func InferenceType(data []byte) FieldTP {
 	if strings.ToUpper(string(data)) == "TRUE" || strings.ToUpper(string(data)) == "FALSE" {
-		return Bool
+		return FieldTP{Name: Bool}
 	}
 	if data[0] >= '0' && data[0] <= '9' {
 		return InferenceNumericalType(data)
 	}
 	if data[0] == '\'' || data[0] == '"' {
-		return Text
+		return FieldTP{Name: Text}
 	}
 	panic("unknown data type")
 }
 
+// Will use maximum ranges.
 func InferenceNumericalType(data []byte) FieldTP {
 	if bytes.IndexByte(data, '.') == -1 {
-		return Int
+		return DefaultFieldTpMap[Int]
 	}
-	return Float
+	return DefaultFieldTpMap[Float]
 }
 
 // A column of field.
@@ -819,7 +830,7 @@ func (column *ColumnVector) Mod(another *ColumnVector, name string) *ColumnVecto
 
 func (column *ColumnVector) Equal(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -831,7 +842,7 @@ func (column *ColumnVector) Equal(another *ColumnVector, name string) *ColumnVec
 
 func (column *ColumnVector) Is(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -843,7 +854,7 @@ func (column *ColumnVector) Is(another *ColumnVector, name string) *ColumnVector
 
 func (column *ColumnVector) NotEqual(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -855,7 +866,7 @@ func (column *ColumnVector) NotEqual(another *ColumnVector, name string) *Column
 
 func (column *ColumnVector) Great(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -867,7 +878,7 @@ func (column *ColumnVector) Great(another *ColumnVector, name string) *ColumnVec
 
 func (column *ColumnVector) GreatEqual(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -879,7 +890,7 @@ func (column *ColumnVector) GreatEqual(another *ColumnVector, name string) *Colu
 
 func (column *ColumnVector) Less(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -891,7 +902,7 @@ func (column *ColumnVector) Less(another *ColumnVector, name string) *ColumnVect
 
 func (column *ColumnVector) LessEqual(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -903,7 +914,7 @@ func (column *ColumnVector) LessEqual(another *ColumnVector, name string) *Colum
 
 func (column *ColumnVector) And(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -915,7 +926,7 @@ func (column *ColumnVector) And(another *ColumnVector, name string) *ColumnVecto
 
 func (column *ColumnVector) Or(another *ColumnVector, name string) *ColumnVector {
 	ret := &ColumnVector{
-		Field: Field{Name: name, TP: Bool},
+		Field: Field{Name: name, TP: DefaultFieldTpMap[Bool]},
 	}
 	for i := 0; i < column.Size(); i++ {
 		val1 := column.RawValue(i)
@@ -998,7 +1009,7 @@ func (column *ColumnVector) ToString(row int) string {
 	if row >= len(column.Values) {
 		return NULL
 	}
-	switch column.Field.TP {
+	switch column.Field.TP.Name {
 	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
 		// we can compare them by bytes.
 		return string(column.Values[row])
@@ -1027,19 +1038,36 @@ func (column *ColumnVector) Set(row int, data []byte) {
 	column.Values[row] = data
 }
 
-type FieldTP string
+type FieldTP struct {
+	Name  FieldTPName
+	Range [2]int
+}
+
+type FieldTPName string
 
 const (
-	Bool       FieldTP = "bool"
-	Int        FieldTP = "int"
-	Float      FieldTP = "float"
-	Char       FieldTP = "char"
-	VarChar    FieldTP = "varchar"
-	DateTime   FieldTP = "datetime"
-	Blob       FieldTP = "blob"
-	MediumBlob FieldTP = "mediumBlob"
-	Text       FieldTP = "text"
-	MediumText FieldTP = "mediumText"
-	// Todo: We might support big int later.
-	// BigInt     FieldTP = "bigint"
+	Bool       FieldTPName = "bool"
+	Int        FieldTPName = "int"
+	Float      FieldTPName = "float"
+	Char       FieldTPName = "char"
+	VarChar    FieldTPName = "varchar"
+	DateTime   FieldTPName = "datetime"
+	Blob       FieldTPName = "blob"
+	MediumBlob FieldTPName = "mediumBlob"
+	Text       FieldTPName = "text"
+	MediumText FieldTPName = "mediumText"
 )
+
+// Several no range fieldTP map.
+var DefaultFieldTpMap = map[FieldTPName]FieldTP{
+	Bool:       {Name: Bool},
+	DateTime:   {Name: DateTime},
+	Blob:       {Name: Blob},
+	MediumBlob: {Name: MediumBlob},
+	Text:       {Name: Text},
+	MediumText: {Name: MediumText},
+	Int:        {Name: Int},
+	Float:      {Name: Float, Range: [2]int{64, 64}},
+	Char:       {Name: Float, Range: [2]int{1 << 8}},
+	VarChar:    {Name: Float, Range: [2]int{1 << 16}},
+}

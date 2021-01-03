@@ -10,9 +10,9 @@ import (
 )
 
 func Add(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
-	if tp1 == Int {
+	if tp1.Name == Int {
 		intVal1 := DecodeInt(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := intVal1 + intVal2
@@ -27,9 +27,9 @@ func Add(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Add")
 		}
 	}
-	if tp1 == Float {
+	if tp1.Name == Float {
 		floatVal1 := DecodeFloat(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := floatVal1 + float64(intVal2)
@@ -48,9 +48,9 @@ func Add(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 }
 
 func Minus(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
-	if tp1 == Int {
+	if tp1.Name == Int {
 		intVal1 := DecodeInt(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := intVal1 - intVal2
@@ -65,9 +65,9 @@ func Minus(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Minus")
 		}
 	}
-	if tp1 == Float {
+	if tp1.Name == Float {
 		floatVal1 := DecodeFloat(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := floatVal1 - float64(intVal2)
@@ -86,9 +86,9 @@ func Minus(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 }
 
 func Mul(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
-	if tp1 == Int {
+	if tp1.Name == Int {
 		intVal1 := DecodeInt(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := intVal1 * intVal2
@@ -104,9 +104,9 @@ func Mul(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Mul")
 		}
 	}
-	if tp1 == Float {
+	if tp1.Name == Float {
 		floatVal1 := DecodeFloat(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := floatVal1 * float64(intVal2)
@@ -125,9 +125,9 @@ func Mul(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 }
 
 func Divide(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
-	if tp1 == Int {
+	if tp1.Name == Int {
 		intVal1 := DecodeInt(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := intVal1 / intVal2
@@ -142,9 +142,9 @@ func Divide(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Divide")
 		}
 	}
-	if tp1 == Float {
+	if tp1.Name == Float {
 		floatVal1 := DecodeFloat(val1)
-		switch tp2 {
+		switch tp2.Name {
 		case Int:
 			intVal2 := DecodeInt(val2)
 			val := floatVal1 / float64(intVal2)
@@ -163,7 +163,7 @@ func Divide(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 }
 
 func Mod(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
-	if tp1 != Int || tp2 != Int {
+	if tp1.Name != Int || tp2.Name != Int {
 		panic("% cannot be applied to non-integer type")
 	}
 	intVal1 := DecodeInt(val1)
@@ -174,7 +174,7 @@ func Mod(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 }
 
 func Negative(tp FieldTP, value []byte) []byte {
-	switch tp {
+	switch tp.Name {
 	case Int:
 		val := DecodeInt(value)
 		return EncodeInt(-val)
@@ -240,7 +240,7 @@ func Min(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 
 // Return 0 if val1 == val2. <0 if val1 < val2 And 1 otherwise.
 func compare(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) int {
-	switch tp1 {
+	switch tp1.Name {
 	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
 		// we can compare them by bytes.
 		return bytes.Compare(val1, val2)
@@ -248,15 +248,15 @@ func compare(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) int {
 		return bytes.Compare(val1, val2)
 	case Int, Float:
 		v1, v2 := float64(0), float64(0)
-		if tp1 == Int {
+		if tp1.Name == Int {
 			v1 = float64(DecodeInt(val1))
 		}
-		if tp1 == Float {
+		if tp1.Name == Float {
 			v1 = DecodeFloat(val1)
 		}
-		if tp2 == Float {
+		if tp2.Name == Float {
 			v2 = DecodeFloat(val2)
-		} else if tp2 == Int {
+		} else if tp2.Name == Int {
 			v2 = float64(DecodeInt(val2))
 		} else {
 			panic("unsupported type")
@@ -322,7 +322,7 @@ func DecodeInt(value []byte) int64 {
 
 func Encode(value []byte) []byte {
 	tp := InferenceType(value)
-	switch tp {
+	switch tp.Name {
 	case Int:
 		val, _ := strconv.ParseInt(string(value), 10, 64)
 		return EncodeInt(val)
@@ -340,7 +340,7 @@ func Encode(value []byte) []byte {
 }
 
 func DecodeToString(value []byte, tp FieldTP) string {
-	switch tp {
+	switch tp.Name {
 	case Int:
 		return fmt.Sprintf("%d", DecodeInt(value))
 	case Float:
@@ -373,7 +373,7 @@ func DecodeToString(value []byte, tp FieldTP) string {
 
 // Return the len of value in this field.
 func FieldLen(field Field, value []byte) int {
-	switch field.TP {
+	switch field.TP.Name {
 	case Text, Char, VarChar, MediumText, Blob, MediumBlob, DateTime:
 		// we can compare them by bytes.
 		return len(value)

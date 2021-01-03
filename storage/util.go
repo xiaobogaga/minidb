@@ -8,7 +8,7 @@ import (
 
 func printColumn(t *testing.T, col Field, padding string) {
 	fmt.Printf("%sColumn: %s.%s.%s, TP: %s, primaryKey: %v, allowNull: %v, autoInc: %v.\n", padding, col.SchemaName,
-		col.TableName, col.Name, col.TP, col.PrimaryKey, col.AllowNull, col.AutoIncrement)
+		col.TableName, col.Name, col.TP.Name, col.PrimaryKey, col.AllowNull, col.AutoIncrement)
 }
 
 func printTableRowData(t *testing.T, tableInfo *TableInfo, row int, padding string) {

@@ -19,3 +19,10 @@ func BuildDotString(strings ...string) string {
 	}
 	return ret[0:loc]
 }
+
+func Max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

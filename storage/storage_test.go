@@ -9,7 +9,7 @@ import (
 
 func TestRecordBatch_JsonEncode(t *testing.T) {
 	record := RecordBatch{
-		Fields: []Field{RowIndexField("test", "test1"), {Name: "id", TP: Int, PrimaryKey: true}},
+		Fields: []Field{RowIndexField("test", "test1"), {Name: "id", TP: DefaultFieldTpMap[Int], PrimaryKey: true}},
 		Records: []*ColumnVector{
 			{},
 			{},
@@ -34,40 +34,40 @@ func TestRecordBatch_JsonEncode(t *testing.T) {
 
 func TestInferenceType(t *testing.T) {
 	data := []byte("\"hello\"")
-	assert.Equal(t, Text, InferenceType(data))
+	assert.Equal(t, DefaultFieldTpMap[Text], InferenceType(data))
 	data = []byte("10.0")
-	assert.Equal(t, Float, InferenceType(data))
+	assert.Equal(t, DefaultFieldTpMap[Float], InferenceType(data))
 	data = []byte("100")
-	assert.Equal(t, Int, InferenceType(data))
+	assert.Equal(t, DefaultFieldTpMap[Int], InferenceType(data))
 	data = []byte("true")
-	assert.Equal(t, Bool, InferenceType(data))
+	assert.Equal(t, DefaultFieldTpMap[Bool], InferenceType(data))
 }
 
 func TestField_CanOp(t *testing.T) {
-	f := Field{TP: Int}
-	another := Field{TP: Float}
+	f := Field{TP: DefaultFieldTpMap[Int]}
+	another := Field{TP: DefaultFieldTpMap[Float]}
 	assert.Nil(t, f.CanOp(another, AddOpType))
 	assert.Nil(t, another.CanOp(f, AddOpType))
 	assert.Nil(t, f.CanOp(f, NegativeOpType))
 	assert.Nil(t, another.CanOp(another, NegativeOpType))
-	textField := Field{TP: Text}
+	textField := Field{TP: DefaultFieldTpMap[Text]}
 	assert.NotNil(t, f.CanOp(textField, AddOpType))
 	assert.Nil(t, f.CanOp(f, ModOpType))
 	assert.NotNil(t, another.CanOp(another, ModOpType))
-	boolField := Field{TP: Bool}
+	boolField := Field{TP: DefaultFieldTpMap[Bool]}
 	assert.Nil(t, boolField.CanOp(boolField, AndOpType))
 	assert.NotNil(t, boolField.CanOp(f, AndOpType))
 }
 
 func TestField_InferenceType(t *testing.T) {
-	intF := Field{TP: Int}
-	floatF := Field{TP: Float}
-	boolF := Field{TP: Bool}
-	assert.Equal(t, Int, intF.InferenceType(intF, AddOpType))
-	assert.Equal(t, Float, intF.InferenceType(floatF, AddOpType))
-	assert.Equal(t, Float, floatF.InferenceType(floatF, AddOpType))
-	assert.Equal(t, Bool, boolF.InferenceType(boolF, AndOpType))
-	assert.Equal(t, Bool, intF.InferenceType(floatF, GreatEqualOpType))
+	intF := Field{TP: DefaultFieldTpMap[Int]}
+	floatF := Field{TP: DefaultFieldTpMap[Float]}
+	boolF := Field{TP: DefaultFieldTpMap[Bool]}
+	assert.Equal(t, DefaultFieldTpMap[Int], intF.InferenceType(intF, AddOpType))
+	assert.Equal(t, DefaultFieldTpMap[Float], intF.InferenceType(floatF, AddOpType))
+	assert.Equal(t, DefaultFieldTpMap[Float], floatF.InferenceType(floatF, AddOpType))
+	assert.Equal(t, DefaultFieldTpMap[Bool], boolF.InferenceType(boolF, AndOpType))
+	assert.Equal(t, DefaultFieldTpMap[Bool], intF.InferenceType(floatF, GreatEqualOpType))
 }
 
 func makeSchemaForTesting(dbName string, tableName string, fieldNames []string, fieldsTP []FieldTP) *TableSchema {
@@ -86,11 +86,11 @@ func makeSchemaForTesting(dbName string, tableName string, fieldNames []string, 
 }
 
 func TestSchema_HasAmbiguousColumn(t *testing.T) {
-	schema := makeSchemaForTesting("test", "people", []string{"id", "name"}, []FieldTP{Int, VarChar})
+	schema := makeSchemaForTesting("test", "people", []string{"id", "name"}, []FieldTP{DefaultFieldTpMap[Int], DefaultFieldTpMap[VarChar]})
 	assert.False(t, schema.HasAmbiguousColumn("", "", "id"))
 	assert.True(t, schema.HasColumn("", "", "id"))
 	// assert.True(t, schema.HasSubTable("people"))
-	another := makeSchemaForTesting("test2", "people2", []string{"id", "location"}, []FieldTP{Int, VarChar})
+	another := makeSchemaForTesting("test2", "people2", []string{"id", "location"}, []FieldTP{DefaultFieldTpMap[Int], DefaultFieldTpMap[VarChar]})
 	mergedSchema, _ := schema.Merge(another)
 	// assert.True(t, mergedSchema.HasSubTable("people2"))
 	assert.True(t, mergedSchema.HasAmbiguousColumn("", "", "id"))
@@ -104,8 +104,8 @@ func TestSchema_HasAmbiguousColumn(t *testing.T) {
 
 func makeRecordBatchForTesting(recordSize int) *RecordBatch {
 	fields := []Field{
-		{TP: Int, Name: "id"},
-		{TP: VarChar, Name: "name"},
+		{TP: DefaultFieldTpMap[Int], Name: "id"},
+		{TP: DefaultFieldTpMap[VarChar], Name: "name"},
 	}
 	ret := &RecordBatch{
 		Fields:  fields,
@@ -134,7 +134,7 @@ func TestRecordBatch_Filter(t *testing.T) {
 	recordBatch := makeRecordBatchForTesting(3)
 	// select 0, 2 row.
 	selectedRow := &ColumnVector{
-		Field: Field{TP: Bool},
+		Field: Field{TP: DefaultFieldTpMap[Text]},
 		Values: [][]byte{
 			EncodeBool(true),
 			EncodeBool(false),
@@ -158,7 +158,7 @@ func TestRecordBatch_Join(t *testing.T) {
 func TestRecordBatch_OrderBy(t *testing.T) {
 	record := makeRecordBatchForTesting(3)
 	orderByCol := &ColumnVector{
-		Field: Field{TP: Int},
+		Field: Field{TP: DefaultFieldTpMap[Int]},
 		Values: [][]byte{
 			EncodeInt(2),
 			EncodeInt(1),
@@ -175,7 +175,7 @@ func TestRecordBatch_OrderBy(t *testing.T) {
 
 func TestColumnVector_Add(t *testing.T) {
 	intC := &ColumnVector{
-		Field: Field{TP: Int},
+		Field: Field{TP: DefaultFieldTpMap[Int]},
 		Values: [][]byte{
 			EncodeInt(1),
 			EncodeInt(2),
@@ -183,14 +183,14 @@ func TestColumnVector_Add(t *testing.T) {
 	}
 	ret := intC.Add(intC, "ret")
 	assert.Equal(t, 2, ret.Size())
-	assert.Equal(t, Int, ret.GetTP())
+	assert.Equal(t, DefaultFieldTpMap[Int], ret.GetTP())
 	assert.Equal(t, int64(2), ret.Int(0))
 	assert.Equal(t, int64(4), ret.Int(1))
 }
 
 func TestColumnVector_Equal(t *testing.T) {
 	textF := &ColumnVector{
-		Field: Field{TP: Text},
+		Field: Field{TP: DefaultFieldTpMap[Text]},
 		Values: [][]byte{
 			[]byte("hello"),
 			[]byte("hi"),
@@ -198,11 +198,11 @@ func TestColumnVector_Equal(t *testing.T) {
 	}
 	ret := textF.Equal(textF, "ret")
 	assert.Equal(t, 2, ret.Size())
-	assert.Equal(t, Bool, ret.GetTP())
+	assert.Equal(t, DefaultFieldTpMap[Bool], ret.GetTP())
 	assert.Equal(t, true, ret.Bool(0))
 	assert.Equal(t, true, ret.Bool(1))
 	anotherF := &ColumnVector{
-		Field: Field{TP: Text},
+		Field: Field{TP: DefaultFieldTpMap[Text]},
 		Values: [][]byte{
 			[]byte("hello"),
 			[]byte("hi2"),
@@ -210,14 +210,14 @@ func TestColumnVector_Equal(t *testing.T) {
 	}
 	ret = textF.Equal(anotherF, "ret")
 	assert.Equal(t, 2, ret.Size())
-	assert.Equal(t, Bool, ret.GetTP())
+	assert.Equal(t, DefaultFieldTpMap[Bool], ret.GetTP())
 	assert.Equal(t, true, ret.Bool(0))
 	assert.Equal(t, false, ret.Bool(1))
 }
 
 func TestColumnVector_And(t *testing.T) {
 	textF := &ColumnVector{
-		Field: Field{TP: Bool},
+		Field: Field{TP: DefaultFieldTpMap[Bool]},
 		Values: [][]byte{
 			EncodeBool(true),
 			EncodeBool(false),
@@ -225,14 +225,14 @@ func TestColumnVector_And(t *testing.T) {
 	}
 	ret := textF.And(textF, "ret")
 	assert.Equal(t, 2, ret.Size())
-	assert.Equal(t, Bool, ret.GetTP())
+	assert.Equal(t, DefaultFieldTpMap[Bool], ret.GetTP())
 	assert.Equal(t, true, ret.Bool(0))
 	assert.Equal(t, false, ret.Bool(1))
 }
 
 func TestColumnVector_Sort(t *testing.T) {
 	intF := &ColumnVector{
-		Field: Field{TP: Int},
+		Field: Field{TP: DefaultFieldTpMap[Int]},
 		Values: [][]byte{
 			EncodeInt(1),
 			EncodeInt(2),
@@ -241,7 +241,7 @@ func TestColumnVector_Sort(t *testing.T) {
 		},
 	}
 	textF := &ColumnVector{
-		Field: Field{TP: Text},
+		Field: Field{TP: DefaultFieldTpMap[Text]},
 		Values: [][]byte{
 			[]byte("1"),
 			[]byte("2"),
@@ -256,7 +256,7 @@ func TestColumnVector_Sort(t *testing.T) {
 	}
 
 	intF1 := &ColumnVector{
-		Field: Field{TP: Int},
+		Field: Field{TP: DefaultFieldTpMap[Int]},
 		Values: [][]byte{
 			EncodeInt(1),
 			EncodeInt(1),
@@ -265,7 +265,7 @@ func TestColumnVector_Sort(t *testing.T) {
 		},
 	}
 	intF2 := &ColumnVector{
-		Field: Field{TP: Int},
+		Field: Field{TP: DefaultFieldTpMap[Int]},
 		Values: [][]byte{
 			EncodeInt(1),
 			EncodeInt(2),

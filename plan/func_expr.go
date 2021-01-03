@@ -67,7 +67,7 @@ func (charLengthFunc CharLengthFunc) FuncParamSize() int {
 }
 
 func (charLengthFunc CharLengthFunc) ReturnType() storage.FieldTP {
-	return storage.Int
+	return storage.DefaultFieldTpMap[storage.Int]
 }
 
 func (charLengthFunc CharLengthFunc) Accumulate(row int, input *storage.RecordBatch) {
@@ -239,7 +239,7 @@ func (count *CountFunc) F() funcInterface {
 }
 
 func (count *CountFunc) ReturnType() storage.FieldTP {
-	return storage.Int
+	return storage.DefaultFieldTpMap[storage.Int]
 }
 
 func (count *CountFunc) Accumulate(row int, input *storage.RecordBatch) {
@@ -247,7 +247,7 @@ func (count *CountFunc) Accumulate(row int, input *storage.RecordBatch) {
 		count.Accumulator = storage.EncodeInt(1)
 		return
 	}
-	count.Accumulator = storage.Add(count.Accumulator, storage.Int, storage.EncodeInt(1), storage.Int)
+	count.Accumulator = storage.Add(count.Accumulator, storage.DefaultFieldTpMap[storage.Int], storage.EncodeInt(1), storage.DefaultFieldTpMap[storage.Int])
 }
 
 func (count *CountFunc) AccumulateValue() []byte {

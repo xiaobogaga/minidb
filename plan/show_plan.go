@@ -29,7 +29,7 @@ func FillShowPlanData(tp parser.ShowStmTp, currentDB string) *storage.RecordBatc
 	ret := &storage.RecordBatch{
 		Fields: []storage.Field{
 			storage.RowIndexField("", ""),
-			{TP: storage.Text, Name: name},
+			{TP: storage.DefaultFieldTpMap[storage.Text], Name: name},
 		},
 		Records: []*storage.ColumnVector{{}, {}},
 	}

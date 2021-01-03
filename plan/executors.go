@@ -113,29 +113,47 @@ func getSchemaTableName(schemaTable string, defaultSchemaName string) (schema st
 	return
 }
 
-func columnTypeToFieldType(col parser.ColumnType) storage.FieldTP {
+func columnTypeToFieldType(col parser.ColumnType) (ret storage.FieldTP) {
 	// Todo: support column range.
 	switch col.Tp {
 	case parser.BOOL:
-		return storage.Bool
-	case parser.INT:
-		return storage.Int
+		ret.Name = storage.Bool
+		return
+	case parser.INT, parser.BIGINT:
+		// For int, the range only affect display. see:
+		// https://stackoverflow.com/questions/5634104/what-is-the-size-of-column-of-int11-in-mysql-in-bytes
+		// for more detail.
+		ret.Name = storage.Int
+		return
 	case parser.FLOAT:
-		return storage.Float
+		// For float, can refer here:
+		// https://stackoverflow.com/questions/7979912/difference-between-float2-2-and-float-in-mysql
+		ret.Name = storage.Float
+		ret.Range = col.Ranges
+		return
 	case parser.CHAR:
-		return storage.Char
+		// For char and varchar, the size:
+		// https://dev.mysql.com/doc/refman/8.0/en/char.html
+		ret.Name = storage.Char
+		return
 	case parser.VARCHAR:
-		return storage.VarChar
+		ret.Name = storage.VarChar
+		return
 	case parser.TEXT:
-		return storage.Text
+		ret.Name = storage.Text
+		return
 	case parser.MEDIUMTEXT:
-		return storage.MediumText
+		ret.Name = storage.MediumText
+		return
 	case parser.BLOB:
-		return storage.Blob
+		ret.Name = storage.Blob
+		return
 	case parser.MEDIUMBLOB:
-		return storage.MediumBlob
+		ret.Name = storage.MediumBlob
+		return
 	case parser.DATETIME:
-		return storage.DateTime
+		ret.Name = storage.DateTime
+		return
 	default:
 		panic("unknown col type")
 	}
