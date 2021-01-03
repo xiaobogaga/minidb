@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"minidb/parser"
 	"minidb/storage"
+	"minidb/util"
 )
 
 type LogicPlan interface {
@@ -83,10 +84,10 @@ func (tableScan *TableScan) Child() []LogicPlan {
 func (tableScan *TableScan) TypeCheck() error {
 	// First, we check whether the database, table exists.
 	if !storage.GetStorage().HasSchema(tableScan.SchemaName) {
-		return errors.New("cannot find such schema")
+		return errors.New(fmt.Sprintf("cannot find such schema: %s", tableScan.SchemaName))
 	}
 	if !storage.GetStorage().GetDbInfo(tableScan.SchemaName).HasTable(tableScan.Name) {
-		return errors.New("cannot find such table")
+		return errors.New(fmt.Sprintf("cannot find such table: %s", util.BuildDotString(tableScan.SchemaName, tableScan.Name)))
 	}
 	return nil
 }

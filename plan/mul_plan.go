@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"minidb/parser"
 	"minidb/storage"
+	"minidb/util"
 	"strings"
 )
 
@@ -118,7 +119,8 @@ func (insert Insert) TypeCheck() error {
 			continue
 		}
 		if !insert.HasColumn(col.Name) {
-			return errors.New(fmt.Sprintf("cannot missing column %s", col.Name))
+			return errors.New(fmt.Sprintf("cannot missing column %s", util.BuildDotString(tableInfo.TableSchema.SchemaName(),
+				tableInfo.TableSchema.TableName(), col.Name)))
 		}
 	}
 
@@ -209,9 +211,10 @@ func (update Update) TypeCheck() error {
 			return err
 		}
 		tableInfo := storage.GetStorage().GetDbInfo(schemaName).GetTable(tableName)
+		_, _, columnName := getSchemaTableColumnName(assign.Col)
 		f := tableInfo.GetColumnInfo(assign.Col)
 		if f == nil {
-			return errors.New(fmt.Sprintf("cannot find such column %s", assign.Col))
+			return errors.New(fmt.Sprintf("cannot find such column %s", util.BuildDotString(schemaName, tableName, columnName)))
 		}
 		err = f.CanOp(assign.Expr.toField(), storage.EqualOpType)
 		if err != nil {

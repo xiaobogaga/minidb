@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"minidb/storage"
+	"minidb/util"
 )
 
 type LogicExpr interface {
@@ -45,10 +46,10 @@ func (ident *IdentifierLogicExpr) TypeCheck() error {
 	schema := ident.input.Schema()
 	// Now we check whether we can find such column.
 	if !schema.HasColumn(schemaName, table, column) {
-		return errors.New(fmt.Sprintf("column %s cannot find", column))
+		return errors.New(fmt.Sprintf("column %s cannot find", util.BuildDotString(schemaName, table, column)))
 	}
 	if schema.HasAmbiguousColumn(schemaName, table, column) {
-		return errors.New(fmt.Sprintf("column %s is ambiguous", column))
+		return errors.New(fmt.Sprintf("column %s is ambiguous", util.BuildDotString(schemaName, table, column)))
 	}
 	return nil
 }

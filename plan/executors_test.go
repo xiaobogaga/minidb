@@ -179,6 +179,8 @@ func TestExecuteSelectStmWithJoin(t *testing.T) {
 	testSelect2(t, sql)
 	sql = "select * from test1, test2, db2.test1;"
 	testSelect2(t, sql)
+	sql = "select db1.test1.id, db1.test2.name, db1.test2.id from test1 left join test2 on test1.id=test2.id left join db2.test1 on db1.test1.id=db2.test1.id;"
+	testSelect2(t, sql)
 }
 
 func TestExecuteSelectWithOrderBy(t *testing.T) {

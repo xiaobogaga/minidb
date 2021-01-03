@@ -2,8 +2,10 @@ package plan
 
 import (
 	"errors"
+	"fmt"
 	"minidb/parser"
 	"minidb/storage"
+	"minidb/util"
 	"strings"
 )
 
@@ -186,7 +188,7 @@ func ExecuteCreateTableStm(stm *parser.CreateTableStm, currentDB string) error {
 	}
 	dbInfo := storage.GetStorage().GetDbInfo(schemaName)
 	if dbInfo == nil {
-		return errors.New("cannot find such db")
+		return errors.New(fmt.Sprintf("cannot find db: %s", schemaName))
 	}
 	tableSchema, err := getSchema(stm, dbInfo)
 	if err != nil {
@@ -214,7 +216,7 @@ func ExecuteDropTableStm(stm *parser.DropTableStm, currentDB string) error {
 		}
 		dbInfo := storage.GetStorage().GetDbInfo(schemaName)
 		if dbInfo == nil || !dbInfo.HasTable(tableName) {
-			return errors.New("cannot found such table")
+			return errors.New(fmt.Sprintf("cannot found such table: %s", util.BuildDotString(schemaName, tableName)))
 		}
 		dbInfo.RemoveTable(tableName)
 	}
