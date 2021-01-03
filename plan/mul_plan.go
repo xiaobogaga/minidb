@@ -82,6 +82,14 @@ func (insert Insert) TypeCheckForNoCols() error {
 		if err != nil {
 			return err
 		}
+		v, err := value.Compute()
+		if err != nil {
+			return err
+		}
+		err = colInfo.CanAssign(v)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

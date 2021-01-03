@@ -14,10 +14,19 @@ func testInsert(t *testing.T, sql string) {
 	storage.PrintStorage(t)
 }
 
+func testInsertFail(t *testing.T, sql string) {
+	stm := toTestStm(t, sql)
+	err := ExecuteInsertStm(stm.(*parser.InsertIntoStm), "db1")
+	assert.NotNil(t, err)
+	storage.PrintStorage(t)
+}
+
 func TestInsert_Execute(t *testing.T) {
 	initTestStorage(t)
 	sql := "insert into db1.test1 values(10, 'xiaobo', 10.0, 'a', 0);"
 	testInsert(t, sql)
+	sql = "insert into db1.test1 values(10, 'xiaoboxxxxxxxxxxxxxxxxxxxxxxxxx', 10.0, 'a', 0);"
+	testInsertFail(t, sql)
 }
 
 func testUpdate(t *testing.T, sql string) {

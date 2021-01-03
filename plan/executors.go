@@ -135,9 +135,11 @@ func columnTypeToFieldType(col parser.ColumnType) (ret storage.FieldTP) {
 		// For char and varchar, the size:
 		// https://dev.mysql.com/doc/refman/8.0/en/char.html
 		ret.Name = storage.Char
+		ret.Range = col.Ranges
 		return
 	case parser.VARCHAR:
 		ret.Name = storage.VarChar
+		ret.Range = col.Ranges
 		return
 	case parser.TEXT:
 		ret.Name = storage.Text
