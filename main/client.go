@@ -5,24 +5,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"minidb/protocol"
 	"minidb/storage"
 	"minidb/util"
 	"net"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
-)
-
-var (
-	host         = flag.String("h", "localhost", "the server host")
-	port         = flag.Int("p", protocol.DefaultPort, "the server port")
-	readTimeout  = flag.Int("r", protocol.DefaultTimeout, "the read timeout in millisecond")
-	writeTimeout = flag.Int("w", protocol.DefaultTimeout, "the write timeout in millisecond")
-	log          = flag.String("l", fmt.Sprintf("/tmp/minidb/client-%d.log", time.Now().Unix()), "the log path")
 )
 
 var welcomeMessage = "hi :)"
@@ -213,14 +202,7 @@ func interact(cancel context.CancelFunc, conn net.Conn) {
 	}
 }
 
-func main() {
-	// Initialize log
-	err := util.InitLogger(*log, 1024*4, time.Second*1, false)
-	if err != nil {
-		fmt.Printf("err: %v\n", err)
-		return
-	}
-	// Create connection.
+func initClient(ctx context.Context) {
 	address := fmt.Sprintf("localhost:%d", *port)
 	con, err := net.Dial("tcp", address)
 	if err != nil {
@@ -229,14 +211,10 @@ func main() {
 	}
 	defer con.Close()
 	// Start and wait for connection.
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx2, cancel := context.WithCancel(ctx)
 	go interact(cancel, con)
 	select {
-	case <-sig:
-		println("bye")
-	case <-ctx.Done():
+	case <-ctx2.Done():
 		println("bye")
 	}
 }
