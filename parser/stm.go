@@ -574,8 +574,11 @@ type ShowStmTp byte
 const (
 	ShowTableTP ShowStmTp = iota
 	ShowDatabaseTP
+	ShowCreateTableTP
 )
 
+// show tables, show databases, show create table table_name
 type ShowStm struct {
-	TP ShowStmTp
+	TP    ShowStmTp
+	Table string
 }

@@ -40,6 +40,10 @@ func TestExecuteShowStm(t *testing.T) {
 	assert.Nil(t, err)
 	storage.PrintRecordBatch(ret, true)
 	assertRecordBatch(t, 2, 2, ret)
+	showStm.TP = parser.ShowCreateTableTP
+	showStm.Table = "test1"
+	ret, err = showPlan.Execute("db1", showStm)
+	assert.Nil(t, err)
 }
 
 func TestExecuteDropDatabaseStm(t *testing.T) {

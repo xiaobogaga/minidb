@@ -60,8 +60,9 @@ func (parser *Parser) Parse(data []byte) (stm Stm, err error) {
 		parser.UnReadToken()
 		stm, err = parser.resolveRenameStm()
 	case ALTER:
-		parser.UnReadToken()
-		stm, err = parser.resolveAlterStm()
+		return nil, errors.New("syntax err: Alter is not supported now")
+		// parser.UnReadToken()
+		// stm, err = parser.resolveAlterStm()
 	case TRUNCATE:
 		parser.UnReadToken()
 		stm, err = parser.resolveTruncate()

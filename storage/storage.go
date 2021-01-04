@@ -175,6 +175,32 @@ func (table *TableInfo) InsertData(cols []string, values [][]byte) {
 	}
 }
 
+func (table *TableInfo) Describe() *RecordBatch {
+	ret := &RecordBatch{
+		Fields: []Field{
+			{Name: "Properties", TP: FieldTP{Name: Text}},
+			{Name: "Values", TP: FieldTP{Name: Text}},
+		},
+		Records: make([]*ColumnVector, 2),
+	}
+	ret.Records[0] = &ColumnVector{Field: ret.Fields[0]}
+	ret.Records[1] = &ColumnVector{Field: ret.Fields[1]}
+	ret.Records[0].Append([]byte("database"))
+	ret.Records[1].Append([]byte(table.TableSchema.SchemaName()))
+	ret.Records[0].Append([]byte("table"))
+	ret.Records[1].Append([]byte(table.TableSchema.TableName()))
+	for i := 1; i < len(table.TableSchema.Columns); i++ {
+		col := table.TableSchema.Columns[i]
+		if col.Name == DefaultRowKeyName {
+			continue
+		}
+		ret.Records[0].Append([]byte(fmt.Sprintf("col: %s", col.Name)))
+		ret.Records[1].Append([]byte(fmt.Sprintf("%s(%d, %d), [%v, %v, %v], %s", col.TP.Name, col.TP.Range[0], col.TP.Range[1],
+			col.PrimaryKey, col.AutoIncrement, col.AllowNull, DecodeToString(col.DefaultValue, col.TP))))
+	}
+	return ret
+}
+
 // A table format looks like this.
 // | rowIndex | cols ... | DefaultPrimaryKey (if cols doesn't have primary key column |
 // the rowIndex column has no content by default. But when the fetch data is called.

@@ -2,6 +2,7 @@ package plan
 
 import (
 	"errors"
+	"fmt"
 	"minidb/parser"
 	"minidb/storage"
 )
@@ -18,12 +19,15 @@ func (show *Show) Execute(currentDB string, stm *parser.ShowStm) (*storage.Recor
 		return nil, errors.New("please select db first")
 	}
 	show.Done = true
-	return FillShowPlanData(stm.TP, currentDB), nil
+	return FillShowPlanData(stm, currentDB)
 }
 
-func FillShowPlanData(tp parser.ShowStmTp, currentDB string) *storage.RecordBatch {
+func FillShowPlanData(stm *parser.ShowStm, currentDB string) (*storage.RecordBatch, error) {
+	if stm.TP == parser.ShowCreateTableTP {
+		return FillShowCreateTableData(stm, currentDB)
+	}
 	name := "tables"
-	if tp == parser.ShowDatabaseTP {
+	if stm.TP == parser.ShowDatabaseTP {
 		name = "databases"
 	}
 	ret := &storage.RecordBatch{
@@ -34,7 +38,7 @@ func FillShowPlanData(tp parser.ShowStmTp, currentDB string) *storage.RecordBatc
 		Records: []*storage.ColumnVector{{}, {}},
 	}
 	ret.Records[0].Field, ret.Records[1].Field = ret.Fields[0], ret.Fields[1]
-	switch tp {
+	switch stm.TP {
 	case parser.ShowDatabaseTP:
 		i := 0
 		for db := range storage.GetStorage().Dbs {
@@ -53,5 +57,21 @@ func FillShowPlanData(tp parser.ShowStmTp, currentDB string) *storage.RecordBatc
 	default:
 		panic("unknown show type")
 	}
-	return ret
+	return ret, nil
+}
+
+func FillShowCreateTableData(stm *parser.ShowStm, currentDB string) (*storage.RecordBatch, error) {
+	dbName, tableName, err := getSchemaTableName(stm.Table, currentDB)
+	if err != nil {
+		return nil, err
+	}
+	dbInfo := storage.GetStorage().GetDbInfo(dbName)
+	if dbInfo == nil {
+		return nil, errors.New(fmt.Sprintf("cannot find such db: %s", dbName))
+	}
+	tbInfo := dbInfo.GetTable(tableName)
+	if tbInfo == nil {
+		return nil, errors.New(fmt.Sprintf("cannot find such table: %s.%s", dbName, tableName))
+	}
+	return tbInfo.Describe(), nil
 }

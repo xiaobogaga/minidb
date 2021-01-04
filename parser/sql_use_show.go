@@ -28,8 +28,17 @@ func (parser *Parser) resolveShowStm() (Stm, error) {
 		stm.TP = ShowDatabaseTP
 	case TABLES:
 		stm.TP = ShowTableTP
-	default:
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
+	case CREATE:
+		// Show create table stm.
+		if !parser.matchTokenTypes(false, TABLE) {
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
+		}
+		tableName, success := parser.parseIdentOrWord(false)
+		if !success {
+			return nil, parser.MakeSyntaxError(parser.pos - 1)
+		}
+		stm.TP = ShowCreateTableTP
+		stm.Table = string(tableName)
 	}
 	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)

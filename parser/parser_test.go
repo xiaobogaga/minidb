@@ -930,6 +930,9 @@ func TestShowStm(t *testing.T) {
 	sql = "show databases;"
 	_, err = parser.Parse([]byte(sql))
 	assert.Nil(t, err)
+	sql = "show create table t1;"
+	_, err = parser.Parse([]byte(sql))
+	assert.Nil(t, err)
 }
 
 func TestParser_ParseGroupByStm(t *testing.T) {

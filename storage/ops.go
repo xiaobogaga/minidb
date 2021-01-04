@@ -372,6 +372,9 @@ func Encode(value []byte) []byte {
 //}
 
 func DecodeToString(value []byte, tp FieldTP) string {
+	if len(value) == 0 {
+		return NULL
+	}
 	switch tp.Name {
 	case Int:
 		return fmt.Sprintf("%d", DecodeInt(value))
