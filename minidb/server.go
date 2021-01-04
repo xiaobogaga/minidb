@@ -1,12 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"math"
-	"math/rand"
-	"minidb/parser"
-	"minidb/plan"
 	"minidb/protocol"
 	"minidb/util"
 	"time"
