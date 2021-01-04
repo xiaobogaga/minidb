@@ -80,6 +80,7 @@ func printHeader(record *storage.RecordBatch, columnWidths []int) {
 	print(buf.String())
 }
 
+// Print table tail: +------+--------+
 func printTail(record *storage.RecordBatch, columnWidths []int) {
 	buf := bytes.Buffer{}
 	for i := 0; i < record.ColumnCount(); i++ {
@@ -112,19 +113,19 @@ func printRow(record *storage.RecordBatch, row int, columnWidths []int) {
 // For the first time, we will print table header.
 // +------+--------+
 // + col1 +  col2  +
-// +------+--------+
 // Then for others, will print data looks like this
-// +------+--------+
 // + 1    + hello  +
-// +------+--------+
 func printRecord(record *storage.RecordBatch) {
 	if record == nil {
 		return
 	}
 	columnWidths := columnsWidth(record)
 	printHeader(record, columnWidths)
-	for i := 0; i < record.RowCount(); i++ {
+	if record.RowCount() != 0 {
 		printTail(record, columnWidths)
+	}
+	for i := 0; i < record.RowCount(); i++ {
+		// printTail(record, columnWidths)
 		printRow(record, i, columnWidths)
 	}
 	printTail(record, columnWidths)

@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var randomStrings = []byte("abcdefghijklmnopqrstuvwxyz012345678!@#$%^&*()~{}<>;")
+
 var testDataSize = 4
 
 func generateFloat(random *rand.Rand, max int64) string {
@@ -41,7 +43,7 @@ func generateChar(random *rand.Rand, size int) string {
 	bf.WriteString(testCharPrefix)
 	size = random.Intn(size)
 	for i := 1; i < size; i++ {
-		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+		bf.WriteString(fmt.Sprintf("%c", randomStrings[random.Intn(51)]))
 	}
 	return bf.String()
 }
@@ -53,7 +55,7 @@ func generateVarchar(random *rand.Rand, size int) string {
 	bf.WriteString(testVarcharPrefix)
 	size = random.Intn(size)
 	for i := 1; i < size; i++ {
-		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+		bf.WriteString(fmt.Sprintf("%c", randomStrings[random.Intn(51)]))
 	}
 	return bf.String()
 }
@@ -65,7 +67,7 @@ func generateText(random *rand.Rand, size int) string {
 	bf.WriteString(testTextPrefix)
 	size = random.Intn(size)
 	for i := 1; i < size; i++ {
-		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+		bf.WriteString(fmt.Sprintf("%c", randomStrings[random.Intn(51)]))
 	}
 	return bf.String()
 }
@@ -77,15 +79,15 @@ func generateBlob(random *rand.Rand, size int) string {
 	bf.WriteString(testBlobPrefix)
 	size = random.Intn(size)
 	for i := 1; i < size; i++ {
-		bf.WriteString(fmt.Sprintf("%c", random.Intn(128)))
+		bf.WriteString(fmt.Sprintf("%c", randomStrings[random.Intn(51)]))
 	}
 	return bf.String()
 }
 
 func generateDate(random *rand.Rand) string {
 	year := random.Intn(2020)
-	month := random.Intn(12)
-	day := random.Intn(30)
+	month := random.Intn(11) + 1
+	day := random.Intn(28) + 1
 	return fmt.Sprintf("%04d-%02d-%02d", year, month, day)
 }
 
@@ -93,7 +95,7 @@ func generateTime(random *rand.Rand) string {
 	hour := random.Intn(24)
 	minute := random.Intn(60)
 	second := random.Intn(60)
-	return fmt.Sprintf("%02d-%02d-%02d", hour, minute, second)
+	return fmt.Sprintf("%02d:%02d:%02d", hour, minute, second)
 }
 
 func generateDateTime(random *rand.Rand) string {
@@ -104,35 +106,47 @@ func generateDateTime(random *rand.Rand) string {
 
 func generateInsertSql(row int, random *rand.Rand, table string) string {
 	colSize := 18
-	cols := make([]string, colSize)
-	cols[0] = fmt.Sprintf("%d", row)
-	cols[1] = generateVarchar(random, 20)
-	cols[2] = generateFloat(random, 100)
-	cols[3] = generateVarchar(random, 20)
-	cols[4] = generateBool(random)
-	cols[5] = generateInt(random)
-	cols[6] = generateFloat(random, math.MaxInt64)
-	cols[7] = generateBool(random)
-	cols[8] = generateChar(random, 1)
-	cols[9] = generateChar(random, 20)
-	cols[10] = generateVarchar(random, 20)
-	cols[11] = generateDate(random)
-	cols[12] = generateTime(random)
-	cols[13] = generateDateTime(random)
-	cols[14] = generateText(random, 100)
-	cols[15] = generateText(random, 100)
-	cols[16] = generateBlob(random, 100)
-	cols[17] = generateBlob(random, 100)
+	type colInfo struct {
+		value     string
+		needQuota bool
+	}
+	cols := make([]colInfo, colSize)
+	cols[0] = colInfo{value: fmt.Sprintf("%d", row), needQuota: false}
+	cols[1] = colInfo{value: generateVarchar(random, 20), needQuota: true}
+	cols[2] = colInfo{value: generateFloat(random, 100), needQuota: false}
+	cols[3] = colInfo{value: fmt.Sprintf("location.%d", row%2), needQuota: true}
+	cols[4] = colInfo{value: generateBool(random), needQuota: false}
+	cols[5] = colInfo{value: generateInt(random), needQuota: false}
+	cols[6] = colInfo{value: generateFloat(random, math.MaxInt64), needQuota: false}
+	cols[7] = colInfo{value: generateBool(random), needQuota: false}
+	cols[8] = colInfo{value: generateChar(random, 1), needQuota: true}
+	cols[9] = colInfo{value: generateChar(random, 20), needQuota: true}
+	cols[10] = colInfo{value: generateVarchar(random, 20), needQuota: true}
+	cols[11] = colInfo{value: generateDate(random), needQuota: true}
+	cols[12] = colInfo{value: generateTime(random), needQuota: true}
+	cols[13] = colInfo{value: generateDateTime(random), needQuota: true}
+	cols[14] = colInfo{value: generateText(random, 100), needQuota: true}
+	cols[15] = colInfo{value: generateText(random, 100), needQuota: true}
+	cols[16] = colInfo{value: generateBlob(random, 100), needQuota: true}
+	cols[17] = colInfo{value: generateBlob(random, 100), needQuota: true}
 	bf := bytes.Buffer{}
 	bf.WriteString(fmt.Sprintf("insert into %s values(", table))
 	for i := 0; i < colSize; i++ {
 		if i != colSize-1 {
-			bf.WriteString(fmt.Sprintf("%s, ", cols[i]))
+			if cols[i].needQuota {
+				bf.WriteString(fmt.Sprintf("'%s', ", cols[i].value))
+			} else {
+				bf.WriteString(fmt.Sprintf("%s, ", cols[i].value))
+			}
 		} else {
-			bf.WriteString(cols[i])
+			if cols[i].needQuota {
+				bf.WriteString(fmt.Sprintf("'%s'", cols[i].value))
+			} else {
+				bf.WriteString(cols[i].value)
+			}
 		}
 	}
-	bf.WriteString(")")
+	bf.WriteString(");")
 	return bf.String()
 }
 
@@ -140,11 +154,11 @@ func generateInsert(t *testing.T, row int, random *rand.Rand, currentDB *string,
 	parser := parser.NewParser()
 	sql := generateInsertSql(row, random, table)
 	stm, err := parser.Parse([]byte(sql))
-	assert.Nil(t, err)
+	assert.Nil(t, err, sql)
 	exec, err := MakeExecutor(stm, currentDB)
-	assert.Nil(t, err)
+	assert.Nil(t, err, sql)
 	_, err = exec.Exec()
-	assert.Nil(t, err)
+	assert.Nil(t, err, sql)
 }
 
 func initTestStorage(t *testing.T) {
