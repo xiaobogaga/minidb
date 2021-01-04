@@ -21,6 +21,8 @@ func getFunc(name string, params []LogicExpr) FuncInterface {
 		return &SumFunc{Name: "SUM", Params: params}
 	case "COUNT":
 		return &CountFunc{Name: "COUNT", Params: params}
+	case "DISTINCT":
+		return &DistinctFunc{Name: "DISTINCT", Params: params, Accumulator: map[string][]byte{}}
 	default:
 		return nil
 	}
@@ -331,3 +333,57 @@ func (sum *SumFunc) String() string {
 	bf.WriteString(")")
 	return bf.String()
 }
+
+// Currently won't do.
+//type DistinctFunc struct {
+//	Name        string
+//	Fn          FuncInterface
+//	Params      []LogicExpr
+//	Accumulator map[string][]byte
+//}
+//
+//func (distinct *DistinctFunc) TypeCheck() error {
+//	if len(distinct.Params) != 1 {
+//		return errors.New(fmt.Sprintf("%s: param size doesn't match", distinct.String()))
+//	}
+//	return nil
+//}
+//
+//func (distinct *DistinctFunc) FuncParamSize() int {
+//	return 1
+//}
+//
+//func (distinct *DistinctFunc) F() funcInterface {
+//	return nil
+//}
+//
+//func (distinct *DistinctFunc) ReturnType() storage.FieldTP {
+//	return distinct.Params[0].toField().TP
+//}
+//
+//func (distinct *DistinctFunc) Accumulate(row int, input *storage.RecordBatch) {
+//	data := distinct.Params[0].EvaluateRow(row, input)
+//	distinct.Accumulator[string(data)] = data
+//}
+//
+//func (distinct *DistinctFunc) AccumulateValue() []byte {
+//	return sum.Accumulator
+//}
+//
+//func (distinct *DistinctFunc) IsAggrFunc() bool {
+//	return true
+//}
+//
+//func (distinct *DistinctFunc) String() string {
+//	bf := bytes.Buffer{}
+//	bf.WriteString(distinct.Name)
+//	bf.WriteString("(")
+//	for i, param := range distinct.Params {
+//		bf.WriteString(param.String())
+//		if i != len(distinct.Params)-1 {
+//			bf.WriteString(", ")
+//		}
+//	}
+//	bf.WriteString(")")
+//	return bf.String()
+//}
