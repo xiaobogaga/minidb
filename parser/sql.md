@@ -1,7 +1,6 @@
 ## The supported statements
 
-MiniDB supports a subset of mysql statements and here we will talk about it. The more 
-feature will be added in future to totally compatible with mysql.
+MiniDB supports a subset of mysql statements and here we will talk about it.
 
 ### DDL
 
@@ -9,25 +8,12 @@ feature will be added in future to totally compatible with mysql.
 
 Create Statement can be create table statement or create database statement.
 * For create table statement, it supports:
-    * `create table [if not exist] tb_name like orig_tab_name;`
     * `create table [if not exist] tb_name2 (
-    Column_Def..., Index_Def..., Constraint_Def...
-    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];`
-    * `create table [if not exist] as selectStatement;`
+    Column_Def...
+    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];`e 
 
 * For create database statement, if supports:
     * `create {database|schema} [if not exist] database_name [[Default | character set = value] | [Default | collate = value]];`
-
-Diff with mysql, create table statement:
-    * Doesn't support temporary table.
-    * Doesn't support ignore or replace.
-    * Doesn't support spatial or fulltext index.
-    * Doesn't support to check
-    * Doesn't support column definition.
-    * For column format:
-        * doesn't support comment.
-        * doesn't support column format, collate, storage.
-        * doesn't support reference.
 
 #### drop
 
@@ -35,33 +21,7 @@ Drop statement can be drop table statement or drop database statement.
 * Drop database statement is like:
     * `drop {database | schema} [if exists] db_name;`
 * Drop table statement is like:
-    * `drop table [if exists] tb_name[,tb_name...] [RESTRICT|CASCADE];`
-
-#### alter
-
-Alter statement can be alter table statement or alter database statement.
-* Alter table statement is like:
-```
-alter [table] tb_name [
-    add    [column] col_name col_def |
-    drop   [column] col_name |
-    modify [column] col_name col_def |
-    change [column] old_col_name col_def |
-    add {index|key} indexDef |
-    add [constraint] primaryKeyDef |
-    add [constraint] uniqueKeyDef |
-    add [constraint] foreignKeyDef |
-    drop {index|key} index_name |
-    drop primary key |
-    drop foreign key key_name |
-    engine=value |
-    [[default] | character set = value] |
-    [[default] | collate = value]
-]
-```
-* Alter database statement can be: `alter {database | schema} db_name [[Default | character set = value] | [Default | collate = value]]`
-
-Diff with mysql: Too many, doesn't show here.
+    * `drop table [if exists] tb_name[,tb_name...];`
 
 #### rename
 

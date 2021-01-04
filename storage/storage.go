@@ -201,6 +201,21 @@ func (table *TableInfo) Describe() *RecordBatch {
 	return ret
 }
 
+func (table *TableInfo) RenameTo(newSchemaName string, newTableName string) error {
+	// First we remove the table from old schema first.
+	storage.GetDbInfo(table.TableSchema.SchemaName()).RemoveTable(table.TableSchema.TableName())
+	// Now change table info to new db and new table name.
+	table.TableSchema.SetSchemaTableName(newSchemaName, newTableName)
+	for _, col := range table.Datas {
+		if col == nil {
+			continue
+		}
+		col.Field.TableName = newTableName
+		col.Field.SchemaName = newSchemaName
+	}
+	return nil
+}
+
 // A table format looks like this.
 // | rowIndex | cols ... | DefaultPrimaryKey (if cols doesn't have primary key column |
 // the rowIndex column has no content by default. But when the fetch data is called.
@@ -285,6 +300,12 @@ func (schema *TableSchema) Merge(right *TableSchema) (*TableSchema, error) {
 	ret.Columns = append(ret.Columns, schema.Columns...)
 	ret.Columns = append(ret.Columns, right.Columns...)
 	return ret, nil
+}
+
+func (schema *TableSchema) SetSchemaTableName(schemaName string, tableName string) {
+	for _, col := range schema.Columns {
+		col.SchemaName, col.TableName = schemaName, tableName
+	}
 }
 
 type RecordBatch struct {
