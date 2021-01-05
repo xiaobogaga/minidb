@@ -3,9 +3,9 @@ package plan
 import (
 	"errors"
 	"fmt"
-	"minidb/parser"
-	"minidb/storage"
-	"minidb/util"
+	"github.com/xiaobogaga/parser"
+	"github.com/xiaobogaga/storage"
+	"github.com/xiaobogaga/util"
 	"strings"
 )
 

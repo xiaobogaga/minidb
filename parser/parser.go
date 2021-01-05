@@ -3,7 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
-	"minidb/util"
+	"github.com/xiaobogaga/util"
 	"strconv"
 )
 

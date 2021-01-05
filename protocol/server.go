@@ -3,7 +3,7 @@ package protocol
 import (
 	"context"
 	"fmt"
-	"minidb/util"
+	"github.com/xiaobogaga/util"
 	"net"
 	"os"
 	"time"

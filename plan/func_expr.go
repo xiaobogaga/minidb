@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"minidb/storage"
+	"github.com/xiaobogaga/storage"
 	"strings"
 )
 

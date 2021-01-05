@@ -1,4 +1,4 @@
-module minidb
+module github.com/xiaobogaga/minidb
 
 go 1.12
 

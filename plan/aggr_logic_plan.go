@@ -3,8 +3,8 @@ package plan
 import (
 	"errors"
 	"fmt"
-	"minidb/parser"
-	"minidb/storage"
+	"github.com/xiaobogaga/parser"
+	"github.com/xiaobogaga/storage"
 )
 
 // For groupBy exprs.

@@ -3,8 +3,8 @@ package plan
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"minidb/parser"
-	"minidb/storage"
+	"github.com/xiaobogaga/parser"
+	"github.com/xiaobogaga/storage"
 	"testing"
 )
 

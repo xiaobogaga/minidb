@@ -1,8 +1,8 @@
 package main
 
 import (
-	"minidb/protocol"
-	"minidb/util"
+	"github.com/xiaobogaga/protocol"
+	"github.com/xiaobogaga/util"
 	"time"
 )
 
