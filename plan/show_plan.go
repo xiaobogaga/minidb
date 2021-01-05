@@ -48,6 +48,9 @@ func FillShowPlanData(stm *parser.ShowStm, currentDB string) (*storage.RecordBat
 		}
 	case parser.ShowTableTP:
 		dbInfo := storage.GetStorage().GetDbInfo(currentDB)
+		if dbInfo == nil {
+			return ret, nil
+		}
 		i := 0
 		for table := range dbInfo.Tables {
 			ret.Records[0].Append(storage.EncodeInt(int64(i)))
