@@ -1,12 +1,12 @@
 # miniDb
 
-a in memory "database" can support basic sql processing.
+A in memory "database" can support basic sql processing.
 
 # usage
 
 ```shell
-go get github.com/xiaobogaga/minidb
-go install github.com/xiaobogaga/minidb
+go get -u github.com/xiaobogaga/minidb
+go install github.com/xiaobogaga/minidb/minidb
 minidb
 ```
 
