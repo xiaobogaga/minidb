@@ -213,6 +213,7 @@ func (table *TableInfo) RenameTo(newSchemaName string, newTableName string) erro
 		col.Field.TableName = newTableName
 		col.Field.SchemaName = newSchemaName
 	}
+	storage.GetDbInfo(table.TableSchema.SchemaName()).AddTable(table)
 	return nil
 }
 
@@ -303,8 +304,8 @@ func (schema *TableSchema) Merge(right *TableSchema) (*TableSchema, error) {
 }
 
 func (schema *TableSchema) SetSchemaTableName(schemaName string, tableName string) {
-	for _, col := range schema.Columns {
-		col.SchemaName, col.TableName = schemaName, tableName
+	for i, _ := range schema.Columns {
+		schema.Columns[i].SchemaName, schema.Columns[i].TableName = schemaName, tableName
 	}
 }
 

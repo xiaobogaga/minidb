@@ -67,11 +67,11 @@ func FillShowCreateTableData(stm *parser.ShowStm, currentDB string) (*storage.Re
 	}
 	dbInfo := storage.GetStorage().GetDbInfo(dbName)
 	if dbInfo == nil {
-		return nil, errors.New(fmt.Sprintf("cannot find such db: %s", dbName))
+		return nil, errors.New(fmt.Sprintf("cannot find such db: '%s'", dbName))
 	}
 	tbInfo := dbInfo.GetTable(tableName)
 	if tbInfo == nil {
-		return nil, errors.New(fmt.Sprintf("cannot find such table: %s.%s", dbName, tableName))
+		return nil, errors.New(fmt.Sprintf("cannot find such table: '%s.%s'", dbName, tableName))
 	}
 	return tbInfo.Describe(), nil
 }

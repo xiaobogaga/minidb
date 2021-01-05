@@ -46,6 +46,14 @@ func TestExecuteShowStm(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestExecuteRenameStm(t *testing.T) {
+	initTestStorage(t)
+	renameStm := &parser.RenameStm{OrigNames: []string{"db1.test1"}, ModifiedNames: []string{"db1.test3"}}
+	err := ExecuteRenameStm(renameStm, "db1")
+	assert.Nil(t, err)
+	storage.PrintStorage(t)
+}
+
 func TestExecuteDropDatabaseStm(t *testing.T) {
 	initTestStorage(t)
 	dropStm := &parser.DropDatabaseStm{

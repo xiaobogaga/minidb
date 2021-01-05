@@ -230,7 +230,7 @@ func (update Update) TypeCheck() error {
 		_, _, columnName := getSchemaTableColumnName(assign.Col)
 		_, f := tableInfo.GetColumnInfo(assign.Col)
 		if f == nil {
-			return errors.New(fmt.Sprintf("cannot find such column %s", util.BuildDotString(schemaName, tableName, columnName)))
+			return errors.New(fmt.Sprintf("cannot find such column '%s'", util.BuildDotString(schemaName, tableName, columnName)))
 		}
 		err = f.CanOp(assign.Expr.toField(), storage.EqualOpType)
 		if err != nil {

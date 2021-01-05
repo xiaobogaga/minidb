@@ -216,7 +216,7 @@ func ExecuteCreateTableStm(stm *parser.CreateTableStm, currentDB string) error {
 	}
 	dbInfo := storage.GetStorage().GetDbInfo(schemaName)
 	if dbInfo == nil {
-		return errors.New(fmt.Sprintf("cannot find db: %s", schemaName))
+		return errors.New(fmt.Sprintf("cannot find db: '%s'", schemaName))
 	}
 	tableSchema, err := getSchema(stm, dbInfo)
 	if err != nil {
@@ -304,10 +304,10 @@ func ExecuteTruncateStm(stm *parser.TruncateStm, currentDB string) error {
 		return err
 	}
 	if !storage.GetStorage().HasSchema(schemaName) {
-		return errors.New(fmt.Sprintf("schema %s desn't find", schemaName))
+		return errors.New(fmt.Sprintf("schema '%s' desn't find", schemaName))
 	}
 	if !storage.GetStorage().HasTable(schemaName, tableName) {
-		return errors.New(fmt.Sprintf("table %s.%s doesn't find", schemaName, tableName))
+		return errors.New(fmt.Sprintf("table '%s.%s' doesn't find", schemaName, tableName))
 	}
 	dbInfo := storage.GetStorage().GetDbInfo(schemaName)
 	dbInfo.GetTable(tableName).Truncate()
@@ -332,20 +332,20 @@ func ExecuteRenameStm(stm *parser.RenameStm, currentDB string) error {
 			return err
 		}
 		if !storage.GetStorage().HasSchema(schemaName) {
-			return errors.New(fmt.Sprintf("schema %s desn't find", schemaName))
+			return errors.New(fmt.Sprintf("schema '%s' doesn't find", schemaName))
 		}
 		if !storage.GetStorage().HasTable(schemaName, tableName) {
-			return errors.New(fmt.Sprintf("table %s.%s doesn't find", schemaName, tableName))
+			return errors.New(fmt.Sprintf("table '%s.%s' doesn't find", schemaName, tableName))
 		}
 		newSchemaName, newTableName, err := getSchemaTableName(stm.ModifiedNames[i], currentDB)
 		if err != nil {
 			return err
 		}
 		if !storage.GetStorage().HasSchema(newSchemaName) {
-			return errors.New(fmt.Sprintf("schema %s desn't find", newSchemaName))
+			return errors.New(fmt.Sprintf("schema '%s' desn't find", newSchemaName))
 		}
 		if storage.GetStorage().HasTable(newSchemaName, newTableName) {
-			return errors.New(fmt.Sprintf("table %s.%s already exist", newSchemaName, newTableName))
+			return errors.New(fmt.Sprintf("table '%s.%s' already exist", newSchemaName, newTableName))
 		}
 		err = storage.GetStorage().GetDbInfo(schemaName).GetTable(tableName).RenameTo(newSchemaName, newTableName)
 		if err != nil {

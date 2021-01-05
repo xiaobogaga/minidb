@@ -326,3 +326,7 @@ func TestDecodeToString(t *testing.T) {
 	str := DecodeToString(val, tp)
 	assert.Equal(t, "10.20", str)
 }
+
+func TestTableInfo_RenameTo(t *testing.T) {
+	// Todo
+}
