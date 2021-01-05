@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/xiaobogaga/util"
+	"github.com/xiaobogaga/minidb/util"
 	"sort"
 	"strconv"
 	"strings"

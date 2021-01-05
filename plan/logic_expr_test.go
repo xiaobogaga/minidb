@@ -3,7 +3,7 @@ package plan
 import (
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
-	"github.com/xiaobogaga/parser"
+	"github.com/xiaobogaga/minidb/parser"
 	"testing"
 )
 

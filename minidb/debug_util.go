@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/xiaobogaga/parser"
-	"github.com/xiaobogaga/plan"
+	"github.com/xiaobogaga/minidb/parser"
+	"github.com/xiaobogaga/minidb/plan"
 	"math"
 	"math/rand"
 	"time"

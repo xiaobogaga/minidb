@@ -4,8 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/xiaobogaga/protocol"
-	"github.com/xiaobogaga/util"
+	"github.com/xiaobogaga/minidb/protocol"
+	"github.com/xiaobogaga/minidb/util"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,7 +18,7 @@ var (
 	unixSocket   = flag.String("socket", protocol.DefaultUnixSocket, "the unix socket this server will listen")
 	readTimeout  = flag.Int("r", protocol.DefaultTimeout, "the read timeout in millisecond")
 	writeTimeout = flag.Int("w", protocol.DefaultTimeout, "the write timeout in millisecond")
-	logPath      = flag.String("log", fmt.Sprintf("/tmp/github.com/xiaobogaga/minidb-%v.log", time.Now().Unix()), "the logPath path")
+	logPath      = flag.String("log", fmt.Sprintf("/tmp/minidb-%v.log", time.Now().Unix()), "the logPath path")
 	debug        = flag.Bool("d", false, "whether enable debug mode, will start with several db and tables")
 	host         = flag.String("h", "localhost", "the server host")
 )

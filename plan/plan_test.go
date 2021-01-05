@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"github.com/xiaobogaga/parser"
+	"github.com/xiaobogaga/minidb/parser"
 	"math"
 	"math/rand"
 	"testing"

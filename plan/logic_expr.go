@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/xiaobogaga/storage"
-	"github.com/xiaobogaga/util"
+	"github.com/xiaobogaga/minidb/storage"
+	"github.com/xiaobogaga/minidb/util"
 )
 
 type LogicExpr interface {

@@ -2,9 +2,9 @@ package protocol
 
 import (
 	"fmt"
-	"github.com/xiaobogaga/parser"
-	"github.com/xiaobogaga/plan"
-	"github.com/xiaobogaga/util"
+	"github.com/xiaobogaga/minidb/parser"
+	"github.com/xiaobogaga/minidb/plan"
+	"github.com/xiaobogaga/minidb/util"
 	"strings"
 )
 

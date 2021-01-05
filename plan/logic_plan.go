@@ -3,9 +3,9 @@ package plan
 import (
 	"errors"
 	"fmt"
-	"github.com/xiaobogaga/parser"
-	"github.com/xiaobogaga/storage"
-	"github.com/xiaobogaga/util"
+	"github.com/xiaobogaga/minidb/parser"
+	"github.com/xiaobogaga/minidb/storage"
+	"github.com/xiaobogaga/minidb/util"
 )
 
 type LogicPlan interface {

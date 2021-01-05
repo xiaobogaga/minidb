@@ -2,8 +2,8 @@ package plan
 
 import (
 	"github.com/stretchr/testify/assert"
-	"github.com/xiaobogaga/parser"
-	"github.com/xiaobogaga/storage"
+	"github.com/xiaobogaga/minidb/parser"
+	"github.com/xiaobogaga/minidb/storage"
 	"testing"
 )
 
