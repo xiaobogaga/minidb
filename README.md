@@ -12,3 +12,7 @@ minidb
 
 or with `-d` to start with debug mode.
 
+# demo
+
+![image](https://github.com/xiaobogaga/minidb/blob/master/demo/minidb-demo.gif)
+
