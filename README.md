@@ -12,6 +12,10 @@ minidb
 
 or with `-d` to start with debug mode.
 
+# sql
+
+For the supported sql statement, can refer here.
+
 # demo
 
 ![image](https://github.com/xiaobogaga/minidb/blob/master/demo/minidb-demo.gif)

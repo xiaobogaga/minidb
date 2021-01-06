@@ -50,20 +50,9 @@ Update statement is like:
 
 #### select
 Select statement is like:
-* `select [all | distinct | distinctrow] select_expression... from table_reference... [WhereStm] [GroupByStm] [HavingStm]
-[OrderByStm] [LimitStm] [for update | lock in share mode]`
+* `select select_expression... from table_reference... [WhereStm] [GroupByStm] [HavingStm] [OrderByStm] [LimitStm]`
 
-#### others
-
-* index_def: `{index|key} [index_name] (col_name, ...)`
-
-* constraint_def: 
-    * `[Constraint] primary key (col_name [,col_name...)`
-    * `[Constraint] unique {index|key} [index_name] (col_name [,col_name...)`
-    * `[Constraint] foreign key [index_name] (col_name [,col_name...) references tb_name (key...) [on delete reference_option] [on update reference_option]`
-where reference_option is like: `{restrict | cascade | set null | no action | set default}`
-
-* column_def: `col_name col_type [not null|null] [default default_value] [AUTO_INCREMENT] [unique [key]] [[primary] key]`
+where table_reference can be a single table or a table join another table(like inner join, left join, right join)
 
 #### table name or database name rules
 
