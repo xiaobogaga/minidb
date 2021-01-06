@@ -1,4 +1,4 @@
-# miniDb
+# minidb
 
 A in memory "database" can support basic sql processing.
 
@@ -14,9 +14,8 @@ or with `-d` to start with debug mode.
 
 # sql
 
-For the supported sql statement, can refer here.
+For the supported sql statement, can refer [here](https://github.com/xiaobogaga/minidb/blob/master/parser/sql.md).
 
 # demo
 
-![image](https://github.com/xiaobogaga/minidb/blob/master/demo/minidb-demo.gif)
-
+<img src="https://github.com/xiaobogaga/minidb/blob/master/demo/minidb-demo.gif" width="80%" height="80%" />

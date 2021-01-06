@@ -1,6 +1,6 @@
 ## The supported statements
 
-MiniDB supports a subset of mysql statements and here we will talk about it.
+minidb supports a set of sql statements:
 
 ### DDL
 
