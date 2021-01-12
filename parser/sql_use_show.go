@@ -39,6 +39,8 @@ func (parser *Parser) resolveShowStm() (Stm, error) {
 		}
 		stm.TP = ShowCreateTableTP
 		stm.Table = string(tableName)
+	default:
+		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
 	if !parser.matchTokenTypes(false, SEMICOLON) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
