@@ -10,7 +10,7 @@ Create Statement can be create table statement or create database statement.
 * For create table statement, it supports:
     * `create table [if not exist] tb_name2 (
     Column_Def...
-    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];`e 
+    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];`
 
 * For create database statement, if supports:
     * `create {database|schema} [if not exist] database_name [[Default | character set = value] | [Default | collate = value]];`
@@ -40,7 +40,7 @@ Insert statement is like:
 
 #### delete
 Delete statement is like:
-* `delete from tb_name [whereStm] [OrderByStm] [LimitStm]`;
+* `delete from tb_name [whereStm] [OrderByStm] [LimitStm];`
 * `delete tb1,... from table_references [WhereStm];`
 
 #### update

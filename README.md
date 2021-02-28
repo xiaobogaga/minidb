@@ -8,6 +8,13 @@ A in memory "database" can support basic sql processing.
 go get -u github.com/xiaobogaga/minidb
 go install github.com/xiaobogaga/minidb/minidb
 minidb
+hi :)
+minidb> show databases;
++-----------+
++ databases +
++-----------+
+server:  OK
+minidb>
 ```
 
 or with `-d` to start with debug mode.

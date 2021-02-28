@@ -157,7 +157,7 @@ func (log *SimpleLog) printLog(header string, level int, format string, a ...int
 	defer log.lock.Unlock()
 	_, fName, line, _ := runtime.Caller(2)
 	fName = extractFName(fName)
-	l := fmt.Sprintf("%s [%s:%d] [%s] [%s]: ", time.Now().Format("2006/06/12 00:00:00.000000"),
+	l := fmt.Sprintf("%s [%s:%d] [%s] [%s]: ", time.Now().Format("2006/01/02 15:04:05.000000"),
 		fName, line, header, logLevelMaps[level])
 	l = fmt.Sprintf(l+format, a...)
 	l += "\n"
@@ -172,6 +172,9 @@ func (log *SimpleLog) printLog(header string, level int, format string, a ...int
 }
 
 func (log *SimpleLog) doFlushIfNeed(force bool) {
+	if log.closed {
+		return
+	}
 	if force || log.Buf.Len() >= log.BufferSize || log.checkFlushTime() {
 		buf := log.Buf
 		log.Buf = new(bytes.Buffer)
