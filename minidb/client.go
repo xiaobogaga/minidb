@@ -26,6 +26,9 @@ func showPrompt() {
 func columnWidth(record *storage.RecordBatch, column int) int {
 	field := record.Fields[column]
 	ret := len(field.Name)
+	if len(field.Alias) > 0 {
+		ret = len(field.Alias)
+	}
 	col := record.Records[column]
 	for i := 0; i < col.Size(); i++ {
 		ret = util.Max(ret, storage.FieldLen(field, col.RawValue(i)))
@@ -73,7 +76,11 @@ func printHeader(record *storage.RecordBatch, columnWidths []int) {
 			continue
 		}
 		buf.WriteString("+ ")
-		buf.WriteString(fmt.Sprintf("%"+fmt.Sprintf("%ds", columnWidths[i]), record.Fields[i].Name))
+		name := record.Fields[i].Name
+		if record.Fields[i].Alias != "" {
+			name = record.Fields[i].Alias
+		}
+		buf.WriteString(fmt.Sprintf("%"+fmt.Sprintf("%ds", columnWidths[i]), name))
 		buf.WriteString(" ")
 	}
 	buf.WriteString("+\n")

@@ -1827,7 +1827,11 @@ func (as AsLogicExpr) TypeCheck() error {
 }
 
 func (as AsLogicExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
-	return as.Expr.Evaluate(input)
+	old := as.Expr.Evaluate(input)
+	field := as.toField()
+	ret := &storage.ColumnVector{Field: field}
+	ret.Appends(old)
+	return ret
 }
 
 func (as AsLogicExpr) AggrTypeCheck(groupByExpr []LogicExpr) error {

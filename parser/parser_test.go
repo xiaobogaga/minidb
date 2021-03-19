@@ -43,11 +43,11 @@ func TestCreateStm(t *testing.T) {
 				TableName:  "tb_1",
 				IfNotExist: true,
 				Cols: []*ColumnDefStm{
-					{ColName: "id", ColumnType: ColumnType{Tp: INT}, PrimaryKey: true, ColDefaultValue: ColumnValue([]byte("10"))},
+					{ColName: "id", ColumnType: ColumnType{Tp: INT, Ranges: emptyRange}, PrimaryKey: true, ColDefaultValue: ColumnValue([]byte("10"))},
 					{ColName: "name", ColumnType: ColumnType{Tp: VARCHAR, Ranges: [2]int{20, 0}}, ColDefaultValue: ColumnValue([]byte("\"hello\""))},
 					{ColName: "age", ColumnType: ColumnType{Tp: FLOAT, Ranges: [2]int{10, 2}}, ColDefaultValue: ColumnValue([]byte("10.5"))},
 					{ColName: "location", ColumnType: ColumnType{Tp: TEXT}, ColDefaultValue: ColumnValue([]byte("\"haha\""))},
-					{ColName: "age", ColumnType: ColumnType{Tp: CHAR}, ColDefaultValue: ColumnValue([]byte("'z'"))},
+					{ColName: "age", ColumnType: ColumnType{Tp: CHAR, Ranges: [2]int{1, 0}}, ColDefaultValue: ColumnValue([]byte("'z'"))},
 					{ColName: "sex", ColumnType: ColumnType{Tp: BOOL}, ColDefaultValue: ColumnValue([]byte("true"))},
 				},
 			},

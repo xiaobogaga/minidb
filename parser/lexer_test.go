@@ -147,8 +147,8 @@ func TestNumericalPattern(t *testing.T) {
 	testOneSql(t, sql)
 	sql = "0.0"
 	testOneSql(t, sql)
-	sql = ".10"
-	testOneSql(t, sql)
+	// sql = ".10"
+	// testOneSql(t, sql)
 }
 
 func TestLexerIdent(t *testing.T) {
