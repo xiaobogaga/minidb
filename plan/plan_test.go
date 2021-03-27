@@ -445,3 +445,4 @@ func TestFuncPlan(t *testing.T) {
 	sql = "select id from test1 where id > 0 group by id having max(max(id)) > 0;"
 	verifyTestPlanFail(t, sql)
 }
+

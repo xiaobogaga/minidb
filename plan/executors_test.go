@@ -9,9 +9,12 @@ import (
 )
 
 func TestExecuteUseStm(t *testing.T) {
-	initTestStorage(t)
-	useStm := &parser.UseDatabaseStm{DatabaseName: "db1"}
+	useStm := &parser.UseDatabaseStm{DatabaseName: "t1"}
 	err := ExecuteUseStm(useStm)
+	assert.NotNil(t, err)
+	initTestStorage(t)
+	useStm = &parser.UseDatabaseStm{DatabaseName: "db1"}
+	err = ExecuteUseStm(useStm)
 	assert.Nil(t, err)
 	useStm.DatabaseName = "db3"
 	err = ExecuteUseStm(useStm)
