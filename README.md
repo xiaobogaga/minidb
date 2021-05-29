@@ -66,7 +66,3 @@ or without `-d` to start with empty databases.
 # sql
 
 For the supported sql statement, can refer [here](https://github.com/xiaobogaga/minidb/blob/master/parser/sql.md).
-
-# demo
-
-<img src="https://github.com/xiaobogaga/minidb/blob/master/demo/minidb-demo.gif" width="80%" height="80%" />
