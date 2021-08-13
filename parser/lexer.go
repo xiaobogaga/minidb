@@ -215,6 +215,11 @@ const (
 	// Special characters
 	SEMICOLON
 	COMMA
+
+	// Transaction related commands
+	BEGIN
+	ROLLBACK
+	COMMIT
 )
 
 type Token struct {
@@ -343,6 +348,9 @@ var (
 		"DATABASES":      DATABASES,
 		"TRUE":           VALUE,
 		"FALSE":          VALUE,
+		"BEGIN":          BEGIN,
+		"ROLLBACK":       ROLLBACK,
+		"COMMIT":         COMMIT,
 	}
 )
 
