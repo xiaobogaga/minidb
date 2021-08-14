@@ -1,5 +1,6 @@
 package parser
 
+// use dbName ;
 func (parser *Parser) resolveUseStm() (Stm, error) {
 	if !parser.matchTokenTypes(false, USE) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
@@ -14,6 +15,7 @@ func (parser *Parser) resolveUseStm() (Stm, error) {
 	return &UseDatabaseStm{DatabaseName: string(databaseName)}, nil
 }
 
+// show databases | tables | create table tableName ;
 func (parser *Parser) resolveShowStm() (Stm, error) {
 	if !parser.matchTokenTypes(false, SHOW) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)

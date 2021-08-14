@@ -35,7 +35,7 @@ func (parser *Parser) parseDropStm() (stm Stm, err error) {
 // Drop table statement is like:
 // * drop table [if exists] tb_name[,tb_name...] [RESTRICT|CASCADE];
 func (parser *Parser) parseDropTableStm() (*DropTableStm, error) {
-	ifExist := parser.matchTokenTypes(true, IF, EXIST)
+	ifExist := parser.matchTokenTypes(true, IF, EXISTS)
 	var tableNames []string
 	for {
 		name, ret := parser.parseIdentOrWord(false)
@@ -58,7 +58,7 @@ func (parser *Parser) parseDropTableStm() (*DropTableStm, error) {
 // Drop database statement is like:
 // * drop {database | schema} [if exists] db_name;
 func (parser *Parser) parseDropDatabaseStm() (*DropDatabaseStm, error) {
-	ifExist := parser.matchTokenTypes(true, IF, EXIST)
+	ifExist := parser.matchTokenTypes(true, IF, EXISTS)
 	name, ret := parser.parseIdentOrWord(false)
 	if !ret {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)

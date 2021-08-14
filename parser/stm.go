@@ -582,3 +582,11 @@ type ShowStm struct {
 	TP    ShowStmTp
 	Table string
 }
+
+type TransStm string
+
+const (
+	BeginStm    TransStm = "begin"
+	RollbackStm          = "rollback"
+	CommitStm            = "commit"
+)

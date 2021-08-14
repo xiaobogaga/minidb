@@ -84,6 +84,9 @@ func (parser *Parser) Parse(data []byte) (stm Stm, err error) {
 	case SHOW:
 		parser.UnReadToken()
 		stm, err = parser.resolveShowStm()
+	case BEGIN, COMMIT, ROLLBACK:
+		parser.UnReadToken()
+		stm, err = parser.ParseTransStm()
 	default:
 		err = parser.MakeSyntaxError(parser.pos - 1)
 	}
