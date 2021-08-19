@@ -1,5 +1,7 @@
 package parser
 
+import "encoding/json"
+
 type Stm interface {
 	// Execute() error
 }
@@ -275,9 +277,9 @@ type InsertIntoStm struct {
 // Note: currently we don't consider [NOT] IN, [NOT] LIKE
 // Note: literal can be -5
 type ExpressionStm struct {
-	LeftExpr  interface{}   `json:"left"` // can be ExpressionTerm or ExpressionAst
+	LeftExpr  interface{}   `json:"left"` // can be ExpressionTerm or ExpressionStm
 	Op        *ExpressionOp `json:"op"`
-	RightExpr interface{}   `json:right`
+	RightExpr interface{}   `json:"right"`
 }
 
 type ExpressionTerm struct {
@@ -352,7 +354,18 @@ var (
 //}
 
 type LiteralExpressionStm ColumnValue
+
+func (stm LiteralExpressionStm) MarshalJSON() ([]byte, error) {
+	v := string(stm)
+	return json.Marshal(v)
+}
+
 type IdentifierExpression []byte
+
+func (ident IdentifierExpression) MarshalJSON() ([]byte, error) {
+	id := string(ident)
+	return json.Marshal(id)
+}
 
 // Name(params...)
 type FunctionCallExpressionStm struct {

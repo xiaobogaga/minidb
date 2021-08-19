@@ -58,19 +58,39 @@ func TestParser_CreateTable(t *testing.T) {
 }
 
 func TestParser_Select(t *testing.T) {
-
+	sql := "select * from test;"
+	testSql(t, sql)
+	sql = "select c1, c2 from test where i = 10 order by age limit 10;"
+	testSql(t, sql)
+	sql = "select c1 from where i = 1;"
+	testSqlFail(t, sql)
 }
 
 func TestParser_Delete(t *testing.T) {
-
+	sql := "delete from test1 where id = 10 and age > 10 limit 2;"
+	testSql(t, sql)
+	sql = "delete test1 where id = 1;"
+	testSqlFail(t, sql)
+	sql = "delete from test1 where and age > 10;"
+	testSqlFail(t, sql)
 }
 
 func TestParser_Update(t *testing.T) {
-
+	sql := "update test1 set id = 10, name='hello' where id = 1;"
+	testSql(t, sql)
+	sql = "update test1 set where id = 1;"
+	testSqlFail(t, sql)
+	sql = "update set id = 1;"
+	testSqlFail(t, sql)
 }
 
 func TestParser_Insert(t *testing.T) {
-
+	sql := "insert into test(c1, c2) values(10, 100);"
+	testSql(t, sql)
+	sql = "insert into test values(10, 100, 101);"
+	testSql(t, sql)
+	sql = "insert into test values();"
+	testSqlFail(t, sql)
 }
 
 func TestParser_CreateDatabase(t *testing.T) {

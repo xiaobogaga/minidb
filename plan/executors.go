@@ -69,6 +69,8 @@ func (exec *Executor) Exec() (data *storage.RecordBatch, err error) {
 			*exec.CurrentDB = stm.(*parser.UseDatabaseStm).DatabaseName
 		}
 		return nil, err
+	case parser.TransStm:
+		return nil, errors.New("unsupported statement")
 	default:
 		return nil, errors.New("unsupported statement")
 	}
