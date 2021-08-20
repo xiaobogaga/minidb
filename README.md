@@ -1,13 +1,41 @@
 # minidb
 
-A in memory "database" can support basic sql processing.
+A in-memory "database" can support basic sql processing.
 
-# usage
+Table of Contents
+=================
 
-```shell
+* [minidb](#minidb)
+  * [usage](#usage)
+  * [The supported statements](#the-supported-statements)
+    * [create:](#create)
+    * [drop](#drop)
+    * [rename](#rename)
+    * [truncate](#truncate)
+    * [insert](#insert)
+    * [delete](#delete)
+    * [update](#update)
+    * [select](#select)
+
+## usage
+
+* Install
+
+```shell script
 go get -u github.com/xiaobogaga/minidb
 go install github.com/xiaobogaga/minidb/minidb
+```
+you can find minidb in **$GOPATH/bin/** 
+
+* Startup minidb
+
+```shell script
 minidb -d
+```
+
+* minidb queries
+
+```shell script
 minidb> show databases;
 +-----------+
 + databases +
@@ -63,6 +91,47 @@ server:  OK. no more data
 
 or without `-d` to start with empty databases.
 
-# sql
+## The supported statements
 
-For the supported sql statement, can refer [here](https://github.com/xiaobogaga/minidb/blob/master/parser/sql.md).
+minidb supports a set of sql statements:
+
+### create:
+
+* `create table [if not exist] tb_name2 (
+    Column_Def...
+    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];`
+
+* `create {database|schema} [if not exist] database_name [[Default | character set = value] | [Default | collate = value]];`
+
+### drop
+
+* `drop {database | schema} [if exists] db_name;`
+* `drop table [if exists] tb_name[,tb_name...];`
+
+### rename
+
+* `rename table {tb1 To tb2...};`
+
+### truncate
+
+* `truncate [table] tb_name;`
+
+### insert
+
+* `insert into tb_name [( col_name... )] values (expression...);`
+
+### delete
+
+* `delete from tb_name [whereStm] [OrderByStm] [LimitStm];`
+* `delete tb1,... from table_references [WhereStm];`
+
+### update
+
+* `update table_reference set assignments... [WhereStm] [OrderByStm] [LimitStm];`
+* `update table_reference... set assignments... [WhereStm];`
+
+### select
+
+* `select select_expression... from table_reference... [WhereStm] [GroupByStm] [HavingStm] [OrderByStm] [LimitStm]`
+
+where table_reference can be a single table or a table join another table(like inner join, left join, right join)
