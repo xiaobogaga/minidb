@@ -58,7 +58,7 @@ func (exec *Executor) Exec() (data *storage.RecordBatch, err error) {
 	case *parser.TruncateStm:
 		return nil, ExecuteTruncateStm(stm.(*parser.TruncateStm), currentDB)
 	case *parser.SelectStm:
-		data = exec.Plan.(LogicPlan).Execute()
+		data = exec.Plan.(Plan).Execute()
 		return data, nil
 	case *parser.ShowStm:
 		data, err = exec.Plan.(*Show).Execute(currentDB, stm.(*parser.ShowStm))
@@ -76,9 +76,9 @@ func (exec *Executor) Exec() (data *storage.RecordBatch, err error) {
 	}
 }
 
-func MakeSelectPlan(stm *parser.SelectStm, currentDB string) (LogicPlan, error) {
+func MakeSelectPlan(stm *parser.SelectStm, currentDB string) (Plan, error) {
 	// we need to generate a logic plan for this selectStm.
-	plan, err := MakeLogicPlan(stm, currentDB)
+	plan, err := MakePlan(stm, currentDB)
 	if err != nil {
 		return nil, err
 	}

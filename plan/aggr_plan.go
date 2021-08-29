@@ -9,17 +9,17 @@ import (
 
 // For groupBy exprs.
 // HashGroupBy.
-type GroupByLogicPlan struct {
-	Input       LogicPlan            `json:"group_by_input"`
-	GroupByExpr []LogicExpr          `json:"group_by_expr"`
-	AggrExprs   []AsLogicExpr        `json:"aggrs"`
+type GroupByPlan struct {
+	Input       Plan                 `json:"group_by_input"`
+	GroupByExpr []Expr               `json:"group_by_expr"`
+	AggrExprs   []AsExpr             `json:"aggrs"`
 	data        *storage.RecordBatch // All record batch from the input.
 	keys        *storage.RecordBatch // The keys from groupBy clause
 	retData     *storage.RecordBatch // The data will return by the AggrExprs
 	index       int
 }
 
-func (groupBy *GroupByLogicPlan) Schema() *storage.TableSchema {
+func (groupBy *GroupByPlan) Schema() *storage.TableSchema {
 	ret := &storage.TableSchema{}
 	for _, aggrExpr := range groupBy.AggrExprs {
 		f := aggrExpr.toField()
@@ -28,24 +28,24 @@ func (groupBy *GroupByLogicPlan) Schema() *storage.TableSchema {
 	return ret
 }
 
-func (groupBy *GroupByLogicPlan) String() string {
-	return fmt.Sprintf("GroupByLogicPlan: %s groupBy %s", groupBy.Input, groupBy.GroupByExpr)
+func (groupBy *GroupByPlan) String() string {
+	return fmt.Sprintf("GroupByPlan: %s groupBy %s", groupBy.Input, groupBy.GroupByExpr)
 }
 
-func (groupBy *GroupByLogicPlan) Child() []LogicPlan {
-	return []LogicPlan{groupBy.Input}
+func (groupBy *GroupByPlan) Child() []Plan {
+	return []Plan{groupBy.Input}
 }
 
-func (groupBy *GroupByLogicPlan) MakeAggrExprs() {
+func (groupBy *GroupByPlan) MakeAggrExprs() {
 	schema := groupBy.Input.Schema()
-	var ret []AsLogicExpr
+	var ret []AsExpr
 	for _, column := range schema.Columns {
 		if column.Name == storage.DefaultRowKeyName {
 			continue
 		}
 		name := column.ColumnName()
-		ret = append(ret, AsLogicExpr{
-			Expr: &IdentifierLogicExpr{
+		ret = append(ret, AsExpr{
+			Expr: &IdentifierExpr{
 				Ident: []byte(name),
 				input: groupBy.Input,
 				Str:   name,
@@ -55,7 +55,7 @@ func (groupBy *GroupByLogicPlan) MakeAggrExprs() {
 	groupBy.AggrExprs = ret
 }
 
-func (groupBy *GroupByLogicPlan) TypeCheck() error {
+func (groupBy *GroupByPlan) TypeCheck() error {
 	err := groupBy.Input.TypeCheck()
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func (groupBy *GroupByLogicPlan) TypeCheck() error {
 	return nil
 }
 
-func (groupBy *GroupByLogicPlan) Execute() *storage.RecordBatch {
+func (groupBy *GroupByPlan) Execute() *storage.RecordBatch {
 	if groupBy.data == nil {
 		groupBy.InitializeData()
 	}
@@ -98,7 +98,7 @@ func (groupBy *GroupByLogicPlan) Execute() *storage.RecordBatch {
 // GroupBy.
 // |---|---|---|  group by col1, col2.
 // |---|---|---|           |----|----|
-func (groupBy *GroupByLogicPlan) InitializeData() {
+func (groupBy *GroupByPlan) InitializeData() {
 	if groupBy.data != nil {
 		return
 	}
@@ -131,7 +131,7 @@ func (groupBy *GroupByLogicPlan) InitializeData() {
 
 	// Now builds accumulators.
 	groupBy.retData = MakeEmptyRecordBatchFromSchema(groupBy.Schema())
-	keyMap := map[string][]LogicExpr{}
+	keyMap := map[string][]Expr{}
 	var keys []string // To preserved the data order.
 	for i := 0; i < groupBy.keys.RowCount(); i++ {
 		key := string(groupBy.keys.RowKey(i))
@@ -155,15 +155,15 @@ func (groupBy *GroupByLogicPlan) InitializeData() {
 	}
 }
 
-func (groupBy *GroupByLogicPlan) CloneAggrExpr(needAccumulator bool) (ret []LogicExpr) {
-	ret = make([]LogicExpr, len(groupBy.AggrExprs))
+func (groupBy *GroupByPlan) CloneAggrExpr(needAccumulator bool) (ret []Expr) {
+	ret = make([]Expr, len(groupBy.AggrExprs))
 	for i, aggrExpr := range groupBy.AggrExprs {
 		ret[i] = aggrExpr.Clone(needAccumulator)
 	}
 	return ret
 }
 
-func (groupBy *GroupByLogicPlan) Reset() {
+func (groupBy *GroupByPlan) Reset() {
 	groupBy.data = nil
 	groupBy.keys = nil
 	groupBy.retData = nil
@@ -171,25 +171,25 @@ func (groupBy *GroupByLogicPlan) Reset() {
 }
 
 // For Having condition
-type HavingLogicPlan struct {
-	Input *GroupByLogicPlan `json:"having_input"`
-	Expr  LogicExpr         `json:"Expr"`
+type HavingPlan struct {
+	Input *GroupByPlan `json:"having_input"`
+	Expr  Expr         `json:"Expr"`
 }
 
-func (having *HavingLogicPlan) Schema() *storage.TableSchema {
+func (having *HavingPlan) Schema() *storage.TableSchema {
 	// Should be the same schema as Expr.
 	return having.Input.Schema()
 }
 
-func (having *HavingLogicPlan) String() string {
-	return fmt.Sprintf("HavingLogicPlan: %s having %s", having.Input, having.Expr)
+func (having *HavingPlan) String() string {
+	return fmt.Sprintf("HavingPlan: %s having %s", having.Input, having.Expr)
 }
 
-func (having *HavingLogicPlan) Child() []LogicPlan {
-	return []LogicPlan{having.Input}
+func (having *HavingPlan) Child() []Plan {
+	return []Plan{having.Input}
 }
 
-func (having *HavingLogicPlan) TypeCheck() error {
+func (having *HavingPlan) TypeCheck() error {
 	err := having.Input.TypeCheck()
 	if err != nil {
 		return err
@@ -197,7 +197,7 @@ func (having *HavingLogicPlan) TypeCheck() error {
 	return having.Expr.AggrTypeCheck(having.Input.GroupByExpr)
 }
 
-func (having *HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
+func (having *HavingPlan) Execute() (ret *storage.RecordBatch) {
 	i := 0
 	for i < batchSize {
 		recordBatch := having.Input.Execute()
@@ -215,48 +215,48 @@ func (having *HavingLogicPlan) Execute() (ret *storage.RecordBatch) {
 	return
 }
 
-func (having *HavingLogicPlan) Reset() {
+func (having *HavingPlan) Reset() {
 	having.Input.Reset()
 }
 
-func MakeAggreLogicPlan(input LogicPlan, ast *parser.SelectStm) (LogicPlan, error) {
-	groupByLogicPlan := makeGroupByLogicPlan(input, ast.Groupby, ast.SelectExpressions)
+func MakeAggrePlan(input Plan, ast *parser.SelectStm) (Plan, error) {
+	groupByPlan := makeGroupByPlan(input, ast.Groupby, ast.SelectExpressions)
 	// Having similar to projections for aggregation, the Expr must be either included in the group by Expr.
 	// or must be an aggregation function.
-	havingLogicPlan := makeHavingLogicPlan(groupByLogicPlan, ast.Having)
+	havingPlan := makeHavingPlan(groupByPlan, ast.Having)
 	// Order by similar to projections for aggregation, the Expr must be either included in the group by Expr,
 	// or must be an aggregation function.
-	orderByLogicPlan := makeOrderByLogicPlan(havingLogicPlan, ast.OrderBy, true)
-	limitLogicPlan := makeLimitLogicPlan(orderByLogicPlan, ast.LimitStm)
-	return limitLogicPlan, limitLogicPlan.TypeCheck()
+	orderByPlan := makeOrderByPlan(havingPlan, ast.OrderBy, true)
+	limitPlan := makeLimitPlan(orderByPlan, ast.LimitStm)
+	return limitPlan, limitPlan.TypeCheck()
 }
 
-func makeHavingLogicPlan(input *GroupByLogicPlan, having parser.HavingStm) LogicPlan {
+func makeHavingPlan(input *GroupByPlan, having parser.HavingStm) Plan {
 	if having == nil {
 		return input
 	}
-	return &HavingLogicPlan{
+	return &HavingPlan{
 		Input: input,
-		Expr:  ExprStmToLogicExpr(having, input),
+		Expr:  ExprStmToExpr(having, input),
 	}
 }
 
-func makeGroupByLogicPlan(input LogicPlan, groupBy *parser.GroupByStm, selectExprStm *parser.SelectExpressionStm) *GroupByLogicPlan {
-	ret := &GroupByLogicPlan{
+func makeGroupByPlan(input Plan, groupBy *parser.GroupByStm, selectExprStm *parser.SelectExpressionStm) *GroupByPlan {
+	ret := &GroupByPlan{
 		Input:       input,
-		GroupByExpr: ExprStmsToLogicExprs(*groupBy, input),
+		GroupByExpr: ExprStmsToExprs(*groupBy, input),
 	}
 	switch selectExprStm.Tp {
 	case parser.StarSelectExpressionTp:
 	case parser.ExprSelectExpressionTp:
-		ret.AggrExprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*parser.SelectExpr), input)
+		ret.AggrExprs = SelectExprToAsExpr(selectExprStm.Expr.([]*parser.SelectExpr), input)
 	}
 	return ret
 }
 
-func ExprStmsToLogicExprs(expressions []*parser.ExpressionStm, input LogicPlan) (ret []LogicExpr) {
+func ExprStmsToExprs(expressions []*parser.ExpressionStm, input Plan) (ret []Expr) {
 	for _, expr := range expressions {
-		ret = append(ret, ExprStmToLogicExpr(expr, input))
+		ret = append(ret, ExprStmToExpr(expr, input))
 	}
 	return ret
 }

@@ -13,17 +13,17 @@ type Insert struct {
 	Schema string
 	Table  string
 	Cols   []string
-	Values []LogicExpr
+	Values []Expr
 }
 
 func MakeInsertPlan(stm *parser.InsertIntoStm, currentDB string) Insert {
 	schemaName, tableName, _ := getSchemaTableName(stm.TableName, currentDB)
-	logicExprs := ExprStmsToLogicExprs(stm.Values, nil)
+	exprs := ExprStmsToExprs(stm.Values, nil)
 	return Insert{
 		Schema: schemaName,
 		Table:  tableName,
 		Cols:   stm.Cols,
-		Values: logicExprs,
+		Values: exprs,
 	}
 }
 
@@ -162,21 +162,21 @@ func (insert Insert) TypeCheck() error {
 type Update struct {
 	DefaultSchema string
 	TableName     string
-	Input         LogicPlan
+	Input         Plan
 	Assignments   []AssignmentExpr
 }
 
 type AssignmentExpr struct {
 	Col  string
-	Expr LogicExpr
+	Expr Expr
 }
 
-func AssignmentStmToAssignmentExprs(assignments []*parser.AssignmentStm, input LogicPlan) []AssignmentExpr {
+func AssignmentStmToAssignmentExprs(assignments []*parser.AssignmentStm, input Plan) []AssignmentExpr {
 	ret := make([]AssignmentExpr, len(assignments))
 	for i, expr := range assignments {
 		ret[i] = AssignmentExpr{
 			Col:  expr.ColName,
-			Expr: ExprStmToLogicExpr(expr.Value, input),
+			Expr: ExprStmToExpr(expr.Value, input),
 		}
 	}
 	return ret
@@ -186,20 +186,20 @@ func AssignmentStmToAssignmentExprs(assignments []*parser.AssignmentStm, input L
 // We start with a select statement to get the row primary key. Then according to the
 // primary key, we update the value accordingly.
 func MakeUpdatePlan(stm *parser.UpdateStm, currentDB string) Update {
-	inputPlan, _ := makeScanLogicPlan(stm.TableRefs.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
-	selectLogicPlan := makeSelectLogicPlan(inputPlan, stm.Where)
-	orderByLogicPlan := makeOrderByLogicPlan(selectLogicPlan, stm.OrderBy, false)
+	inputPlan, _ := makeScanPlan(stm.TableRefs.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
+	selectPlan := makeSelectPlan(inputPlan, stm.Where)
+	orderByPlan := makeOrderByPlan(selectPlan, stm.OrderBy, false)
 	selectAllExpr := parser.SelectExpressionStm{
 		Tp: parser.StarSelectExpressionTp,
 	}
-	projectionLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, &selectAllExpr)
-	limitLogicPlan := makeLimitLogicPlan(projectionLogicPlan, stm.Limit)
+	projectionPlan := makeProjectionPlan(orderByPlan, &selectAllExpr)
+	limitPlan := makeLimitPlan(projectionPlan, stm.Limit)
 	return Update{
 		DefaultSchema: currentDB,
 		TableName: stm.TableRefs.TableReference.(parser.TableReferenceTableFactorStm).
 			TableFactorReference.(parser.TableReferencePureTableRefStm).TableName,
-		Input:       limitLogicPlan,
-		Assignments: AssignmentStmToAssignmentExprs(stm.Assignments, limitLogicPlan),
+		Input:       limitPlan,
+		Assignments: AssignmentStmToAssignmentExprs(stm.Assignments, limitPlan),
 	}
 }
 
@@ -244,21 +244,21 @@ func (update Update) TypeCheck() error {
 type MultiUpdate struct {
 	DefaultSchema string
 	Assignments   []AssignmentExpr
-	Input         LogicPlan
+	Input         Plan
 }
 
 func MakeMultiUpdatePlan(stm *parser.MultiUpdateStm, currentDB string) MultiUpdate {
-	scanLogicPlans, _ := makeScanLogicPlans(stm.TableRefs, currentDB)
-	joinLogicPlan := makeJoinLogicPlan(scanLogicPlans)
-	selectLogicPlan := makeSelectLogicPlan(joinLogicPlan, stm.Where)
+	scanPlans, _ := makeScanPlans(stm.TableRefs, currentDB)
+	joinPlan := makeJoinPlan(scanPlans)
+	selectPlan := makeSelectPlan(joinPlan, stm.Where)
 	selectAllExpr := parser.SelectExpressionStm{
 		Tp: parser.StarSelectExpressionTp,
 	}
-	projectionLogicPlan := makeProjectionLogicPlan(selectLogicPlan, &selectAllExpr)
+	projectionPlan := makeProjectionPlan(selectPlan, &selectAllExpr)
 	return MultiUpdate{
 		DefaultSchema: currentDB,
-		Input:         projectionLogicPlan,
-		Assignments:   AssignmentStmToAssignmentExprs(stm.Assignments, projectionLogicPlan),
+		Input:         projectionPlan,
+		Assignments:   AssignmentStmToAssignmentExprs(stm.Assignments, projectionPlan),
 	}
 }
 
@@ -310,21 +310,21 @@ func (update MultiUpdate) TypeCheck() error {
 type Delete struct {
 	DefaultSchemaName string
 	TableName         string
-	Input             LogicPlan
+	Input             Plan
 }
 
 func MakeDeletePlan(stm *parser.SingleDeleteStm, currentDB string) Delete {
-	inputPlan, _ := makeScanLogicPlan(stm.TableRef.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
-	selectLogicPlan := makeSelectLogicPlan(inputPlan, stm.Where)
-	orderByLogicPlan := makeOrderByLogicPlan(selectLogicPlan, stm.OrderBy, false)
+	inputPlan, _ := makeScanPlan(stm.TableRef.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
+	selectPlan := makeSelectPlan(inputPlan, stm.Where)
+	orderByPlan := makeOrderByPlan(selectPlan, stm.OrderBy, false)
 	selectAllExpr := parser.SelectExpressionStm{
 		Tp: parser.StarSelectExpressionTp,
 	}
-	projectionLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, &selectAllExpr)
-	limitLogicPlan := makeLimitLogicPlan(projectionLogicPlan, stm.Limit)
+	projectionPlan := makeProjectionPlan(orderByPlan, &selectAllExpr)
+	limitPlan := makeLimitPlan(projectionPlan, stm.Limit)
 	return Delete{
 		DefaultSchemaName: currentDB,
-		Input:             limitLogicPlan,
+		Input:             limitPlan,
 		TableName: stm.TableRef.TableReference.(parser.TableReferenceTableFactorStm).
 			TableFactorReference.(parser.TableReferencePureTableRefStm).TableName,
 	}
@@ -359,20 +359,20 @@ func (delete Delete) TypeCheck() error {
 }
 
 type MultiDelete struct {
-	Input     LogicPlan
+	Input     Plan
 	Tables    []string
 	DefaultDB string
 }
 
 func MakeMultiDeletePlan(stm *parser.MultiDeleteStm, currentDB string) MultiDelete {
-	scanLogicPlans, _ := makeScanLogicPlans(stm.TableReferences, currentDB)
-	joinLogicPlan := makeJoinLogicPlan(scanLogicPlans)
-	selectLogicPlan := makeSelectLogicPlan(joinLogicPlan, stm.Where)
+	scanPlans, _ := makeScanPlans(stm.TableReferences, currentDB)
+	joinPlan := makeJoinPlan(scanPlans)
+	selectPlan := makeSelectPlan(joinPlan, stm.Where)
 	selectAllExpr := parser.SelectExpressionStm{
 		Tp: parser.StarSelectExpressionTp,
 	}
-	projectionLogicPlan := makeProjectionLogicPlan(selectLogicPlan, &selectAllExpr)
-	return MultiDelete{Input: projectionLogicPlan, Tables: stm.TableNames, DefaultDB: currentDB}
+	projectionPlan := makeProjectionPlan(selectPlan, &selectAllExpr)
+	return MultiDelete{Input: projectionPlan, Tables: stm.TableNames, DefaultDB: currentDB}
 }
 
 func (delete MultiDelete) Execute() error {

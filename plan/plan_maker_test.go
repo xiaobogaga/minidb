@@ -273,7 +273,7 @@ func verifyTestPlan(t *testing.T, sql string) {
 	p := parser.NewParser()
 	stm, err := p.Parse([]byte(sql))
 	assert.Nil(t, err)
-	plan, err := MakeLogicPlan(stm.(*parser.SelectStm), "db1")
+	plan, err := MakePlan(stm.(*parser.SelectStm), "db1")
 	assert.Nil(t, err)
 	data, err := json.MarshalIndent(plan, "", "\t")
 	assert.Nil(t, err)
@@ -286,11 +286,11 @@ func verifyTestPlanFail(t *testing.T, sql string) {
 	if err != nil {
 		return
 	}
-	_, err = MakeLogicPlan(stm.(*parser.SelectStm), "db1")
+	_, err = MakePlan(stm.(*parser.SelectStm), "db1")
 	assert.NotNil(t, err)
 }
 
-func TestMakeProjectionScanLogicPlan(t *testing.T) {
+func TestMakeProjectionScanPlan(t *testing.T) {
 	initTestStorage(t)
 	var sql string
 	sql = "select * from test1;"
@@ -325,7 +325,7 @@ func TestMakeProjectionScanLogicPlan(t *testing.T) {
 	verifyTestPlanFail(t, sql)
 }
 
-func TestMakeOrderByLogicPlan(t *testing.T) {
+func TestMakeOrderByPlan(t *testing.T) {
 	initTestStorage(t)
 	sql := "select * from test1 order by id + id asc;"
 	verifyTestPlan(t, sql)
@@ -343,7 +343,7 @@ func TestMakeOrderByLogicPlan(t *testing.T) {
 	verifyTestPlanFail(t, sql)
 }
 
-func TestMakeJoinLogicPlan(t *testing.T) {
+func TestMakeJoinPlan(t *testing.T) {
 	initTestStorage(t)
 	var sql string
 	sql = "select * from test1, test2;"
@@ -399,7 +399,7 @@ func TestMakeGroupByPlan(t *testing.T) {
 	verifyTestPlanFail(t, sql)
 }
 
-func TestMakeHaveLogicPlan(t *testing.T) {
+func TestMakeHavePlan(t *testing.T) {
 	initTestStorage(t)
 	var sql string
 	sql = "select id from test1 having id > 0;"
@@ -410,7 +410,7 @@ func TestMakeHaveLogicPlan(t *testing.T) {
 	verifyTestPlan(t, sql)
 }
 
-func TestMakeLimitLogicPlan(t *testing.T) {
+func TestMakeLimitPlan(t *testing.T) {
 	initTestStorage(t)
 	var sql string
 	sql = "select * from test1 limit 5;"

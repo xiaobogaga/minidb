@@ -98,6 +98,8 @@ func TestParser_CreateDatabase(t *testing.T) {
 	testSql(t, sql)
 	sql = "create database if not exist db1;"
 	testSql(t, sql)
+	sql = "create database if not exist db1 character set = utf8;"
+	testSql(t, sql)
 	sql = "create database;"
 	testSqlFail(t, sql)
 }

@@ -4,366 +4,543 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xiaobogaga/minidb/parser"
-	"strings"
+	"github.com/xiaobogaga/minidb/storage"
+	"github.com/xiaobogaga/minidb/util"
 )
 
-func MakeLogicPlan(ast *parser.SelectStm, currentDB string) (LogicPlan, error) {
-	scanLogicPlans, err := makeScanLogicPlans(ast.TableReferences, currentDB)
-	if err != nil {
-		return nil, err
-	}
-	logicPlan := makeJoinLogicPlan(scanLogicPlans)
-	selectLogicPlan := makeSelectLogicPlan(logicPlan, ast.Where)
-	if ast.Groupby != nil {
-		return MakeAggreLogicPlan(selectLogicPlan, ast)
-	}
-	// having is the same as where when no group by.
-	if ast.Having != nil {
-		selectLogicPlan = makeSelectLogicPlan(selectLogicPlan, parser.WhereStm(ast.Having))
-	}
-	orderByLogicPlan := makeOrderByLogicPlan(selectLogicPlan, ast.OrderBy, false)
-	projectionsLogicPlan := makeProjectionLogicPlan(orderByLogicPlan, ast.SelectExpressions)
-	limitLogicPlan := makeLimitLogicPlan(projectionsLogicPlan, ast.LimitStm)
-	return limitLogicPlan, limitLogicPlan.TypeCheck()
+type Plan interface {
+	Schema() *storage.TableSchema
+	Child() []Plan
+	String() string
+	TypeCheck() error
+	Execute() *storage.RecordBatch
+	Reset()
 }
 
-func makeScanLogicPlans(tableRefs []parser.TableReferenceStm, currentDB string) (ret []LogicPlan, err error) {
-	for _, tableRef := range tableRefs {
-		switch tableRef.Tp {
-		case parser.TableReferenceTableFactorTp:
-			plan, err := makeScanLogicPlan(tableRef.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, plan)
-		case parser.TableReferenceJoinTableTp: // Build scanLogicPlan for the join op.
-			plan, err := makeScanLogicPlanForJoin(tableRef.TableReference.(parser.JoinedTableStm), currentDB)
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, plan)
-		default:
-			panic("unsupported table ref type")
+type ScanPlan struct {
+	Input      *TableScan `json:"table_scan"`
+	Name       string     `json:"scan_name"`
+	Alias      string     `json:"scan_alias"`
+	SchemaName string     `json:"schema_name"`
+}
+
+// Return a new schema with a possible new name named by alias
+func (scan *ScanPlan) Schema() *storage.TableSchema {
+	originalSchema := scan.Input.Schema()
+	tableSchema := &storage.TableSchema{}
+	for _, column := range originalSchema.Columns {
+		field := storage.Field{
+			SchemaName: originalSchema.SchemaName(),
+			TableName:  originalSchema.TableName(),
+			Name:       column.Name,
+			TP:         column.TP,
 		}
+		tableSchema.AppendColumn(field)
+	}
+	return tableSchema
+}
+
+func (scan *ScanPlan) String() string {
+	return fmt.Sprintf("ScanPlan: %s as %s", scan.Name, scan.Alias)
+}
+
+func (scan *ScanPlan) Child() []Plan {
+	return []Plan{scan.Input}
+}
+
+func (scan *ScanPlan) TypeCheck() error {
+	return scan.Input.TypeCheck()
+}
+
+func (scan *ScanPlan) Execute() *storage.RecordBatch {
+	// we can return directly.
+	return scan.Input.Execute()
+}
+
+func (scan *ScanPlan) Reset() {
+	scan.Input.Reset()
+}
+
+type TableScan struct {
+	Name       string `json:"table_name"`
+	SchemaName string `json:"schema_name"`
+	i          int
+}
+
+func (tableScan *TableScan) Schema() *storage.TableSchema {
+	db := storage.GetStorage().GetDbInfo(tableScan.SchemaName)
+	table := db.GetTable(tableScan.Name)
+	return table.TableSchema
+}
+
+func (tableScan *TableScan) String() string {
+	return fmt.Sprintf("tableScan: %s.%s", tableScan.SchemaName, tableScan.Name)
+}
+
+func (tableScan *TableScan) Child() []Plan {
+	return nil
+}
+
+func (tableScan *TableScan) TypeCheck() error {
+	// First, we check whether the database, table exists.
+	if !storage.GetStorage().HasSchema(tableScan.SchemaName) {
+		return errors.New(fmt.Sprintf("cannot find such schema: '%s'", tableScan.SchemaName))
+	}
+	if !storage.GetStorage().GetDbInfo(tableScan.SchemaName).HasTable(tableScan.Name) {
+		return errors.New(fmt.Sprintf("cannot find such table: '%s'", util.BuildDotString(tableScan.SchemaName, tableScan.Name)))
+	}
+	return nil
+}
+
+var batchSize = 1 << 10
+
+func SetBatchSize(batch int) {
+	batchSize = batch
+}
+
+func (tableScan *TableScan) Execute() *storage.RecordBatch {
+	dbInfo := storage.GetStorage().GetDbInfo(tableScan.SchemaName)
+	table := dbInfo.GetTable(tableScan.Name)
+	ret := table.FetchData(tableScan.i, batchSize)
+	tableScan.i += ret.RowCount()
+	return ret
+}
+
+func (tableScan *TableScan) Reset() {
+	tableScan.i = 0
+}
+
+type JoinPlan struct {
+	LeftPlan   Plan            `json:"left"`
+	JoinType   parser.JoinType `json:"type"`
+	RightPlan  Plan            `json:"right"`
+	LeftBatch  *storage.RecordBatch
+	RightBatch *storage.RecordBatch
+	Expr       Expr
+}
+
+func NewJoinPlan(left, right Plan, tp parser.JoinType) *JoinPlan {
+	return &JoinPlan{
+		LeftPlan:  left,
+		JoinType:  tp,
+		RightPlan: right,
+	}
+}
+
+func (join *JoinPlan) Schema() *storage.TableSchema {
+	leftSchema := join.LeftPlan.Schema()
+	rightSchema := join.RightPlan.Schema()
+	mergedSchema, _ := leftSchema.Merge(rightSchema)
+	return mergedSchema
+}
+
+func (join *JoinPlan) String() string {
+	return fmt.Sprintf("Join(%s, %s, %s)\n", joinTypeToString(join.JoinType), join.LeftPlan, join.RightPlan)
+}
+
+func (join *JoinPlan) Child() []Plan {
+	return []Plan{join.LeftPlan, join.RightPlan}
+}
+
+func (join *JoinPlan) TypeCheck() error {
+	err := join.LeftPlan.TypeCheck()
+	if err != nil {
+		return err
+	}
+	return join.RightPlan.TypeCheck()
+}
+
+func joinTypeToString(joinType parser.JoinType) string {
+	switch joinType {
+	case parser.InnerJoin:
+		return "innerJoin"
+	case parser.LeftOuterJoin:
+		return "leftOuterJoin"
+	case parser.RightOuterJoin:
+		return "rightOuterJoin"
+	default:
+		return ""
+	}
+}
+
+func (join *JoinPlan) Execute() (ret *storage.RecordBatch) {
+	if join.LeftBatch == nil {
+		join.LeftBatch = join.LeftPlan.Execute()
+	}
+	if join.RightBatch == nil {
+		join.RightBatch = join.RightPlan.Execute()
+	}
+	switch join.JoinType {
+	case parser.LeftOuterJoin:
+		if join.LeftBatch == nil {
+			return nil
+		}
+		ret = join.LeftBatch.Join(join.RightBatch, join.LeftPlan.Schema(), join.Schema())
+		join.RightBatch = join.RightPlan.Execute()
+		if join.RightBatch == nil {
+			join.LeftBatch = join.LeftPlan.Execute()
+			join.RightPlan.Reset()
+		}
+	case parser.RightOuterJoin:
+		if join.RightBatch == nil {
+			return nil
+		}
+		ret = join.LeftBatch.Join(join.RightBatch, join.LeftPlan.Schema(), join.Schema())
+		join.LeftBatch = join.LeftPlan.Execute()
+		if join.LeftBatch == nil {
+			join.RightBatch = join.RightPlan.Execute()
+			join.LeftPlan.Reset()
+		}
+	case parser.InnerJoin:
+		if join.LeftBatch == nil || join.RightBatch == nil {
+			return nil
+		}
+		ret = join.LeftBatch.Join(join.RightBatch, join.LeftPlan.Schema(), join.Schema())
+		join.RightBatch = join.RightPlan.Execute()
+		if join.RightBatch == nil {
+			join.LeftBatch = join.LeftPlan.Execute()
+			join.RightPlan.Reset()
+		}
+	}
+	return ret
+}
+
+func (join JoinPlan) Reset() {
+	join.LeftBatch = nil
+	join.RightBatch = nil
+	join.LeftPlan.Reset()
+	join.RightPlan.Reset()
+}
+
+// For where where_condition
+type SelectionPlan struct {
+	Input Plan `json:"select_input"`
+	Expr  Expr `json:"where"`
+}
+
+func (sel *SelectionPlan) Schema() *storage.TableSchema {
+	// The schema is the same as the original schema
+	return sel.Input.Schema()
+}
+
+func (sel *SelectionPlan) String() string {
+	return fmt.Sprintf("SelectionPlan: %s where %s", sel.Input, sel.Expr)
+}
+
+func (sel *SelectionPlan) Child() []Plan {
+	return []Plan{sel.Input}
+}
+
+func (sel *SelectionPlan) TypeCheck() error {
+	err := sel.Input.TypeCheck()
+	if err != nil {
+		return err
+	}
+	err = sel.Expr.TypeCheck()
+	if err != nil {
+		return err
+	}
+	// Note: doesn't allow group by in where clause.
+	if sel.Expr.HasGroupFunc() {
+		return errors.New("invalid use of group function")
+	}
+	f := sel.Expr.toField()
+	if f.TP.Name != storage.Bool {
+		return errors.New(fmt.Sprintf("%s doesn't return bool value", sel.Expr.String()))
+	}
+	return nil
+}
+
+func GetFieldsFromSchema(schema *storage.TableSchema) (ret []storage.Field) {
+	ret = append(ret, schema.Columns...)
+	return
+}
+
+func MakeEmptyRecordBatchFromSchema(schema *storage.TableSchema) *storage.RecordBatch {
+	fields := GetFieldsFromSchema(schema)
+	ret := &storage.RecordBatch{
+		Fields:  fields,
+		Records: make([]*storage.ColumnVector, len(fields)),
+	}
+	for i, f := range fields {
+		ret.Records[i] = &storage.ColumnVector{Field: f}
+	}
+	return ret
+}
+
+func (sel *SelectionPlan) Execute() (ret *storage.RecordBatch) {
+	i := 0
+	for i < batchSize {
+		recordBatch := sel.Input.Execute()
+		if recordBatch == nil {
+			return ret
+		}
+		if ret == nil {
+			ret = MakeEmptyRecordBatchFromSchema(sel.Schema())
+		}
+		selectedRows := sel.Expr.Evaluate(recordBatch)
+		selectedRecords := recordBatch.Filter(selectedRows)
+		ret.Append(selectedRecords)
+		i += selectedRecords.RowCount()
 	}
 	return
 }
 
-func makeScanLogicPlan(tableRefTableFactorStm parser.TableReferenceTableFactorStm, currentDB string) (LogicPlan, error) {
-	switch tableRefTableFactorStm.Tp {
-	case parser.TableReferencePureTableNameTp:
-		table := tableRefTableFactorStm.TableFactorReference.(parser.TableReferencePureTableRefStm)
-		schemaName, tableName, err := splitSchemaAndTableName(table.TableName)
-		if err != nil {
-			return nil, err
-		}
-		if schemaName == "" {
-			schemaName = currentDB
-		}
-		if table.Alias == "" {
-			table.Alias = table.TableName
-		}
-		return &ScanLogicPlan{
-			Name:       tableName,
-			SchemaName: schemaName,
-			Alias:      table.Alias,
-			Input:      &TableScan{Name: tableName, SchemaName: schemaName},
-		}, nil
-	case parser.TableReferenceTableSubQueryTp, parser.TableReferenceSubTableReferenceStmTP:
-		panic("doesn't support sub query currently")
-	}
-	return nil, nil
+func (sel *SelectionPlan) Reset() {
+	sel.Input.Reset()
 }
 
-func splitSchemaAndTableName(schemaTable string) (schema, table string, err error) {
-	splits := strings.Split(schemaTable, ".")
-	if len(splits) >= 3 {
-		err = errors.New("wrong table or schema format")
+// The typeCheck for orderBy and Having are different.
+
+// orderBy orderByExpr
+type OrderByPlan struct {
+	Input   Plan        `json:"order_input"`
+	OrderBy OrderByExpr `json:"order_by"`
+	IsAggr  bool        `json:"is_aggr"`
+	data    *storage.RecordBatch
+	index   int
+}
+
+func (orderBy *OrderByPlan) Schema() *storage.TableSchema {
+	// Should be the same as Expr
+	return orderBy.Input.Schema()
+}
+
+func (orderBy *OrderByPlan) String() string {
+	return fmt.Sprintf("OrderByPlan: %s orderBy %s", orderBy.Input, orderBy.OrderBy)
+}
+
+func (orderBy *OrderByPlan) Child() []Plan {
+	return []Plan{orderBy.Input}
+}
+
+func (orderBy *OrderByPlan) TypeCheck() error {
+	err := orderBy.Input.TypeCheck()
+	if err != nil {
+		return err
+	}
+	err = orderBy.OrderBy.TypeCheck()
+	if err != nil {
+		return err
+	}
+	if !orderBy.IsAggr {
+		return nil
+	}
+	have, ok := orderBy.Input.(*HavingPlan)
+	if ok {
+		return orderBy.OrderBy.AggrTypeCheck(have.Input.GroupByExpr)
+	}
+	return orderBy.OrderBy.AggrTypeCheck(orderBy.Input.(*GroupByPlan).GroupByExpr)
+}
+
+func (orderBy *OrderByPlan) Execute() *storage.RecordBatch {
+	if orderBy.data == nil {
+		orderBy.InitializeAndSort()
+	}
+	if orderBy.data == nil {
+		return nil
+	}
+	ret := orderBy.data.Slice(orderBy.index, batchSize)
+	orderBy.index += batchSize
+	return ret
+}
+
+func (orderBy *OrderByPlan) InitializeAndSort() {
+	if orderBy.data != nil {
 		return
 	}
-	switch len(splits) {
-	case 1:
-		table = splits[0]
-	case 2:
-		schema = splits[0]
-		table = splits[1]
+	batch := orderBy.Input.Execute()
+	if batch == nil {
+		return
 	}
-	return
+	ret := MakeEmptyRecordBatchFromSchema(orderBy.Schema())
+	for batch != nil {
+		ret.Append(batch)
+		batch = orderBy.Input.Execute()
+	}
+	columnVector := orderBy.OrderBy.Evaluate(ret)
+	ret.OrderBy(columnVector)
+	orderBy.data = ret
 }
 
-func joinSpecToExpr(joinSpex *parser.JoinSpecification, input *JoinLogicPlan) (expr LogicExpr) {
-	if joinSpex == nil {
+func (orderBy *OrderByPlan) Reset() {
+	orderBy.Input.Reset()
+	orderBy.data = nil
+	orderBy.index = 0
+}
+
+type ProjectionPlan struct {
+	Input Plan     `json:"projection_input"`
+	Exprs []AsExpr `json:"exprs"`
+	// ret   *storage.RecordBatch
+}
+
+// We don't support alias for now.
+func (proj *ProjectionPlan) Schema() *storage.TableSchema {
+	if len(proj.Exprs) == 0 {
+		return proj.Input.Schema()
+	}
+	// the proj can be: select a1.b, a2.b from a1, a2;
+	// and the inputSchema can be either:
+	// * a pure single table schema.
+	// * a joined table schema with multiple sub tables internal.
+	table := &storage.TableSchema{
+		Columns: []storage.Field{storage.RowIndexField("", "")},
+	}
+	for _, expr := range proj.Exprs {
+		f := expr.toField()
+		table.AppendColumn(f)
+	}
+	return table
+}
+
+func (proj *ProjectionPlan) String() string {
+	return fmt.Sprintf("proj: %s", proj.Input)
+}
+
+func (proj *ProjectionPlan) Child() []Plan {
+	return []Plan{proj.Input}
+}
+
+func (proj *ProjectionPlan) TypeCheck() error {
+	err := proj.Input.TypeCheck()
+	if err != nil {
+		return err
+	}
+	for _, expr := range proj.Exprs {
+		err = expr.TypeCheck()
+		if err != nil {
+			return err
+		}
+	}
+	// For full group by type check.
+	hasGroupBy, nonGroupBy := false, false
+	for _, expr := range proj.Exprs {
+		temp := expr.HasGroupFunc()
+		hasGroupBy = temp
+		nonGroupBy = !temp
+	}
+	if hasGroupBy && nonGroupBy {
+		return errors.New("doesn't mix groupBy and nonGroupBy expressions")
+	}
+	return nil
+}
+
+func (proj *ProjectionPlan) Execute() *storage.RecordBatch {
+	if proj.IsAggr() {
+		return proj.ExecuteAccumulate()
+	}
+	records := proj.Input.Execute()
+	if records == nil {
 		return nil
 	}
-	switch joinSpex.Tp {
-	case parser.JoinSpecificationON:
-		expr = ExprStmToLogicExpr(joinSpex.Condition.(*parser.ExpressionStm), input)
-	case parser.JoinSpecificationUsing:
-		return buildLogicExprForUsing(joinSpex, input)
-	default:
-		panic("unknown join tp")
+	ret := MakeEmptyRecordBatchFromSchema(proj.Schema())
+	for i, expr := range proj.Exprs {
+		colVector := expr.Evaluate(records)
+		// Note: the row index column
+		ret.SetColumnValue(i+1, colVector)
 	}
-	return
+	if len(proj.Exprs) == 0 {
+		// Must be select all.
+		return records
+	}
+	// Now we copy the row index.
+	ret.Records[0].Appends(records.Records[0])
+	return ret
 }
 
-func buildLogicExprForUsing(joinSpex *parser.JoinSpecification, input *JoinLogicPlan) (expr LogicExpr) {
-	cols := joinSpex.Condition.([]string)
-	for i, col := range cols {
-		leftColName := []byte(fmt.Sprintf("%s.%s", input.LeftLogicPlan.Schema().TableName(), col))
-		rightColName := []byte(fmt.Sprintf("%s.%s", input.RightLogicPlan.Schema().TableName(), col))
-		if i == 0 {
-			expr = EqualLogicExpr{
-				Left:  &IdentifierLogicExpr{Ident: leftColName, input: input},
-				Right: &IdentifierLogicExpr{Ident: rightColName, input: input},
-				Name:  "equal",
+// For query like: select sum(id) from test1;
+func (proj *ProjectionPlan) ExecuteAccumulate() (ret *storage.RecordBatch) {
+	records := proj.Input.Execute()
+	if records == nil {
+		return nil
+	}
+	for records != nil {
+		for i := 0; i < records.RowCount(); i++ {
+			for _, expr := range proj.Exprs {
+				expr.Accumulate(i, records)
 			}
-			continue
 		}
-		expr = AndLogicExpr{
-			Left: expr,
-			Right: EqualLogicExpr{
-				Left:  &IdentifierLogicExpr{Ident: leftColName, input: input},
-				Right: &IdentifierLogicExpr{Ident: rightColName, input: input},
-				Name:  "equal",
-			},
-			Name: "and",
+		records = proj.Input.Execute()
+	}
+	ret = MakeEmptyRecordBatchFromSchema(proj.Schema())
+	ret.Records[0].Append(storage.EncodeInt(0))
+	for i, expr := range proj.Exprs {
+		value := expr.AccumulateValue()
+		ret.Records[i+1].Append(value)
+	}
+	return ret
+}
+
+func (proj *ProjectionPlan) Reset() {
+	proj.Input.Reset()
+}
+
+func (proj *ProjectionPlan) IsAggr() bool {
+	for _, expr := range proj.Exprs {
+		if expr.HasGroupFunc() {
+			return true
 		}
 	}
-	return
+	return false
 }
 
-// Build join plan recursively.
-func makeScanLogicPlanForJoin(joinTableStm parser.JoinedTableStm, currentDB string) (LogicPlan, error) {
-	// a inorder traversal to build logic plan.
-	leftLogicPlan, err := makeScanLogicPlan(joinTableStm.TableFactor, currentDB)
-	if err != nil {
-		return nil, err
-	}
-	rightLogicPlan, err := makeScanLogicPlan(joinTableStm.JoinFactors[0].JoinedTableReference.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
-	if err != nil {
-		return nil, err
-	}
-	joinPlan := NewJoinLogicPlan(leftLogicPlan, rightLogicPlan, joinTableStm.JoinFactors[0].JoinTp)
-	expr := joinSpecToExpr(joinTableStm.JoinFactors[0].JoinSpec, joinPlan)
-	if expr == nil {
-		return buildRemainJoinPlan(joinPlan, joinTableStm.JoinFactors[1:], currentDB)
-	}
-	plan := &SelectionLogicPlan{Input: joinPlan, Expr: expr}
-	return buildRemainJoinPlan(plan, joinTableStm.JoinFactors[1:], currentDB)
+type LimitPlan struct {
+	Input  Plan `json:"limit_input"`
+	Count  int  `json:"count"`
+	Offset int  `json:"offset"`
+	Index  int
 }
 
-// Build logic plan for tableFactors[1:]
-func buildRemainJoinPlan(selectionPlan LogicPlan, tableFactors []parser.JoinFactor, currentDB string) (LogicPlan, error) {
-	if len(tableFactors) == 0 {
-		return selectionPlan, nil
-	}
-	rightLogicPlan, err := makeScanLogicPlan(tableFactors[0].JoinedTableReference.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
-	if err != nil {
-		return nil, err
-	}
-	joinPlan := NewJoinLogicPlan(selectionPlan, rightLogicPlan, tableFactors[0].JoinTp)
-	expr := joinSpecToExpr(tableFactors[0].JoinSpec, joinPlan)
-	if expr == nil {
-		return buildRemainJoinPlan(joinPlan, tableFactors[1:], currentDB)
-	}
-	plan := &SelectionLogicPlan{Input: joinPlan, Expr: expr}
-	return buildRemainJoinPlan(plan, tableFactors[1:], currentDB)
+func (limit *LimitPlan) Schema() *storage.TableSchema {
+	return limit.Input.Schema()
 }
 
-func buildLogicPlanForTableReferenceStm(tableRef parser.TableReferenceStm, currentDB string) (LogicPlan, error) {
-	switch tableRef.Tp {
-	case parser.TableReferenceTableFactorTp:
-		return makeScanLogicPlan(tableRef.TableReference.(parser.TableReferenceTableFactorStm), currentDB)
-	case parser.TableReferenceJoinTableTp:
-		return makeScanLogicPlanForJoin(tableRef.TableReference.(parser.JoinedTableStm), currentDB)
-	default:
-		panic("wrong tableRef type")
-	}
-	return nil, nil
+func (limit *LimitPlan) String() string {
+	return fmt.Sprintf("LimitPlan: %s limit %d %d", limit.Input, limit.Count, limit.Offset)
 }
 
-// len(tableRefs) >= 2
-func makeJoinLogicPlan(input []LogicPlan) LogicPlan {
-	if len(input) <= 1 {
-		return input[0]
-	}
-	leftLogicPlan := input[0]
-	for i := 1; i < len(input); i++ {
-		leftLogicPlan = NewJoinLogicPlan(leftLogicPlan, input[i], parser.InnerJoin)
-	}
-	return leftLogicPlan
+func (limit *LimitPlan) Child() []Plan {
+	return []Plan{limit.Input}
 }
 
-func makeSelectLogicPlan(input LogicPlan, whereStm parser.WhereStm) LogicPlan {
-	if whereStm == nil {
-		return input
-	}
-	return &SelectionLogicPlan{
-		Input: input,
-		Expr:  ExprStmToLogicExpr(whereStm, input),
-	}
+func (limit *LimitPlan) TypeCheck() error {
+	return limit.Input.TypeCheck()
 }
 
-func ExprStmToLogicExpr(expr *parser.ExpressionStm, input LogicPlan) LogicExpr {
-	if expr == nil {
+func (limit *LimitPlan) Execute() *storage.RecordBatch {
+	if limit.Count <= 0 || limit.Index-limit.Offset >= limit.Count {
 		return nil
 	}
-	var leftLogicExpr, rightLogicExpr LogicExpr
-	_, isLeftExprExprStm := expr.LeftExpr.(*parser.ExpressionStm)
-	if isLeftExprExprStm {
-		leftLogicExpr = ExprStmToLogicExpr(expr.LeftExpr.(*parser.ExpressionStm), input)
-	} else {
-		leftLogicExpr = ExprTermStmToLogicExpr(expr.LeftExpr.(*parser.ExpressionTerm), input)
+	batch := limit.Input.Execute()
+	if batch == nil {
+		return nil
 	}
-	if expr.RightExpr == nil {
-		return leftLogicExpr
+	// Move index to close to offset first.
+	for batch != nil && limit.Index+batch.RowCount() <= limit.Offset {
+		limit.Index += batch.RowCount()
+		batch = limit.Input.Execute()
 	}
-	_, isRightExprExprStm := expr.RightExpr.(*parser.ExpressionStm)
-	if isRightExprExprStm {
-		rightLogicExpr = ExprStmToLogicExpr(expr.RightExpr.(*parser.ExpressionStm), input)
-	} else {
-		rightLogicExpr = ExprTermStmToLogicExpr(expr.RightExpr.(*parser.ExpressionTerm), input)
+	// Doesn't have data starting from the offset.
+	if batch == nil {
+		limit.Index = limit.Offset + limit.Count // mark all data is consumed.
+		return nil
 	}
-	return buildLogicExprWithOp(leftLogicExpr, rightLogicExpr, expr.Op)
-}
-
-func buildLogicExprWithOp(leftLogicExpr, rightLogicExpr LogicExpr, op *parser.ExpressionOp) LogicExpr {
-	switch op.Tp {
-	case parser.ADD:
-		return AddLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "+"}
-	case parser.MINUS:
-		return MinusLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "-"}
-	case parser.MUL:
-		return MulLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "*"}
-	case parser.DIVIDE:
-		return DivideLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "/"}
-	case parser.MOD:
-		return ModLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "%"}
-	case parser.EQUAL:
-		return EqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "="}
-	case parser.IS:
-		return IsLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "is"}
-	case parser.NOTEQUAL:
-		return NotEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "!="}
-	case parser.GREAT:
-		return GreatLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: ">"}
-	case parser.GREATEQUAL:
-		return GreatEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: ">="}
-	case parser.LESS:
-		return LessLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "<"}
-	case parser.LESSEQUAL:
-		return LessEqualLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "<="}
-	case parser.AND:
-		return AndLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "and"}
-	case parser.OR:
-		return OrLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr, Name: "or"}
-		// case lexer.DOT:
-		// For DotLogicExpr, the leftLogicExpr must be a IdentifierLogicAggrExpr and rightLogicExpt must be
-		// a DotLogicExpr or IdentifierLogicAggrExpr.
-		// A little tricky
-		// dotLogicExpr := DotLogicExpr{Left: leftLogicExpr, Right: rightLogicExpr}
-		// dotLogicExpr.ReBuildIdentifierType()
-		// return dotLogicExpr
-	default:
-		panic("wrong op type")
+	startIndex := 0
+	if limit.Index < limit.Offset {
+		startIndex = limit.Offset - limit.Index
 	}
-}
-
-func ExprTermStmToLogicExpr(exprTerm *parser.ExpressionTerm, input LogicPlan) LogicExpr {
-	var logicExpr LogicExpr
-	switch exprTerm.Tp {
-	case parser.LiteralExpressionTermTP:
-		logicExpr = LiteralExprToLiteralLogicExpr(exprTerm.RealExprTerm.(parser.LiteralExpressionStm))
-	case parser.IdentifierExpressionTermTP:
-		logicExpr = IdentifierExprToIdentifierLogicExpr(exprTerm.RealExprTerm.(parser.IdentifierExpression), input)
-	case parser.FuncCallExpressionTermTP:
-		logicExpr = FuncCallExprToLogicExpr(exprTerm.RealExprTerm.(parser.FunctionCallExpressionStm), input)
-	case parser.SubExpressionTermTP:
-		logicExpr = ExprStmToLogicExpr(exprTerm.RealExprTerm.(*parser.ExpressionStm), input)
-	default:
-		panic("unknown Expr term type")
+	size := batch.RowCount()
+	if limit.Index+size >= (limit.Offset + limit.Count) {
+		size = limit.Count + limit.Offset - startIndex - limit.Index
 	}
-	if exprTerm.UnaryOp == parser.NegativeUnaryOpTp {
-		return NegativeLogicExpr{Expr: logicExpr}
-	}
-	return logicExpr
-}
-
-func LiteralExprToLiteralLogicExpr(literalExprStm parser.LiteralExpressionStm) LogicExpr {
-	ret := LiteralLogicExpr{Data: literalExprStm}
-	ret.Str = ret.String()
+	// ret.Copy(ret, startIndex, size)
+	ret := batch.Slice(startIndex, size)
+	limit.Index += batch.RowCount()
 	return ret
 }
 
-func IdentifierExprToIdentifierLogicExpr(identifierExpr parser.IdentifierExpression, input LogicPlan) LogicExpr {
-	return &IdentifierLogicExpr{Ident: identifierExpr, input: input, Str: string(identifierExpr)}
-}
-
-func FuncCallExprToLogicExpr(funcCallExpr parser.FunctionCallExpressionStm, input LogicPlan) LogicExpr {
-	params := make([]LogicExpr, len(funcCallExpr.Params))
-	for i, param := range funcCallExpr.Params {
-		params[i] = ExprStmToLogicExpr(param, input)
-	}
-	funcCallLogicExpr := MakeFuncCallLogicExpr(funcCallExpr.FuncName, params)
-	return funcCallLogicExpr
-}
-
-//func SubExprTermToLogicExpr(subExpr parser.SubExpressionTerm, input LogicPlan) LogicExpr {
-//	Expr := parser.ExpressionTerm(subExpr)
-//	return ExprTermStmToLogicExpr(&Expr, input)
-//}
-
-func OrderedExpressionToOrderedExprs(orderedExprs []*parser.OrderedExpressionStm, input LogicPlan) OrderByLogicExpr {
-	ret := OrderByLogicExpr{}
-	for _, expr := range orderedExprs {
-		ret.Expr = append(ret.Expr, ExprStmToLogicExpr(expr.Expression, input))
-		ret.Asc = append(ret.Asc, expr.Asc)
-	}
-	return ret
-}
-
-func makeOrderByLogicPlan(input LogicPlan, orderBy *parser.OrderByStm, isAggr bool) LogicPlan {
-	if orderBy == nil {
-		return input
-	}
-	return &OrderByLogicPlan{
-		Input:   input,
-		OrderBy: OrderedExpressionToOrderedExprs(orderBy.Expressions, input),
-		IsAggr:  isAggr,
-	}
-}
-
-func makeLimitLogicPlan(input LogicPlan, limitStm *parser.LimitStm) LogicPlan {
-	if limitStm == nil {
-		return input
-	}
-	return &LimitLogicPlan{
-		Input:  input,
-		Count:  limitStm.Count,
-		Offset: limitStm.Offset,
-	}
-}
-
-func SelectExprToAsExprLogicExpr(selectExprs []*parser.SelectExpr, input LogicPlan) []AsLogicExpr {
-	ret := make([]AsLogicExpr, len(selectExprs))
-	for i := 0; i < len(selectExprs); i++ {
-		as := AsLogicExpr{}
-		as.Expr = ExprStmToLogicExpr(selectExprs[i].Expr, input)
-		as.Alias = selectExprs[i].Alias
-		ret[i] = as
-	}
-	return ret
-}
-
-func makeProjectionLogicPlan(input LogicPlan, selectExprStm *parser.SelectExpressionStm) *ProjectionLogicPlan {
-	projectionLogicPlan := &ProjectionLogicPlan{
-		Input: input,
-	}
-	switch selectExprStm.Tp {
-	case parser.StarSelectExpressionTp:
-		return projectionLogicPlan
-	case parser.ExprSelectExpressionTp:
-		projectionLogicPlan.Exprs = SelectExprToAsExprLogicExpr(selectExprStm.Expr.([]*parser.SelectExpr), input)
-	}
-	return projectionLogicPlan
+func (limit *LimitPlan) Reset() {
+	limit.Input.Reset()
+	limit.Index = 0
 }

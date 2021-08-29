@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func getFunc(name string, params []LogicExpr) FuncInterface {
+func getFunc(name string, params []Expr) FuncInterface {
 	name = strings.ToUpper(name)
 	switch name {
 	case "CHARLENGTH":
@@ -48,7 +48,7 @@ type funcInterface func(params [][]byte) []byte
 type CharLengthFunc struct {
 	Name   string
 	Fn     funcInterface
-	Params []LogicExpr
+	Params []Expr
 }
 
 func (charLengthFunc CharLengthFunc) TypeCheck() error {
@@ -105,7 +105,7 @@ func (charLengthFunc CharLengthFunc) F() funcInterface {
 type MaxFunc struct {
 	Name        string
 	Fn          funcInterface
-	Params      []LogicExpr
+	Params      []Expr
 	Accumulator []byte
 }
 
@@ -162,7 +162,7 @@ func (max *MaxFunc) String() string {
 type MinFunc struct {
 	Name        string
 	Fn          funcInterface
-	Params      []LogicExpr
+	Params      []Expr
 	Accumulator []byte
 }
 
@@ -219,7 +219,7 @@ func (min *MinFunc) String() string {
 type CountFunc struct {
 	Name        string
 	Fn          funcInterface
-	Params      []LogicExpr
+	Params      []Expr
 	Accumulator []byte
 }
 
@@ -275,7 +275,7 @@ func (count *CountFunc) String() string {
 type SumFunc struct {
 	Name        string
 	Fn          funcInterface
-	Params      []LogicExpr
+	Params      []Expr
 	Accumulator []byte
 }
 

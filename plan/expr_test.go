@@ -12,7 +12,7 @@ func verifyTestExpr(t *testing.T, sql string) {
 	parser.Set([]byte(sql))
 	stm, err := parser.ResolveWhereStm()
 	assert.Nil(t, err)
-	expr := ExprStmToLogicExpr(stm, nil)
+	expr := ExprStmToExpr(stm, nil)
 	data, err := json.MarshalIndent(expr, "", "\t")
 	assert.Nil(t, err)
 	println(string(data))
