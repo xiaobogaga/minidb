@@ -90,7 +90,7 @@ func ExecuteCreateDatabaseStm(stm *parser.CreateDatabaseStm) error {
 		return nil
 	}
 	// Create database otherwise
-	storage.GetStorage().CreateSchema(stm.DatabaseName, stm.Charset, stm.Collate)
+	storage.GetStorage().CreateSchema(stm.DatabaseName, string(stm.Charset), string(stm.Collate))
 	return nil
 }
 
@@ -226,8 +226,8 @@ func ExecuteCreateTableStm(stm *parser.CreateTableStm, currentDB string) error {
 	}
 	table := &storage.TableInfo{
 		TableSchema: tableSchema,
-		Charset:     stm.Charset,
-		Collate:     stm.Collate,
+		Charset:     string(stm.Charset),
+		Collate:     string(stm.Collate),
 		Engine:      stm.Engine,
 		Datas:       make([]*storage.ColumnVector, len(tableSchema.Columns)),
 	}
