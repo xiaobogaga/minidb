@@ -60,9 +60,9 @@ func (parser *Parser) parseAlterDatabaseStm() (Stm, error) {
 	if !ok {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
-	charset, collate, ok := parser.parseCharsetAndCollate()
+	charset, collate, err := parser.parseCharsetAndCollate()
 	if !ok {
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
+		return nil, err
 	}
 	return &AlterDatabaseStm{DatabaseName: string(dbName), Charset: charset, Collate: collate}, nil
 }
@@ -229,9 +229,9 @@ func (parser *Parser) parseAlterEngineStm(tableName string) (*AlterTableAlterEng
 // [[default] | character set = value] |
 // [[default] | collate = value]
 func (parser *Parser) parseAlterCharsetCollateStm(tableName string) (*AlterTableCharsetCollateStm, error) {
-	charset, collate, ok := parser.parseCharsetAndCollate()
-	if !ok {
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
+	charset, collate, err := parser.parseCharsetAndCollate()
+	if err != nil {
+		return nil, err
 	}
 	return &AlterTableCharsetCollateStm{TableName: tableName, Charset: charset, Collate: collate}, nil
 }

@@ -11,8 +11,8 @@ type Stm interface {
 type CreateDatabaseStm struct {
 	DatabaseName string
 	IfNotExist   bool
-	Charset      string
-	Collate      string
+	Charset      CharacterSetTP
+	Collate      CollateTP
 }
 
 // create table statements:
@@ -32,8 +32,8 @@ type CreateTableStm struct {
 	Indexes     []*IndexDefStm
 	Constraints []*ConstraintDefStm
 	Engine      string
-	Charset     string
-	Collate     string
+	Charset     CharacterSetTP
+	Collate     CollateTP
 }
 
 // create table [if not exist] as selectStatement;
@@ -239,8 +239,8 @@ const (
 // [[default] | collate = value]
 type AlterTableCharsetCollateStm struct {
 	TableName string
-	Charset   string
-	Collate   string
+	Charset   CharacterSetTP
+	Collate   CollateTP
 }
 
 type AlterTableAlterEngineStm struct {
@@ -252,8 +252,8 @@ type AlterTableAlterEngineStm struct {
 // * alter {database | schema} db_name [[Default | character set = value] | [Default | collate = value]]
 type AlterDatabaseStm struct {
 	DatabaseName string
-	Charset      string
-	Collate      string
+	Charset      CharacterSetTP
+	Collate      CollateTP
 }
 
 // Second DML
@@ -603,3 +603,35 @@ const (
 	RollbackStm          = "rollback"
 	CommitStm            = "commit"
 )
+
+type CharacterSetTP string
+
+const (
+	UTF8TP                CharacterSetTP = "utf8"
+	UTF16TP                              = "utf16"
+	UTF32TP                              = "utf32"
+	DEFAULTCHARACTERSETTP                = "default"
+)
+
+var characterSetMap = map[TokenType]CharacterSetTP{
+	UTF8:    UTF8TP,
+	UTF16:   UTF16TP,
+	UTF32:   UTF32TP,
+	DEFAULT: DEFAULTCHARACTERSETTP,
+}
+
+type CollateTP string
+
+const (
+	UTF8GENERALCITP  CollateTP = "UTF8GENERALCI"
+	UTF16GENERALCITP           = "UTF16GENERALCI"
+	UTF32GENERALCITP           = "UTF32GENERALCI"
+	DEFAULTCOLLATETP           = "Default"
+)
+
+var collateMap = map[TokenType]CollateTP{
+	UTF8GENERALCI:  UTF8GENERALCITP,
+	UTF16GENERALCI: UTF16GENERALCITP,
+	UTF32GENERALCI: UTF32GENERALCITP,
+	DEFAULT:        DEFAULTCOLLATETP,
+}

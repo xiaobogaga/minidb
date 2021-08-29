@@ -247,3 +247,33 @@ func (parser *Parser) parseValue(ifNotRollback bool) ([]byte, bool) {
 	}
 	return parser.Data[t.StartPos:t.EndPos], true
 }
+
+func (parser *Parser) parseCharacterSet() (CharacterSetTP, error) {
+	if !parser.matchTokenTypes(true, CHARACTER, SET, EQUAL) {
+		return DEFAULTCHARACTERSETTP, nil
+	}
+	token, ok := parser.NextToken()
+	if !ok {
+		return DEFAULTCHARACTERSETTP, parser.MakeSyntaxError(parser.pos - 1)
+	}
+	character, ok := characterSetMap[token.Tp]
+	if !ok {
+		return DEFAULTCHARACTERSETTP, parser.MakeSyntaxError(parser.pos - 1)
+	}
+	return character, nil
+}
+
+func (parser *Parser) parseCollate() (CollateTP, error) {
+	if !parser.matchTokenTypes(true, COLLATE, EQUAL) {
+		return DEFAULTCOLLATETP, nil
+	}
+	token, ok := parser.NextToken()
+	if !ok {
+		return DEFAULTCOLLATETP, parser.MakeSyntaxError(parser.pos - 1)
+	}
+	collate, ok := collateMap[token.Tp]
+	if !ok {
+		return DEFAULTCOLLATETP, parser.MakeSyntaxError(parser.pos - 1)
+	}
+	return collate, nil
+}

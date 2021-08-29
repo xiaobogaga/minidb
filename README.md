@@ -99,9 +99,9 @@ minidb supports a set of sql statements:
 
 * `create table [if not exist] tb_name2 (
     Column_Def...
-    ) [engine=value] [[Default | character set = value] | [Default | collate = value]];`
+    ) [engine=value] [[character set = value] | [collate = value]];`
 
-* `create {database|schema} [if not exist] database_name [[Default | character set = value] | [Default | collate = value]];`
+* `create {database|schema} [if not exist] database_name [[character set = value] | [collate = value]];`
 
 ### drop
 

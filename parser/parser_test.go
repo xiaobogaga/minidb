@@ -98,9 +98,13 @@ func TestParser_CreateDatabase(t *testing.T) {
 	testSql(t, sql)
 	sql = "create database if not exist db1;"
 	testSql(t, sql)
-	sql = "create database if not exist db1 character set = utf8;"
+	sql = "create database if not exist db1 character set = utf8 collate = utf8_general_ci;"
 	testSql(t, sql)
 	sql = "create database;"
+	testSqlFail(t, sql)
+	sql = "create database db1 character set = utf8xx collate = utf8_general_ci;"
+	testSqlFail(t, sql)
+	sql = "create database db1 character set;"
 	testSqlFail(t, sql)
 }
 

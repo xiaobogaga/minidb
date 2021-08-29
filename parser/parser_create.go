@@ -40,7 +40,7 @@ func (parser *Parser) resolveCreateStm() (stm Stm, err error) {
 		return nil, err
 	}
 	if !parser.matchTokenTypes(true, SEMICOLON) {
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
+		return nil, parser.MakeSyntaxError(parser.pos)
 	}
 	return stm, nil
 }
@@ -142,9 +142,9 @@ func (parser *Parser) parseClassicCreateTableStm(ifNotExist bool, tableName []by
 		}
 		engine = ret
 	}
-	charset, collate, ok := parser.parseCharsetAndCollate()
-	if !ok {
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
+	charset, collate, err := parser.parseCharsetAndCollate()
+	if err != nil {
+		return nil, err
 	}
 	return &CreateTableStm{
 		TableName:   string(tableName),
@@ -179,9 +179,9 @@ func (parser *Parser) parseCreateDatabaseStm() (*CreateDatabaseStm, error) {
 	if !ret || isTableNameEmpty(databaseName) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
-	charset, collate, ok := parser.parseCharsetAndCollate()
-	if !ok {
-		return nil, parser.MakeSyntaxError(parser.pos - 1)
+	charset, collate, err := parser.parseCharsetAndCollate()
+	if err != nil {
+		return nil, err
 	}
 	return &CreateDatabaseStm{
 		DatabaseName: string(databaseName),
@@ -191,24 +191,11 @@ func (parser *Parser) parseCreateDatabaseStm() (*CreateDatabaseStm, error) {
 	}, nil
 }
 
-func (parser *Parser) parseCharsetAndCollate() (charset, collate string, ok bool) {
-	if parser.matchTokenTypes(true, DEFAULT) {
-		charset = "default"
-	} else if parser.matchTokenTypes(true, CHARACTER, SET, EQUAL) {
-		value, ret := parser.parseValue(false)
-		if !ret {
-			return
-		}
-		charset = string(value)
+func (parser *Parser) parseCharsetAndCollate() (charset CharacterSetTP, collate CollateTP, err error) {
+	charset, err = parser.parseCharacterSet()
+	if err != nil {
+		return
 	}
-	if parser.matchTokenTypes(true, DEFAULT) {
-		collate = "default"
-	} else if parser.matchTokenTypes(true, COLLATE, EQUAL) {
-		value, ret := parser.parseValue(false)
-		if !ret {
-			return
-		}
-		collate = string(value)
-	}
-	return charset, collate, true
+	collate, err = parser.parseCollate()
+	return
 }
