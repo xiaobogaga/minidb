@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -9,8 +8,8 @@ import (
 	"github.com/xiaobogaga/minidb/protocol"
 	"github.com/xiaobogaga/minidb/storage"
 	"github.com/xiaobogaga/minidb/util"
+	"github.com/xiaobogaga/tty"
 	"net"
-	"os"
 	"time"
 )
 
@@ -18,9 +17,10 @@ var welcomeMessage = "hi :)"
 
 var prompt = "minidb> "
 
-func showPrompt() {
-	fmt.Print(prompt)
-}
+var (
+	commandHistory         []string
+	commandHistoryCapacity = 100
+)
 
 // Return the maximum width of the column in record.
 func columnWidth(record *storage.RecordBatch, column int) int {
@@ -181,31 +181,44 @@ func showWelcomeMessage() {
 func interact(cancel context.CancelFunc, conn net.Conn) {
 	defer cancel()
 	var packetCounter byte = 0
+	screen := tty.NewScreen([]rune(prompt))
+	err := screen.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer screen.Close()
+	reader := screen.Command()
 	showWelcomeMessage()
-	reader := bufio.NewReader(os.Stdin)
 	for {
-		showPrompt()
-		input, _, _ := reader.ReadLine()
-		command, err := protocol.StrToCommand(string(input))
+		input := <-reader
+		if input.Error != nil {
+			return
+		}
+		command, err := protocol.StrToCommand(input.Input)
 		if err != nil {
 			fmt.Printf("parse command error: %v\n", err)
+			input.Done <- struct{}{}
 			continue
 		}
 		errMsg := protocol.WriteCommand(conn, packetCounter, command,
 			time.Millisecond*time.Duration(*writeTimeout))
 		if !errMsg.IsOk() {
 			fmt.Printf("failed to send command: err: %v\n", err)
+			input.Done <- struct{}{}
 			return
 		}
 		if command.Tp == protocol.TpComQuit {
+			input.Done <- struct{}{}
 			return
 		}
 		// Now can wait for server response.
 		err = handleResp(packetCounter, conn)
 		if err != nil {
 			fmt.Printf("failed to handle resp: err: %v\n", err)
+			input.Done <- struct{}{}
 			return
 		}
+		input.Done <- struct{}{}
 		packetCounter++
 	}
 }
