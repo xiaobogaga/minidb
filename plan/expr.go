@@ -110,6 +110,58 @@ func (ident *IdentifierExpr) Compute() ([]byte, error) {
 	return nil, errors.New("unsupported action")
 }
 
+type AllExpr struct {
+	input Plan
+	Str   string
+}
+
+func (all *AllExpr) toField() storage.Field {
+	schema := all.input.Schema()
+	return storage.Field{
+		Name:       "*",
+		TableName:  schema.TableName(),
+		SchemaName: schema.SchemaName(),
+		TP:         storage.FieldTP{Name: storage.Multiple},
+	}
+}
+
+func (all *AllExpr) String() string {
+	return "*"
+}
+
+func (all *AllExpr) TypeCheck() error {
+	return all.input.TypeCheck()
+}
+
+func (all *AllExpr) AggrTypeCheck(_ []Expr) error {
+	return errors.New("cannot group by on *")
+}
+
+func (all *AllExpr) Evaluate(input *storage.RecordBatch) *storage.ColumnVector {
+	return input.Records[0]
+}
+
+func (all *AllExpr) EvaluateRow(row int, input *storage.RecordBatch) []byte {
+	return input.Records[0].RawValue(row)
+}
+
+func (all *AllExpr) Accumulate(_ int, _ *storage.RecordBatch) {
+	return
+}
+
+func (all *AllExpr) AccumulateValue() []byte {
+	return nil
+}
+
+func (all *AllExpr) Clone(_ bool) Expr {
+	all.input.Reset()
+	return &AllExpr{input: all.input, Str: "*"}
+}
+
+func (all *AllExpr) HasGroupFunc() bool { return false }
+
+func (all *AllExpr) Compute() ([]byte, error) { return nil, errors.New("unsupported action") }
+
 type LiteralExpr struct {
 	TP storage.FieldTP
 	// Data is a bytes array, which might be a "xxx", or 'xxx' or true, false, or numerical value such as .10100, 01001, 909008

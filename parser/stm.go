@@ -308,6 +308,7 @@ const (
 	SubExpressionTermTP
 	IdentifierExpressionTermTP // should be column
 	FuncCallExpressionTermTP
+	AllExpressionTermTP // for count(*)
 )
 
 type ExpressionOp struct {

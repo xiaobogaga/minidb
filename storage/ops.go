@@ -44,7 +44,7 @@ func Add(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Add")
 		}
 	}
-	panic("unknown supported type on Add")
+	panic("unsupported type on Add")
 }
 
 func Minus(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
@@ -82,7 +82,7 @@ func Minus(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Minus")
 		}
 	}
-	panic("unknown supported type on Minus")
+	panic("unsupported type on Minus")
 }
 
 func Mul(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
@@ -121,7 +121,7 @@ func Mul(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Mul")
 		}
 	}
-	panic("unknown supported type on Mul")
+	panic("unsupported type on Mul")
 }
 
 func Divide(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
@@ -159,7 +159,7 @@ func Divide(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
 			panic("unsupported type on Divide")
 		}
 	}
-	panic("unknown supported type on Divide")
+	panic("unsupported type on Divide")
 }
 
 func Mod(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) []byte {
@@ -271,7 +271,7 @@ func compare(val1 []byte, tp1 FieldTP, val2 []byte, tp2 FieldTP) int {
 		}
 		return 0
 	default:
-		panic("unknown type")
+		panic(fmt.Sprintf("cannot compare on type: %s", tp1.Name))
 	}
 }
 

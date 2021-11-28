@@ -113,6 +113,10 @@ func (max *MaxFunc) TypeCheck() error {
 	if len(max.Params) != 1 {
 		return errors.New(fmt.Sprintf("%s: param size doesn't match", max.String()))
 	}
+	param := max.Params[0]
+	if param.toField().IsMultiple() {
+		return errors.New(fmt.Sprintf("%s: param type doesn't match", max.String()))
+	}
 	return nil
 }
 
@@ -169,6 +173,10 @@ type MinFunc struct {
 func (min *MinFunc) TypeCheck() error {
 	if len(min.Params) != 1 {
 		return errors.New(fmt.Sprintf("%s: param size doesn't match", min.String()))
+	}
+	param := min.Params[0]
+	if param.toField().IsMultiple() {
+		return errors.New(fmt.Sprintf("%s: param type doesn't match", min.String()))
 	}
 	return nil
 }

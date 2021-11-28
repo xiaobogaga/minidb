@@ -77,6 +77,8 @@ func TestSelect(t *testing.T) {
 	testOneSql(t, sql)
 	sql = "   	select name+ 10, age from db where age 	==10 and c == 'p' or f == 10.09 and name==\"hello\""
 	testOneSql(t, sql)
+	sql = "select count(*) from test;"
+	testOneSql(t, sql)
 }
 
 func TestUpdate(t *testing.T) {

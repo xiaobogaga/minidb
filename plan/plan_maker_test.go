@@ -295,6 +295,8 @@ func TestMakeProjectionScanPlan(t *testing.T) {
 	var sql string
 	sql = "select * from test1;"
 	verifyTestPlan(t, sql)
+	sql = "select count(*) from test1;"
+	verifyTestPlan(t, sql)
 	sql = "select id, name from test1;"
 	verifyTestPlan(t, sql)
 	sql = "select id, name from test1 where id = 1 or id = 2 and id = 3;"
@@ -322,6 +324,10 @@ func TestMakeProjectionScanPlan(t *testing.T) {
 	sql = "select ttt(id) from test1 where name = 'hello';"
 	verifyTestPlanFail(t, sql)
 	sql = "select id from test1 where id = 'hello';"
+	verifyTestPlanFail(t, sql)
+	sql = "select sum(*) from test1;"
+	verifyTestPlanFail(t, sql)
+	sql = "select max(*) from test1;"
 	verifyTestPlanFail(t, sql)
 }
 

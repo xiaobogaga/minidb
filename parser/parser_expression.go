@@ -240,6 +240,19 @@ func (parser *Parser) parseFunctionCallExpression() (*ExpressionTerm, error) {
 	if !parser.matchTokenTypes(false, LEFTBRACKET) {
 		return nil, parser.MakeSyntaxError(parser.pos - 1)
 	}
+	// count(*)
+	if parser.matchTokenTypes(true, MUL, RIGHTBRACKET) {
+		return &ExpressionTerm{
+			UnaryOp: NoneUnaryOpTp,
+			Tp: FuncCallExpressionTermTP,
+			RealExprTerm: FunctionCallExpressionStm{
+				FuncName: string(funcName),
+				Params: []*ExpressionStm{
+					{LeftExpr: &ExpressionTerm{Tp: AllExpressionTermTP}},
+				},
+			},
+		}, nil
+	}
 	var params []*ExpressionStm
 	for {
 		paramExpression, err := parser.resolveExpression()

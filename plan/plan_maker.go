@@ -270,23 +270,25 @@ func buildExprWithOp(leftExpr, rightExpr Expr, op *parser.ExpressionOp) Expr {
 }
 
 func ExprTermStmToExpr(exprTerm *parser.ExpressionTerm, input Plan) Expr {
-	var Expr Expr
+	var expr Expr
 	switch exprTerm.Tp {
 	case parser.LiteralExpressionTermTP:
-		Expr = LiteralExprToLiteralExpr(exprTerm.RealExprTerm.(parser.LiteralExpressionStm))
+		expr = LiteralExprToLiteralExpr(exprTerm.RealExprTerm.(parser.LiteralExpressionStm))
 	case parser.IdentifierExpressionTermTP:
-		Expr = IdentifierExprToIdentifierExpr(exprTerm.RealExprTerm.(parser.IdentifierExpression), input)
+		expr = IdentifierExprToIdentifierExpr(exprTerm.RealExprTerm.(parser.IdentifierExpression), input)
 	case parser.FuncCallExpressionTermTP:
-		Expr = FuncCallExprToExpr(exprTerm.RealExprTerm.(parser.FunctionCallExpressionStm), input)
+		expr = FuncCallExprToExpr(exprTerm.RealExprTerm.(parser.FunctionCallExpressionStm), input)
 	case parser.SubExpressionTermTP:
-		Expr = ExprStmToExpr(exprTerm.RealExprTerm.(*parser.ExpressionStm), input)
+		expr = ExprStmToExpr(exprTerm.RealExprTerm.(*parser.ExpressionStm), input)
+	case parser.AllExpressionTermTP:
+		expr = &AllExpr{input: input, Str: "*"}
 	default:
-		panic("unknown Expr term type")
+		panic("unknown expr term type")
 	}
 	if exprTerm.UnaryOp == parser.NegativeUnaryOpTp {
-		return NegativeExpr{Expr: Expr}
+		return NegativeExpr{Expr: expr}
 	}
-	return Expr
+	return expr
 }
 
 func LiteralExprToLiteralExpr(literalExprStm parser.LiteralExpressionStm) Expr {

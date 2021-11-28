@@ -62,6 +62,8 @@ func TestParser_Select(t *testing.T) {
 	testSql(t, sql)
 	sql = "select c1, c2 from test where i = 10 order by age limit 10;"
 	testSql(t, sql)
+	sql = "select count(*) from  test1;"
+	testSql(t, sql)
 	sql = "select c1 from where i = 1;"
 	testSqlFail(t, sql)
 }

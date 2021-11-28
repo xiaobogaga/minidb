@@ -304,7 +304,7 @@ func (schema *TableSchema) Merge(right *TableSchema) (*TableSchema, error) {
 }
 
 func (schema *TableSchema) SetSchemaTableName(schemaName string, tableName string) {
-	for i, _ := range schema.Columns {
+	for i := range schema.Columns {
 		schema.Columns[i].SchemaName, schema.Columns[i].TableName = schemaName, tableName
 	}
 }
@@ -566,6 +566,10 @@ func (f Field) IsFloat() bool {
 	return f.TP.Name == Float
 }
 
+func (f Field) IsMultiple() bool {
+	return f.TP.Name == Multiple
+}
+
 func (f Field) CanOp(another Field, opType OpType) (err error) {
 	switch opType {
 	case NegativeOpType:
@@ -646,6 +650,8 @@ func (f Field) CanAssign(val []byte) (err error) {
 		if err != nil {
 			err = errors.New("wrong time format")
 		}
+	case Multiple:
+		err = errors.New("cannot assign to * type")
 	}
 	return
 }
@@ -1152,6 +1158,7 @@ const (
 	MediumBlob FieldTPName = "mediumBlob"
 	Text       FieldTPName = "text"
 	MediumText FieldTPName = "mediumText"
+	Multiple   FieldTPName = "*"
 )
 
 // Several no range fieldTP map.
@@ -1168,4 +1175,5 @@ var DefaultFieldTpMap = map[FieldTPName]FieldTP{
 	Float:      {Name: Float, Range: [2]int{64, 64}},
 	Char:       {Name: Float, Range: [2]int{1 << 8}},
 	VarChar:    {Name: Float, Range: [2]int{1 << 16}},
+	Multiple:   {Name: Multiple},
 }
